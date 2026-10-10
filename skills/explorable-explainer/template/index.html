@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>How does a lever work?</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -73,6 +74,8 @@ em { font-style: italic; }
 .out { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin: 0 0 0 auto; }
 .out div { display: flex; gap: 0.5rem; }
 .out dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.hint { margin-left: auto; }
+.stage svg .hot { cursor: help; }
 .defs { position: absolute; width: 0; height: 0; color: var(--ink); }
 </style>
 
@@ -104,13 +107,14 @@ em { font-style: italic; }
     <header><span>FIG_001</span><span>[ a lever, rocking ]</span></header>
     <div class="stage"></div>
     <footer>
-      <p class="cap">Slide the fulcrum. The dashed arcs are how far each end travels in one rock. A short arm moves little and pushes hard; a long arm moves far and pushes gently.</p>
+      <p class="cap">The fulcrum drifts on its own until you take the slider. The dashed arcs are how far each end travels in one rock. A short arm moves little and pushes hard; a long arm moves far and pushes gently.</p>
       <div class="ctl">
         <label class="range"><span>near the load</span><input type="range" id="f1-pivot" data-k="pivot" min="0.15" max="0.85" step="0.01" value="0.3" aria-label="fulcrum position"><span>near you</span></label>
         <dl class="out">
           <div><dt>push needed</dt><dd data-o="push">–</dd></div>
           <div><dt>your hand moves</dt><dd data-o="travel">–</dd></div>
         </dl>
+        <span class="hint" data-o="hint">hover a label to learn more</span>
       </div>
     </footer>
   </figure>
@@ -142,37 +146,54 @@ function phase(t, beats) {                         // where t sits in a looping 
   while (i < beats.length - 1 && t > beats[i]) t -= beats[i++];
   return { i, p: clamp(t / beats[i]) };
 }
-function label(g, px, py, tx, ty, text, sub, anchor = 'start') {   // leader line from text to a dot on the part
-  const G = el('g', {}, g);
-  el('line', { x1: px, y1: py, x2: tx, y2: ty + 5, class: 'guide' }, G);
-  el('circle', { cx: px, cy: py, r: 2, class: 'ink' }, G);
-  el('text', { x: tx, y: ty, 'text-anchor': anchor, text }, G);
-  if (sub) el('text', { x: tx, y: ty + 14, 'text-anchor': anchor, class: 'sub', text: sub }, G);
+function label(g, text, sub, anchor = 'start') {   // build once; place with .at(px, py, tx, ty) (dot on the part, text position)
+  // the leader meets the side of the text that faces the part: anchor 'start' = text right of the part,
+  // 'end' = text left of it, 'middle' = text above or below it
+  const G = el('g', { class: 'hot' }, g), ln = el('line', { class: 'guide' }, G), dot = el('circle', { r: 2, class: 'ink' }, G);
+  const t1 = el('text', { 'text-anchor': anchor, text }, G);
+  const t2 = sub ? el('text', { 'text-anchor': anchor, class: 'sub', text: sub }, G) : null;
+  G.at = (px, py, tx, ty) => {
+    const [lx, ly] = anchor === 'start' ? [tx - 5, ty - 4] : anchor === 'end' ? [tx + 5, ty - 4]
+      : [tx, py < ty ? ty - 15 : ty + (sub ? 19 : 6)];
+    set(ln, { x1: px, y1: py, x2: lx, y2: ly }); set(dot, { cx: px, cy: py }); set(t1, { x: tx, y: ty });
+    if (t2) set(t2, { x: tx, y: ty + 14 });
+    return G;
+  };
   return G;
 }
 
-/* fig(id, { w, h, s, build(svg, s) -> refs, draw(refs, s, out), tick(s, dt) })
-   - controls in the figure's footer bind by data-k: <input type=range data-k> -> number, <div class=seg data-k> buttons -> value
+/* fig(id, { w, h, s, build(svg, s, out) -> refs, draw(refs, s, out), tick(s, dt) })
+   - s holds the state. Put the opening still in it (e.g. s.t at a key moment); it beats the HTML control values.
+   - footer controls bind by data-k: <input type=range data-k> -> number; <div class=seg data-k> -> the clicked button's
+     value, as a number when it looks like one
+   - controls follow s after every draw, so tick may drive them (autoplay, a step list) until the reader
+     takes over: any control the reader touches sets s.touched = true
    - out('name', text) fills every [data-o="name"] inside the figure
-   - tick runs only while the figure is on screen and the reader allows motion */
+   - tick runs only while the figure is on screen and the reader allows motion; STILL.matches is true for
+     reduced-motion readers, so check it in draw before animating a one-off transition */
 const FIGS = [], STILL = matchMedia('(prefers-reduced-motion: reduce)');
 const IO = new IntersectionObserver(es => es.forEach(e => { const f = FIGS.find(f => f.root === e.target); if (f) f.on = e.isIntersecting; }), { rootMargin: '80px' });
+const num = v => v !== '' && !isNaN(v) ? +v : v;
 function fig(id, o) {
   const root = document.getElementById(id), s = o.s || {};
   const svg = el('svg', { viewBox: `0 0 ${o.w} ${o.h}`, role: 'img', 'aria-label': root.querySelector('header span:last-child')?.textContent.replace(/[\[\]]/g, '').trim() || id }, root.querySelector('.stage'));
   const out = (k, v) => root.querySelectorAll(`[data-o="${k}"]`).forEach(n => n.textContent = v);
-  root.querySelectorAll('input[data-k]').forEach(i => {
-    s[i.dataset.k] = +i.value;
-    i.addEventListener('input', () => { s[i.dataset.k] = +i.value; draw(); });
+  const ins = [...root.querySelectorAll('input[data-k]')];
+  const segs = [...root.querySelectorAll('.seg[data-k]')].map(g => ({ k: g.dataset.k, bs: [...g.querySelectorAll('button')] }));
+  ins.forEach(i => {
+    const k = i.dataset.k; if (!(k in s)) s[k] = +i.value;
+    i.addEventListener('input', () => { s[k] = +i.value; s.touched = true; draw(); });
   });
-  root.querySelectorAll('.seg[data-k]').forEach(g => {
-    const bs = [...g.querySelectorAll('button')];
-    const pick = b => { bs.forEach(x => x.setAttribute('aria-pressed', x === b)); s[g.dataset.k] = b.value; };
-    pick(bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]);
-    bs.forEach(b => b.addEventListener('click', () => { pick(b); draw(); }));
+  segs.forEach(({ k, bs }) => {
+    if (!(k in s)) s[k] = num((bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]).value);
+    bs.forEach(b => b.addEventListener('click', () => { s[k] = num(b.value); s.touched = true; draw(); }));
   });
+  const sync = () => {
+    for (const i of ins) if (i !== document.activeElement && +i.value !== s[i.dataset.k]) i.value = s[i.dataset.k];
+    for (const { k, bs } of segs) for (const b of bs) b.setAttribute('aria-pressed', num(b.value) === s[k]);
+  };
   const refs = o.build(svg, s, out);
-  const draw = () => o.draw(refs, s, out);
+  const draw = () => { o.draw(refs, s, out); sync(); };
   draw();
   const f = { root, o, s, draw, on: false };
   if (o.tick) { FIGS.push(f); IO.observe(root); }
@@ -186,9 +207,10 @@ requestAnimationFrame(function loop(t) {
 });
 
 /* ===== FIG_001 (EXAMPLE: delete it and write your own) ===== */
+const LOAD_KG = 20, G_ACC = 9.81;                             // constants the prose quotes too
 fig('f1', {
-  w: 720, h: 300, s: { t: 0 },
-  build(svg) {
+  w: 720, h: 300, s: { t: 0, pivot: 0.3 },
+  build(svg, s, out) {
     const L = 60, R = 660, Y = 170, G = 250;
     el('line', { x1: 30, y1: G, x2: 690, y2: G }, svg);
     for (let x = 40; x < 690; x += 14) el('line', { x1: x, y1: G, x2: x - 8, y2: G + 8, class: 'guide' }, svg);
@@ -202,7 +224,12 @@ fig('f1', {
     el('line', { x1: R - 10, y1: Y - 74, x2: R - 10, y2: Y - 14, 'marker-end': 'url(#arrow)' }, r.beam);
     r.pivot = el('path', { class: 'solid' }, svg);
     r.pivotHatch = el('path', { class: 'hatch' }, svg);
-    r.lbl = el('g', {}, svg);
+    r.load = label(svg, 'load', `${LOAD_KG} kg`);
+    r.fulcrum = label(svg, 'fulcrum', 'the pivot');
+    r.push = label(svg, 'your push', null, 'end');
+    const HINT = 'hover a label to learn more';               // hover fills the hint line; the caption says it too
+    [[r.load, 'the weight you want to lift'], [r.fulcrum, 'the only point that never moves'], [r.push, 'the end you press down on']]
+      .forEach(([n, tip]) => { n.onmouseenter = () => out('hint', tip); n.onmouseleave = () => out('hint', HINT); });
     return r;
   },
   draw(r, s, out) {
@@ -214,16 +241,18 @@ fig('f1', {
     const arc = (rad, side) => { const [x1, y1] = rot(fx + side * rad, r.Y, fx, r.Y, -5), [x2, y2] = rot(fx + side * rad, r.Y, fx, r.Y, 5);
       return `M${x1} ${y1} A${rad} ${rad} 0 0 1 ${x2} ${y2}`; };
     set(r.arcL, { d: arc(a - 30, -1) }); set(r.arcR, { d: arc(b - 10, 1) });
-    r.lbl.replaceChildren();                                  // labels follow the geometry; cheap at this size
     const [lx, ly] = rot(r.L + 30, r.Y - 56, fx, r.Y, deg);
-    label(r.lbl, lx, ly, lx + 34, 40, 'load', '20 kg');
-    label(r.lbl, fx, r.G - 2, fx + 36, r.G + 34, 'fulcrum', 'the pivot');
+    r.load.at(lx, ly, lx + 34, 40);
+    r.fulcrum.at(fx, r.G - 2, fx + 36, r.G + 34);
     const [ex, ey] = rot(r.R - 10, r.Y - 74, fx, r.Y, deg);
-    label(r.lbl, ex, ey, ex - 16, 40, 'your push', null, 'end');
-    const push = 20 * 9.81 * a / b;                           // torque balance: load × a = push × b
+    r.push.at(ex, ey, ex - 16, 40);
+    const push = LOAD_KG * G_ACC * a / b;                      // torque balance: load × a = push × b
     out('push', `${push.toFixed(0)} N`);
     out('travel', `${(10 * b / a).toFixed(1)} cm per 10 cm lift`);
   },
-  tick(s, dt) { s.t += dt; },
+  tick(s, dt) {
+    s.t += dt;
+    if (!s.touched) s.pivot = 0.5 - 0.2 * Math.cos(s.t * 0.35);   // drifts on its own until the reader grabs the slider
+  },
 });
 </script>

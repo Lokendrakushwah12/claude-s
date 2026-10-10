@@ -44,6 +44,14 @@ Describe the video; the matching skill triggers on its own.
 
 Each video skill keeps its projects in their own folder under `~/Movies/`, with the source next to the rendered MP4, so you can ask for changes later.
 
+## Pairs well with
+
+[jakubkrehel/skills](https://github.com/jakubkrehel/skills) has a set of interface-review skills: `better-ui`, `better-typography`, `better-colors`, `better-layout`, `better-accessibility`, `better-writing`, `interface-review`, `variant` and `break`. They're handy for polishing the pages and UI these videos are made from.
+
+```bash
+npx skills add jakubkrehel/skills
+```
+
 ## License
 
 MIT
