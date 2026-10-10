@@ -118,4 +118,5 @@ uv run edit.py pov pov.json     # segments = [source in, length in 8ths]; trim +
 - **Slow slams:** graphic keywords slid in over 0.8 s and never slammed; they now land in 0.18 s.
 - **A crash on frame 1 of the end card:** `ease.back(0)` returns −3e−15, and `arc()` throws on a negative radius. Clamp radii.
 - **A missing last frame:** a shot can ask for frames past the clip's end. build counts what ffmpeg wrote, and the last frame holds.
+- **Pale, yellow-green iPhone footage:** iPhone HDR (HLG, Dolby Vision) extracted without tone mapping looks pale and yellow-green. ingest now tone-maps HDR clips to BT.709 (avconvert on macOS) before any frame is pulled.
 - **A full-white strobe:** a B&W montage alternating white and black grounds at 10+ Hz strobes. The montage keeps dark grounds.

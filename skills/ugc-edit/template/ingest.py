@@ -16,9 +16,12 @@
 src.json: { fps, duration, audio, script, clips: {name: {path, w, h, dur, offset, matte?, cursor?}},
             words: [{i, w, s, e}], silences: [[s, e]] (> 0.35 s), fillers: [i] }
 offset = seconds to add to master time to get that clip's time (audio cross-correlation; 0 for placeholders).
+HDR footage (HLG, PQ or Dolby Vision: every recent iPhone) is tone-mapped to BT.709 SDR first, into src/<clip>.sdr.mov, and
+that file becomes the clip's path: macOS uses avconvert (Apple's own tone mapping, rotation baked in, H.264 at 30 fps),
+elsewhere ffmpeg zscale+tonemap. Frames pulled straight from HDR without it come out pale and yellow-green.
 faster-whisper is fed a numpy array: its PyAV path is broken on this machine.
 """
-import argparse, json, os, re, subprocess, sys
+import argparse, json, os, re, shutil, subprocess, sys
 from pathlib import Path
 
 import numpy as np
@@ -41,7 +44,29 @@ def probe(path):
     v = next(s for s in j["streams"] if s["codec_type"] == "video")
     rot = [d.get("rotation", 0) for d in v.get("side_data_list", [])] + [int(v.get("tags", {}).get("rotate", 0))]
     w, h = (v["height"], v["width"]) if any(abs(int(r)) % 180 == 90 for r in rot) else (v["width"], v["height"])  # phones store portrait rotated
-    return {"w": w, "h": h, "dur": float(j["format"]["duration"]), "audio": any(s["codec_type"] == "audio" for s in j["streams"])}
+    return {"w": w, "h": h, "dur": float(j["format"]["duration"]), "audio": any(s["codec_type"] == "audio" for s in j["streams"]), "hdr": hdr(v)}
+
+
+def hdr(v):  # an ffprobe video stream: HLG or PQ transfer, or a Dolby Vision record
+    return v.get("color_transfer") in ("arib-std-b67", "smpte2084") or any("DOVI" in d.get("side_data_type", "") for d in v.get("side_data_list", []))
+
+
+AVCONVERT = [(640, 480), (960, 540), (1280, 720), (1920, 1080), (3840, 2160)]  # its size presets
+
+
+def conform(path, pr, dst):  # HDR -> BT.709 SDR; returns the file to pull frames from (the source if it can't)
+    if dst.exists(): return dst
+    if sys.platform == "darwin" and shutil.which("avconvert"):
+        pw, ph = next((p for p in AVCONVERT if p[0] >= max(pr["w"], pr["h"])), AVCONVERT[-1])
+        sh("avconvert", "--source", path, "--preset", f"Preset{pw}x{ph}", "--output", dst, "--replace")
+    elif "zscale" in sh("ffmpeg", "-hide_banner", "-filters", capture_output=True, text=True).stdout:  # ponytail: untested here (this ffmpeg has no zscale)
+        sh("ffmpeg", "-loglevel", "error", "-y", "-i", path, "-vf", "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p",
+           "-c:v", "libx264", "-crf", 16, "-preset", "veryfast", "-c:a", "aac", dst)
+    else:
+        print(f"WARNING: {path} is HDR and this ffmpeg has no zscale, so it can't be tone-mapped: frames will look pale and yellow-green.\n"
+              "  Install an ffmpeg built with libzimg, or convert it to SDR yourself and ingest that.", file=sys.stderr)
+        return Path(path)
+    return dst
 
 
 def offset(master, x, sr=16000, hop=160):  # seconds to add to master time to get x's time: cross-correlated 10 ms envelopes
@@ -234,8 +259,9 @@ def main():
         if not a.clips: sys.exit("give footage clips, or --placeholder creator|tutorial --script script.txt")
         master = out / "audio.wav"; sh("ffmpeg", "-loglevel", "error", "-y", "-i", a.clips[0], "-vn", "-ac", 1, "-ar", SR, master); ref = pcm(master)
         for i, p in enumerate(a.clips):
-            name = "ABCDEFGH"[i]; pr = probe(p)
-            clips[name] = {"path": str(Path(p).resolve()), "w": pr["w"], "h": pr["h"], "dur": pr["dur"], "offset": offset(ref, pcm(p)) if i and pr["audio"] else 0.0}
+            name = "ABCDEFGH"[i]; pr = probe(p); f = Path(p)
+            if pr["hdr"] and (f := conform(p, pr, out / f"{f.stem}.sdr.mov")) != Path(p): pr = probe(f); print(f"{name}: HDR, tone-mapped to {f}")
+            clips[name] = {"path": str(f.resolve()), "w": pr["w"], "h": pr["h"], "dur": pr["dur"], "offset": offset(ref, pcm(p)) if i and pr["audio"] else 0.0}
             print(f"{name}: {p} {pr['w']}x{pr['h']} {pr['dur']:.1f}s offset {clips[name]['offset']:+.3f}s" + ("  (under 1.5x the output: punch-ins will soften)" if max(pr["w"], pr["h"]) < 2880 else ""))
     words = [dict(i=i, **w) for i, w in enumerate(transcribe(master))]  # no initial_prompt: a script-length prompt made Whisper loop one line
     dur = len(pcm(master)) / 16000; edges = [0.0] + [x for w in words for x in (w["s"], w["e"])] + [dur]
@@ -248,5 +274,6 @@ def main():
 
 if __name__ == "__main__":
     if "--selftest" in sys.argv:  # the sync maths: a copy that starts 0.5 s later in its own clock reads +0.5
-        r = np.random.default_rng(1); a = np.repeat(r.random(400), 160).astype(np.float32); assert offset(a, np.concatenate([np.zeros(8000, np.float32), a])) == 0.5; print("ok")
+        r = np.random.default_rng(1); a = np.repeat(r.random(400), 160).astype(np.float32); assert offset(a, np.concatenate([np.zeros(8000, np.float32), a])) == 0.5
+        assert hdr({"color_transfer": "arib-std-b67"}) and hdr({"side_data_list": [{"side_data_type": "DOVI configuration record"}]}) and not hdr({"color_transfer": "bt709"}); print("ok")
     else: main()
