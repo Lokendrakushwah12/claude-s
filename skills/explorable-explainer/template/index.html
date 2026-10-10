@@ -1,0 +1,229 @@
+<title>How does a lever work?</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one serif prose column (36rem); numbered figure panels break out to 48rem; monospace chrome frames every figure. */
+:root {
+  --bg: #141413; --panel: #191918; --grid: #262624;
+  --ink: #ecebe6; --dim: #8e8d87; --faint: #45443f; --rule: #2c2b29;
+  --serif: "Crimson Pro", "Iowan Old Style", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f2f2ef; --panel: #fafaf8; --grid: #e2e1dc;
+    --ink: #1c1c1a; --dim: #6b6a65; --faint: #bebdb7; --rule: #d9d8d2;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f2f2ef; --panel: #fafaf8; --grid: #e2e1dc;
+  --ink: #1c1c1a; --dim: #6b6a65; --faint: #bebdb7; --rule: #d9d8d2;
+  color-scheme: light;
+}
+
+body { background: var(--bg); color: var(--ink); font: 400 1.1875rem/1.65 var(--serif); padding-inline: 16px; padding-block: 0 7rem; -webkit-font-smoothing: antialiased; }
+.col { max-width: 36rem; margin-inline: auto; }
+h1 { font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.5rem); line-height: 1.05; letter-spacing: -0.015em; text-wrap: balance; margin: 5rem 0 1.1rem; }
+.dek { color: var(--dim); font-size: 1.3rem; line-height: 1.45; margin: 0 0 2.75rem; text-wrap: pretty; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 0 0 1.75rem; }
+h2 { font-weight: 400; font-size: 1.95rem; line-height: 1.2; text-wrap: balance; margin: 4.5rem 0 1rem; }
+p { margin: 0 0 1.15rem; text-wrap: pretty; }
+b, strong { font-weight: 600; }
+em { font-style: italic; }
+
+/* ---- figure panel ---- */
+.fig { max-width: 48rem; margin: 3rem auto; border: 1px solid var(--rule);
+  background: radial-gradient(circle, var(--grid) 0.8px, transparent 1.2px) 0 0 / 18px 18px, var(--panel); }
+.fig > header { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.1rem 0; font: 400 0.75rem/1.4 var(--mono); letter-spacing: 0.04em; color: var(--dim); }
+.fig > header span:first-child { color: var(--ink); }
+.stage { overflow-x: auto; }
+.stage svg { display: block; width: 100%; min-width: 34rem; height: auto; color: var(--ink);
+  fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.stage svg * { vector-effect: non-scaling-stroke; }
+.stage svg text { fill: currentColor; stroke: none; font: 400 12px var(--mono); letter-spacing: 0.02em; }
+.stage svg .sub { fill: var(--dim); font-size: 11px; }
+.stage svg .solid { fill: var(--panel); }          /* hides the lines behind a part */
+.stage svg .ink { fill: currentColor; }
+.stage svg .hatch { fill: url(#hatch); }
+.stage svg .dots { fill: url(#dots); }
+.stage svg .dash { stroke-dasharray: 3 4; }
+.stage svg .guide { stroke: var(--faint); }
+.stage svg .muted { opacity: 0.22; }
+.stage svg .fade { transition: opacity 0.45s ease; }
+.fig > footer { border-top: 1px solid var(--rule); background: var(--panel); padding: 0.95rem 1.1rem 1.05rem; display: grid; gap: 0.95rem; }
+.cap { margin: 0; max-width: 34rem; font-size: 1rem; line-height: 1.5; color: var(--dim); }
+
+/* ---- controls: plain HTML, bound by data-k / data-o ---- */
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; font: 400 0.75rem/1 var(--mono); color: var(--dim); }
+.range { display: flex; align-items: center; gap: 0.75rem; white-space: nowrap; }
+.range input { appearance: none; -webkit-appearance: none; width: 9rem; min-width: 5rem; flex: 1 1 9rem; height: 1.25rem; margin: 0; background: transparent; cursor: pointer; }
+.range input::-webkit-slider-runnable-track { height: 1px; background: var(--dim); }
+.range input::-moz-range-track { height: 1px; background: var(--dim); }
+.range input::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -5px; background: var(--panel); border: 1px solid var(--ink); }
+.range input::-moz-range-thumb { width: 9px; height: 9px; border-radius: 0; background: var(--panel); border: 1px solid var(--ink); }
+.seg { display: inline-flex; }
+.seg button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--dim); padding: 0.5rem 0.75rem; cursor: pointer; }
+.seg button + button { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.ctl :focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+.out { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin: 0 0 0 auto; }
+.out div { display: flex; gap: 0.5rem; }
+.out dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.defs { position: absolute; width: 0; height: 0; color: var(--ink); }
+</style>
+
+<!-- shared patterns and arrowhead; reference as url(#hatch), url(#dots), marker-end="url(#arrow)" -->
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="4" stroke="currentColor" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="dots" width="3" height="3" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="0.55" fill="currentColor"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+    </marker>
+  </defs>
+</svg>
+
+<article>
+  <div class="col">
+    <h1>How does a lever work?</h1>
+    <p class="dek">A plank and a pivot. It lets one person lift what would take three, as long as they are willing to push for longer.</p>
+    <hr>
+    <p>EXAMPLE CONTENT. This page exists to show the template's parts working. Replace the title, prose and figure, and keep the structure.</p>
+    <p>Below, a <b>load</b> sits at one end of a plank and your <b>push</b> goes on the other. The <b>fulcrum</b> is the pivot between them.</p>
+  </div>
+
+  <figure class="fig" id="f1">
+    <header><span>FIG_001</span><span>[ a lever, rocking ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Slide the fulcrum. The dashed arcs are how far each end travels in one rock. A short arm moves little and pushes hard; a long arm moves far and pushes gently.</p>
+      <div class="ctl">
+        <label class="range"><span>near the load</span><input type="range" id="f1-pivot" data-k="pivot" min="0.15" max="0.85" step="0.01" value="0.3" aria-label="fulcrum position"><span>near you</span></label>
+        <dl class="out">
+          <div><dt>push needed</dt><dd data-o="push">–</dd></div>
+          <div><dt>your hand moves</dt><dd data-o="travel">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <h2>Where does the effort go?</h2>
+    <p>Prose continues here. Each section heading is a question the reader would ask next.</p>
+  </div>
+</article>
+
+<script>
+/* ===== helpers: keep, extend when a figure needs something reusable ===== */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, a = {}, parent) {               // el('circle', {cx, cy, r, class: 'solid'}, g); a.text sets textContent
+  const n = document.createElementNS(NS, tag);
+  for (const k in a) k === 'text' ? (n.textContent = a[k]) : n.setAttribute(k, a[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function set(n, a) { for (const k in a) k === 'text' ? (n.textContent = a[k]) : n.setAttribute(k, a[k]); return n; }
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+const ease = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;        // in-out quad
+const iso = (x, y, z) => [(x - z) * 0.866, (x + z) * 0.5 - y];              // isometric: x and z on the floor, y up
+const rot = (x, y, cx, cy, deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  return [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]; };
+function phase(t, beats) {                         // where t sits in a looping sequence: phase(t, [1, .5, 2]) -> {i, p}
+  const T = beats.reduce((a, b) => a + b, 0); t = ((t % T) + T) % T; let i = 0;
+  while (i < beats.length - 1 && t > beats[i]) t -= beats[i++];
+  return { i, p: clamp(t / beats[i]) };
+}
+function label(g, px, py, tx, ty, text, sub, anchor = 'start') {   // leader line from text to a dot on the part
+  const G = el('g', {}, g);
+  el('line', { x1: px, y1: py, x2: tx, y2: ty + 5, class: 'guide' }, G);
+  el('circle', { cx: px, cy: py, r: 2, class: 'ink' }, G);
+  el('text', { x: tx, y: ty, 'text-anchor': anchor, text }, G);
+  if (sub) el('text', { x: tx, y: ty + 14, 'text-anchor': anchor, class: 'sub', text: sub }, G);
+  return G;
+}
+
+/* fig(id, { w, h, s, build(svg, s) -> refs, draw(refs, s, out), tick(s, dt) })
+   - controls in the figure's footer bind by data-k: <input type=range data-k> -> number, <div class=seg data-k> buttons -> value
+   - out('name', text) fills every [data-o="name"] inside the figure
+   - tick runs only while the figure is on screen and the reader allows motion */
+const FIGS = [], STILL = matchMedia('(prefers-reduced-motion: reduce)');
+const IO = new IntersectionObserver(es => es.forEach(e => { const f = FIGS.find(f => f.root === e.target); if (f) f.on = e.isIntersecting; }), { rootMargin: '80px' });
+function fig(id, o) {
+  const root = document.getElementById(id), s = o.s || {};
+  const svg = el('svg', { viewBox: `0 0 ${o.w} ${o.h}`, role: 'img', 'aria-label': root.querySelector('header span:last-child')?.textContent.replace(/[\[\]]/g, '').trim() || id }, root.querySelector('.stage'));
+  const out = (k, v) => root.querySelectorAll(`[data-o="${k}"]`).forEach(n => n.textContent = v);
+  root.querySelectorAll('input[data-k]').forEach(i => {
+    s[i.dataset.k] = +i.value;
+    i.addEventListener('input', () => { s[i.dataset.k] = +i.value; draw(); });
+  });
+  root.querySelectorAll('.seg[data-k]').forEach(g => {
+    const bs = [...g.querySelectorAll('button')];
+    const pick = b => { bs.forEach(x => x.setAttribute('aria-pressed', x === b)); s[g.dataset.k] = b.value; };
+    pick(bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]);
+    bs.forEach(b => b.addEventListener('click', () => { pick(b); draw(); }));
+  });
+  const refs = o.build(svg, s, out);
+  const draw = () => o.draw(refs, s, out);
+  draw();
+  const f = { root, o, s, draw, on: false };
+  if (o.tick) { FIGS.push(f); IO.observe(root); }
+  return f;
+}
+let LAST = 0;
+requestAnimationFrame(function loop(t) {
+  const dt = Math.min(0.05, (t - LAST) / 1000 || 0); LAST = t;
+  if (!STILL.matches) for (const f of FIGS) if (f.on) { f.o.tick(f.s, dt); f.draw(); }
+  requestAnimationFrame(loop);
+});
+
+/* ===== FIG_001 (EXAMPLE: delete it and write your own) ===== */
+fig('f1', {
+  w: 720, h: 300, s: { t: 0 },
+  build(svg) {
+    const L = 60, R = 660, Y = 170, G = 250;
+    el('line', { x1: 30, y1: G, x2: 690, y2: G }, svg);
+    for (let x = 40; x < 690; x += 14) el('line', { x1: x, y1: G, x2: x - 8, y2: G + 8, class: 'guide' }, svg);
+    const r = { L, R, Y, G };
+    r.arcL = el('path', { class: 'guide dash' }, svg);
+    r.arcR = el('path', { class: 'guide dash' }, svg);
+    r.beam = el('g', {}, svg);
+    el('rect', { x: L, y: Y - 8, width: R - L, height: 8, class: 'solid' }, r.beam);
+    el('rect', { x: L + 4, y: Y - 56, width: 52, height: 48, class: 'solid' }, r.beam);
+    el('rect', { x: L + 4, y: Y - 56, width: 52, height: 48, class: 'hatch' }, r.beam);
+    el('line', { x1: R - 10, y1: Y - 74, x2: R - 10, y2: Y - 14, 'marker-end': 'url(#arrow)' }, r.beam);
+    r.pivot = el('path', { class: 'solid' }, svg);
+    r.pivotHatch = el('path', { class: 'hatch' }, svg);
+    r.lbl = el('g', {}, svg);
+    return r;
+  },
+  draw(r, s, out) {
+    const fx = lerp(r.L, r.R, s.pivot), a = fx - r.L, b = r.R - fx;
+    const deg = 5 * Math.sin(s.t * 1.4);
+    set(r.beam, { transform: `rotate(${deg} ${fx} ${r.Y})` });
+    const tri = `M${fx} ${r.Y} L${fx - 24} ${r.G} L${fx + 24} ${r.G} Z`;
+    set(r.pivot, { d: tri }); set(r.pivotHatch, { d: tri });
+    const arc = (rad, side) => { const [x1, y1] = rot(fx + side * rad, r.Y, fx, r.Y, -5), [x2, y2] = rot(fx + side * rad, r.Y, fx, r.Y, 5);
+      return `M${x1} ${y1} A${rad} ${rad} 0 0 1 ${x2} ${y2}`; };
+    set(r.arcL, { d: arc(a - 30, -1) }); set(r.arcR, { d: arc(b - 10, 1) });
+    r.lbl.replaceChildren();                                  // labels follow the geometry; cheap at this size
+    const [lx, ly] = rot(r.L + 30, r.Y - 56, fx, r.Y, deg);
+    label(r.lbl, lx, ly, lx + 34, 40, 'load', '20 kg');
+    label(r.lbl, fx, r.G - 2, fx + 36, r.G + 34, 'fulcrum', 'the pivot');
+    const [ex, ey] = rot(r.R - 10, r.Y - 74, fx, r.Y, deg);
+    label(r.lbl, ex, ey, ex - 16, 40, 'your push', null, 'end');
+    const push = 20 * 9.81 * a / b;                           // torque balance: load × a = push × b
+    out('push', `${push.toFixed(0)} N`);
+    out('travel', `${(10 * b / a).toFixed(1)} cm per 10 cm lift`);
+  },
+  tick(s, dt) { s.t += dt; },
+});
+</script>
