@@ -195,18 +195,21 @@ def review():
 
 def pov():
     """pov.json: {clip, song, bpm, downbeat (s into the song), caption, segments: [[src_in, eighths], ...], out}. Each cut lands on the
-    8th grid - 0.05 s. The caption is a PIL PNG (this ffmpeg has no drawtext): white semibold, dark 2 px stroke, at 21 % of H."""
+    8th grid - 0.05 s. The caption is a PIL PNG (this ffmpeg has no drawtext): white semibold, dark 2 px stroke, at 21 % of H.
+    An HDR clip is tone-mapped to <clip>.sdr.mov here first, the same way ingest.py does it."""
     from PIL import Image, ImageDraw, ImageFont
+    from ingest import conform, probe
     j = json.loads(Path(sys.argv[2]).read_text()); e8 = 30 / j["bpm"]; ends, k = [], 0
     for _, n in j["segments"]: k += n; ends.append(round(k * e8 - 0.05, 3))
-    v = json.loads(sh("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", j["clip"], capture_output=True).stdout)["streams"][0]
-    w, h = v["width"], v["height"]; im = Image.new("RGBA", (w, h)); d = ImageDraw.Draw(im)
+    clip = j["clip"]; pr = probe(clip)
+    if pr["hdr"] and (clip := conform(clip, pr, Path(f"{Path(clip).stem}.sdr.mov"))) != Path(j["clip"]): pr = probe(clip); print(f"HDR, tone-mapped to {clip}")
+    w, h = pr["w"], pr["h"]; im = Image.new("RGBA", (w, h)); d = ImageDraw.Draw(im)
     try: f = ImageFont.truetype("/System/Library/Fonts/HelveticaNeue.ttc", int(h * 0.03), index=1)
     except OSError: f = ImageFont.load_default(int(h * 0.03))
     d.multiline_text((w / 2, h * 0.21), j["caption"], font=f, fill="white", anchor="ma", align="center", stroke_width=max(2, h // 960), stroke_fill=(16, 16, 16)); im.save("caption.png")
     segs = "".join(f"[0:v]trim={a}:{a + (e - b)},setpts=PTS-STARTPTS[v{i}];" for i, ((a, _), b, e) in enumerate(zip(j["segments"], [0] + ends, ends)))
     fc = segs + "".join(f"[v{i}]" for i in range(len(ends))) + f"concat=n={len(ends)}:v=1:a=0[c];[c][1]overlay[o]"
-    sh("ffmpeg", "-loglevel", "error", "-y", "-i", j["clip"], "-i", "caption.png", "-ss", j.get("downbeat", 0), "-i", j["song"], "-filter_complex", fc, "-map", "[o]", "-map", "2:a",
+    sh("ffmpeg", "-loglevel", "error", "-y", "-i", clip, "-i", "caption.png", "-ss", j.get("downbeat", 0), "-i", j["song"], "-filter_complex", fc, "-map", "[o]", "-map", "2:a",
        "-t", ends[-1], "-r", FPS, "-c:v", "libx264", "-crf", 18, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", j.get("out", "pov.mp4"))
     print(f"{j.get('out', 'pov.mp4')}: {len(ends)} cuts at {ends} s")
 
