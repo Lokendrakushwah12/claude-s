@@ -66,6 +66,7 @@ const alpha = (hex, a) => `rgba(${rgb(hex).join(",")},${clamp(a)})`;
 
 /** Text colour for a badge filled with `fill`: white while it keeps 3:1 contrast, else near-black (pale fills). */
 function onColor(fill) {
+  if (style.knockout) return style.ink; // the badge is paper with coloured lines
   const lin = (c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
   const [r, g, b] = rgb(fill).map(lin);
   return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05) >= 3 ? "#ffffff" : "#1a1a1a";
@@ -78,9 +79,12 @@ const fonts = { sans: "system-ui, sans-serif", heading: "system-ui, sans-serif",
 
 /**
  * How the current frame's lines and fills come out. applyLook() sets it every frame, so the same drawing code
- * renders as gouache, chalk, blueprint or riso. stroke: clean | chalk | riso | glow. fill: flat | speckle | halftone.
+ * renders as gouache, chalk, blueprint, riso, graphite or hairline. stroke: clean | chalk | riso | glow | graphite.
+ * fill: flat | speckle | halftone | hachure | plate. hachure and plate are knockout fills: the shape is paper with its
+ * colour in the lines, so text on it is ink (onColor() says so). weight scales every line; boil is the stop-motion
+ * drawing (0..2) that seeds the wobble.
  */
-const style = { stroke: "clean", fill: "flat", misregister: "#ff48b0", cards: false, texture: () => null };
+const style = { stroke: "clean", fill: "flat", misregister: "#ff48b0", cards: false, texture: () => null, weight: 1, boil: 0, knockout: false, ink: "#000000", paper: "#ffffff", grain: 0.55 };
 
 /** Seeded random numbers (mulberry32): the same seed gives the same sequence, so nothing flickers. */
 function rand(seed) {
@@ -101,6 +105,7 @@ const hash = (i, j) => { const x = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
  * light-to-shade modelling, so a shape reads as an object. Draw objects with this, not bare fill().
  */
 function fillWith(ctx, color, box) {
+  if (style.knockout) return knockout(ctx, color, box);
   ctx.fillStyle = color;
   ctx.fill();
   const tex = style.fill === "flat" ? null : style.texture(style.fill);
@@ -116,6 +121,42 @@ function fillWith(ctx, color, box) {
     g.addColorStop(1, "rgba(0,0,0,0.2)");
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+/**
+ * A knockout fill (graphite, hairline): paper inside, the colour in the outline, plus 45° pencil hachure for graphite.
+ * The path is stroked before the hachure, because drawing the hachure replaces the current path. `box` bounds the
+ * hachure (else the whole frame); hatch false leaves it out (pills: text sits inside).
+ */
+function knockout(ctx, color, box, hatch = true) {
+  const pencil = style.fill === "hachure";
+  ctx.save();
+  ctx.fillStyle = style.paper;
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = pencil ? 1.6 : 1.4;
+  if (pencil) { // the lighter second pass, 1.5 units off in a direction that changes with each boil drawing
+    const k = ctx.getTransform().a, a = hash(style.boil, 7) * 6.28;
+    ctx.shadowColor = alpha(color, 0.45);
+    ctx.shadowOffsetX = Math.cos(a) * 1.5 * k;
+    ctx.shadowOffsetY = Math.sin(a) * 1.5 * k;
+  }
+  ctx.stroke();
+  if (pencil && hatch) {
+    ctx.shadowColor = "transparent";
+    ctx.clip();
+    const [x, y, w, h] = box ?? [0, 0, W, H], gap = 6.4; // 4.5 units apart, square to the lines
+    ctx.beginPath();
+    for (let d = -h, i = 0; d < w; d += gap, i++) { // lines y = x - d through the box, each end nudged per drawing
+      const j = (k) => (hash(i * 3 + k, style.boil) - 0.5) * 1.6;
+      ctx.moveTo(x + d + j(0), y + h + j(1));
+      ctx.lineTo(x + d + h + j(2), y);
+    }
+    ctx.strokeStyle = alpha(color, 0.55);
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -160,10 +201,13 @@ function pill(ctx, s, x, y, o) {
   const w = ctx.measureText(s).width + size * 1.4, h = size * 1.9;
   if (o.left) x += w / 2;
   roundRect(ctx, x - w / 2, y - h / 2, w, h, h / 2);
-  ctx.fillStyle = o.fill;
-  ctx.fill();
-  if (o.stroke) { ctx.strokeStyle = o.stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
-  ctx.fillStyle = o.color;
+  if (style.knockout) knockout(ctx, o.fill, null, false); // paper, coloured outline, ink text
+  else {
+    ctx.fillStyle = o.fill;
+    ctx.fill();
+    if (o.stroke) { ctx.strokeStyle = o.stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  }
+  ctx.fillStyle = style.knockout ? style.ink : o.color;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(s, x, y + 1);
@@ -199,9 +243,19 @@ function strokeLine(ctx, pts, color, lw) {
     ctx.lineJoin = "round";
     ctx.stroke();
   };
+  lw *= style.weight;
   if (style.stroke === "clean" || lw < 1.2) return line(pts, color, lw);
   ctx.save();
-  if (style.stroke === "chalk") {
+  if (style.stroke === "graphite") {
+    // Pencil: two passes, the second lighter and 1.5 units off, each wobbling a little differently in every boil
+    // drawing (3 drawings loop 4 times a second), so a held line shimmers like stop-motion and never slides
+    const fine = subdivide(pts, 26), b = style.boil, a = hash(b, 11) * 6.28, base = ctx.globalAlpha;
+    for (const pass of [0, 1]) {
+      const ox = pass * Math.cos(a) * 1.5, oy = pass * Math.sin(a) * 1.5, wob = 0.9;
+      ctx.globalAlpha = base * (pass ? 0.45 : 1);
+      line(fine.map(([x, y], i) => [x + ox + (hash(i + 37 * b, pass) - 0.5) * wob, y + oy + (hash(pass + 5, i + 37 * b) - 0.5) * wob]), color, lw * (pass ? 0.7 : 0.9));
+    }
+  } else if (style.stroke === "chalk") {
     // Two thin, slightly wandering passes: the uneven edge of chalk on a board
     for (const pass of [0, 1]) {
       ctx.globalAlpha *= pass ? 0.55 : 0.85;
@@ -220,6 +274,16 @@ function strokeLine(ctx, pts, color, lw) {
     line(pts, color, lw);
   }
   ctx.restore();
+}
+
+/** The polyline with extra points every `step` units, so a wobble bends long straight runs like a hand would. */
+function subdivide(pts, step) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step));
+    for (let k = 1; k <= n; k++) out.push([lerp(x0, x1, k / n), lerp(y0, y1, k / n)]);
+  }
+  return out;
 }
 
 function dashed(ctx, a, b, color, lw = 1.5, progress = 1) {
@@ -362,18 +426,25 @@ const BREATH = 0.35;
 const DEFAULT_MUSIC = { bpm: 80, gain: 0.07, chords: [[50, 54, 57, 61], [47, 50, 54, 57], [43, 47, 50, 54], [45, 49, 52, 54]] };
 
 /**
+ * Typed captions (voice: 'typed'): no narration. Each caption types on at 37 characters a second and holds about 3 s, so
+ * a beat lasts its typing time plus the hold (measured off a hand-drawn stop-motion explainer with no audio).
+ */
+const TYPED = { cps: 37, hold: 3 };
+
+/**
  * spec: title, look, theme ('light' | 'dark'), duration, chapters [{at, title}], captions [{at, text, say?, hold?}],
  * cues [{at, sound, gain?, pitch?, len?}], sources (two or more), scene({ctx, t, theme}), plus optional
- * music (null for none), pronounce, poster, eyebrowFrom (4), end ({at, title, sub} or false).
+ * music (null for none), voice ('typed' for no narration), pronounce, poster, eyebrowFrom (4), end ({at, title, sub} or false).
  * Every time in the spec is script time. The returned lesson's times are real playback time, stretched where the
  * narration needs longer than its beat; draw(ctx, t) maps real time back to script time for the scene.
  */
 function defineLesson(spec) {
   const { scene, music, eyebrowFrom = 4, end: endSpec, poster = 2.5, theme = "light", ...meta } = spec;
   validate(spec);
+  const typed = meta.voice === "typed";
   // Recorded clips (narrate.mjs writes voices/voices.js) time their caption by their real length; a caption with
   // no clip yet is timed by the estimate and read by the browser's voice in preview
-  const voices = globalThis.VOICES ?? { voice: "", clips: {} };
+  const voices = (!typed && globalThis.VOICES) || { voice: "", clips: {} };
   const clips = meta.captions.map((c) => {
     const key = voiceKey(speakable(c.say ?? c.text, meta.pronounce), voices.voice);
     const seconds = voices.clips[key];
@@ -381,31 +452,45 @@ function defineLesson(spec) {
   });
   const warp = narrationWarp(
     meta.captions.map((c) => c.at),
-    meta.captions.map((c, i) => Math.max(readSeconds(c.text), clips[i] ? clips[i].seconds + BREATH : speechSeconds(c.say ?? c.text, meta.pronounce))),
+    meta.captions.map((c, i) => typed ? (c.text ? c.text.length / TYPED.cps + TYPED.hold : 0)
+      : Math.max(readSeconds(c.text), clips[i] ? clips[i].seconds + BREATH : speechSeconds(c.say ?? c.text, meta.pronounce))),
     meta.duration,
     meta.captions.map((c) => c.hold),
   );
   const real = warp.toReal;
   const end = endSpec === false ? null : { at: meta.duration - 3, title: "That's the idea", sub: meta.title, ...endSpec };
+  const captions = meta.captions.map((c, i) => ({ ...c, at: real(c.at), clip: clips[i] }));
   return {
     ...meta,
     theme,
     duration: warp.duration,
     chapters: meta.chapters.map((c) => ({ ...c, at: real(c.at) })),
-    captions: meta.captions.map((c, i) => ({ ...c, at: real(c.at), clip: clips[i] })),
+    captions,
     // A glide's length stretches with any hold it spans, so its sound still ends with its motion
     cues: meta.cues.map((c) => ({ ...c, at: real(c.at), ...(c.len ? { len: real(c.at + c.len) - real(c.at) } : {}) })),
     poster: real(poster),
     music: music === null ? undefined : (music ?? DEFAULT_MUSIC),
-    /** Paint real time `t` in 960x540 units. o: { dark, look } override the lesson's theme and look (previews). */
+    /** Paint real time `t` in 960x540 units, caption included. o: { dark, look, captions } override the lesson's theme and look (previews). */
     draw(ctx, t, o = {}) {
-      const s = warp.toScript(t);
       const look = LOOKS[o.look] ?? LOOKS[meta.look];
       const th = look.themes[(o.dark ?? theme === "dark") ? "dark" : "light"];
+      // Stop-motion looks: hold each drawing for a frame of the look's rate (12 fps), boil 3 drawings, jitter the
+      // drawing by whole pixels and flicker the exposure. Sounds stay on the exact clock, so a hit can land up to one
+      // drawing (83 ms) before its picture
+      const stop = look.stop, f = stop ? Math.floor(t * stop.fps + 1e-6) : 0;
+      if (stop) t = f / stop.fps;
+      const s = warp.toScript(t);
+      style.boil = stop ? f % stop.boil : 0;
       applyLook(ctx, look, th, s);
+      ctx.save();
+      if (stop) { const r = rand(f * 7919 + 1), j = () => Math.round((r() * 2 - 1) * stop.jitter * 2) / 2; ctx.translate(j(), j()); }
       eyebrow(ctx, th, s, meta.chapters, meta.duration, eyebrowFrom);
       scene({ ctx, t: s, theme: th });
       if (end) endCard(ctx, th, s, end.at, end.title, end.sub);
+      const i = activeIndex(captions, t), c = captions[i];
+      if (o.captions !== false && c?.text) caption(ctx, c.text, { th, slip: look.caption === "slip", seed: i, shown: typed ? Math.floor((t - c.at) * TYPED.cps) : Infinity });
+      ctx.restore();
+      if (stop) { const g = rand(f * 104729 + 3)() * 2 - 1; grade(ctx, g < 0 ? "#000000" : "#ffffff", Math.abs(g) * stop.flicker, "source-over"); }
     },
   };
 }
@@ -423,6 +508,7 @@ function validate(l) {
     if (c.at < 0 || c.at >= l.duration) bad.push(`cue at ${c.at}s is outside the film`);
   }
   if (!(l.look in LOOKS)) bad.push(`unknown look "${l.look}"`);
+  if (l.voice !== undefined && l.voice !== "typed") bad.push(`voice is 'typed' or left out, not "${l.voice}"`);
   if ((l.sources ?? []).length < 2) bad.push("check every number against two sources, and list them in `sources`");
   for (const b of bad) console.error(`lesson: ${b}`);
 }

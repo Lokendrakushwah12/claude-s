@@ -1,5 +1,5 @@
 // Swiss / editorial kinetic-type helpers. Sits on top of lib.js (bg text prog ease rng clamp lerp W H) and
-// promo.js (spring stagger rrect pill card counter withBlur). Every helper is a pure function of what you pass in,
+// promo.js (spring stagger rrect pill card counter withBlur glow). Every helper is a pure function of what you pass in,
 // so seek(t) stays deterministic. Nothing here keeps state between frames except the offscreen `cached()` renders,
 // which are the same on every frame.
 const S = Math.min(W, H) / 1080; // size scale: 1 at 1080p
@@ -156,7 +156,7 @@ const hex2 = a => Math.round(clamp(a) * 255).toString(16).padStart(2, '0'); // a
 // Reusable offscreen canvas, cleared on every call (for per-frame layers such as a strip you bend).
 function scratch(key, w = W, h = H) {
   let cv = CACHE['~' + key]; if (!cv || cv.width !== w || cv.height !== h) { cv = document.createElement('canvas'); cv.width = w; cv.height = h; CACHE['~' + key] = cv; }
-  const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.filter = 'none'; x.clearRect(0, 0, w, h); return [cv, x];
+  const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.filter = 'none'; x.clearRect(0, 0, w, h); return [cv, x];
 }
 // Soft key light on a dark ground: one broad warm pool from above, a faint floor bounce, a vignette. k = intensity.
 // (Replaced a striped "stage beams" helper: separate beams read as curtains. One big soft source reads as a lit room.)
@@ -271,3 +271,504 @@ function grain(c, t, alpha = 0.06) {
   const tile = cached('grain' + (boil(t, 12) % 4), x => { const r = rng(boil(t, 12) % 4 + 11), d = x.createImageData(W, H); for (let i = 0; i < d.data.length; i += 4) { const v = r() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); });
   c.save(); c.globalAlpha = alpha; c.globalCompositeOperation = 'overlay'; c.drawImage(tile, 0, 0); c.restore();
 }
+
+// =====================================================================================================================
+// DEVICE LIBRARY: the 2026-10 reference batch (UGC edits, screen HUDs, iso explainers, recap and lyric films).
+// Colours are arguments with neutral defaults: pass the brand's. Hex colours must be '#rrggbb' (some devices append alpha).
+// Unless a comment says otherwise, t = seconds since the device starts and p = 0..1 progress. Everything is a pure function of them.
+// Screen effects (bloom, rgbSplit, LUT stabs, CRT, film look) live in look.js, not here.
+
+// ---- shared helpers ----
+ease.outExpo ??= p => (p >= 1 ? 1 : 1 - 2 ** (-10 * p)); // the UGC slide-in curve
+const rgbOf = h => (h.length === 4 ? [1, 2, 3].map(k => parseInt(h[k] + h[k], 16)) : [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16)));
+const mixHex = (a, b, p) => { const A = rgbOf(a), Z = rgbOf(b); return '#' + A.map((v, i) => Math.round(lerp(v, Z[i], clamp(p))).toString(16).padStart(2, '0')).join(''); };
+// Left edge of character i as word() sets it (tracking included), and where a string with o.align starts.
+const charX = (c, str, i, size, o = {}) => (i ? tw(c, str.slice(0, i), size, o.weight, o.font, o.track) + (o.track ?? TYPE.track) * size : 0);
+const startX = (c, str, x, size, o = {}) => { const a = o.align || 'left', w = a === 'left' ? 0 : tw(c, str, size, o.weight, o.font, o.track); return a === 'right' ? x - w : a === 'center' ? x - w / 2 : x; };
+// Point at distance d along a polyline, with its tangent angle: [x, y, angle]. d clamps to the ends.
+function polyAt(pts, d) {
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], L = Math.hypot(bx - ax, by - ay);
+    if (d <= L || i === pts.length - 1) { const f = clamp(d / (L || 1)); return [lerp(ax, bx, f), lerp(ay, by, f), Math.atan2(by - ay, bx - ax)]; }
+    d -= L;
+  }
+  return [pts[0][0], pts[0][1], 0];
+}
+const polyLen = pts => pts.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0);
+const qbez = (a, k, b, u) => [0, 1].map(j => (1 - u) ** 2 * a[j] + 2 * (1 - u) * u * k[j] + u * u * b[j]); // quadratic Bézier point
+
+// ---- type ----
+// Hot keyword: slides in from the right (expo) and each letter cools hot -> warm -> cold in turn, like a fuse. One per phrase.
+function hotWord(c, str, x, y, t, o = {}) {
+  if (t < 0) return;
+  const { size = 160 * S, weight = 800, hot = '#9A9A9A', cold = '#FFFFFF', warm = mixHex(hot, cold, 0.7), stagger = 0.06, cool = 0.15, slide = 0.8, from = 3.3, shadow = 'rgba(0,0,0,0.22)' } = o;
+  const oo = { ...o, size, weight, align: 'left' }, x0 = startX(c, str, x, size, { ...o, weight }) + (1 - ease.outExpo(clamp(t / slide))) * size * from;
+  c.save(); if (shadow) { c.shadowColor = shadow; c.shadowBlur = size * 0.08; }
+  [...str].forEach((ch, i) => { const q = clamp((t - 0.1 - i * stagger) / cool); word(c, ch, x0 + charX(c, str, i, size, oo), y, { ...oo, color: q < 0.5 ? mixHex(hot, warm, q * 2) : mixHex(warm, cold, q * 2 - 1) }); });
+  c.restore();
+}
+// Glow-in: a word sharpens out of a blur in ~3 frames and sheds a bloom over ~6 (a cut that lands on a word).
+function glowIn(c, str, x, y, t, o = {}) {
+  if (t < 0) return; const { blur = 12 * S, dur = 0.125, glowDur = 0.25, bloom = 30 * S, glow = o.color || '#ffffff' } = o, p = clamp(t / dur);
+  c.save(); if (p < 1) c.filter = `blur(${(1 - p) * blur}px)`; c.shadowColor = glow; c.shadowBlur = bloom * (1 - clamp(t / glowDur));
+  word(c, str, x, y, { ...o, alpha: (o.alpha ?? 1) * p }); c.restore();
+}
+// Glyphs shrunk by r px: the intersection of n copies shifted around a circle, on a word-sized scratch layer. Strokes can't do this
+// cleanly: they also trace the overlapping contours inside variable-font glyphs (lines through the e and t). Returns [canvas, ctx, bx, by]:
+// the word's left baseline sits at (bx, by) on the layer, so draw the layer at (x0 - bx, y - by).
+function erodeWord(key, str, o, r, color = '#000000', n = 48) {
+  const size = o.size, bx = size * 0.4, by = size * 1.1, [cv, s] = scratch(key, Math.ceil(tw(ctx, str, size, o.weight, o.font, o.track) + bx * 2), Math.ceil(size * 1.5)), oo = { ...o, align: 'left' };
+  word(s, str, bx, by, { ...oo, color }); s.globalCompositeOperation = 'destination-in';
+  for (let k = 0; k < n; k++) word(s, str, bx + Math.cos((k / n) * 6.2832) * r, by + Math.sin((k / n) * 6.2832) * r, oo);
+  s.globalCompositeOperation = 'source-over'; return [cv, s, bx, by];
+}
+// Inline type: a solid letter with a ground-coloured line running just inside its edge (80s vector-CRT titles).
+// edge = rim width, line = inline width, both as fractions of size.
+function inlineWord(c, str, x, y, o = {}) {
+  const { size = 200 * S, color = '#ffffff', ground = '#000000', edge = 0.035, line = 0.03 } = o, oo = { ...o, size }, x0 = startX(c, str, x, size, o);
+  const [ring, s, bx, by] = erodeWord('inline', str, oo, size * edge, ground), [core] = erodeWord('inlineCore', str, oo, size * (edge + line));
+  s.globalCompositeOperation = 'destination-out'; s.drawImage(core, 0, 0);
+  word(c, str, x0, y, { ...oo, color, align: 'left' }); c.drawImage(ring, x0 - bx, y - by);
+}
+// Shimmer: a status line ("Projecting coordinates…") whose letters brighten from base to ink as a wave passes. speed in chars/s.
+function shimmer(c, str, x, y, t, o = {}) {
+  const { size = 30 * S, base = '#9A9A9A', ink = '#111111', speed = 22, band = 5, settle = Infinity } = o, oo = { weight: 400, font: TYPE.ui, track: -0.01, ...o, size, align: 'left' };
+  const x0 = startX(c, str, x, size, { ...oo, align: o.align }), head = (t * speed) % (str.length + band * 3) - band;
+  [...str].forEach((ch, i) => ch !== ' ' && word(c, ch, x0 + charX(c, str, i, size, oo), y, { ...oo, color: mixHex(base, ink, Math.max(1 - Math.abs(i - head) / band, clamp((t - settle) / 0.4))) }));
+}
+// Text selection: a band extends char by char behind [from, to) as p goes 0..1, text on top (a live type edit). Returns the band [x, y, w, h].
+function selectHL(c, str, x, y, from, to, p, o = {}) {
+  const { size = 80 * S, color = '#111111', band = 'rgba(140,140,140,0.35)' } = o, oo = { ...o, size, color, align: 'left' }, x0 = startX(c, str, x, size, o);
+  const a = x0 + charX(c, str, from, size, oo), b = x0 + charX(c, str, Math.round(lerp(from, to, clamp(p))), size, oo), box = [a, y - size * 0.9, b - a, size * 1.15];
+  if (b > a) { c.fillStyle = band; c.fillRect(...box); }
+  word(c, str, x0, y, oo); return box;
+}
+// Text set along a polyline (a hill, a route), each glyph turned to the tangent. off = px along the path; o.p reveals glyphs in order.
+function textOnPath(c, str, pts, off = 0, o = {}) {
+  const { size = 40 * S, p = 1 } = o, oo = { weight: 500, ...o, size, align: 'center' };
+  [...str].slice(0, Math.ceil(str.length * clamp(p))).forEach((ch, i) => {
+    const [px, py, a] = polyAt(pts, off + charX(c, str, i, size, oo) + tw(c, ch, size, oo.weight, oo.font, oo.track) / 2);
+    c.save(); c.translate(px, py); c.rotate(a); word(c, ch, 0, 0, oo); c.restore();
+  });
+}
+
+// ---- captions ----
+// Lead-in caption: tiny words pop into pre-spaced slots on their onsets, then the line un-types in reverse, a word every 2 frames.
+// ws = [{ w, t }] (t on the same clock as `t`); out = when the un-type starts.
+function leadIn(c, ws, x, y, t, out = Infinity, o = {}) {
+  const { size = 34 * S, color = '#ffffff', gap = 1.2, frame = 1 / 12, shadow = 'rgba(0,0,0,0.35)' } = o, oo = { weight: 500, font: TYPE.ui, track: -0.01, ...o, size, color, align: 'left' };
+  const wd = ws.map(w => tw(c, w.w, size, oo.weight, oo.font, oo.track)), total = wd.reduce((a, b) => a + b, 0) + size * gap * (ws.length - 1);
+  const shown = ws.filter(w => t >= w.t).length - Math.max(0, Math.floor((t - out) / frame) + 1);
+  let cx = o.align === 'center' ? x - total / 2 : o.align === 'right' ? x - total : x;
+  c.save(); if (shadow) { c.shadowColor = shadow; c.shadowBlur = size * 0.3; c.shadowOffsetY = size * 0.05; }
+  ws.forEach((w, i) => { if (i < shown) word(c, w.w, cx, y, oo); cx += wd[i] + size * gap; }); c.restore();
+}
+// Karaoke line: words fade on at their sung onsets with a dark keyline; the held word is outline-only. ws = [{ w, on }].
+function karaoke(c, ws, x, y, t, o = {}) {
+  const { size = 60 * S, fill = '#ffffff', line = '#000000', held = -1, fade = 0.1 } = o, oo = { weight: 800, ...o, size, align: 'left' };
+  const sp = tw(c, ' ', size, oo.weight, oo.font, oo.track), wd = ws.map(w => tw(c, w.w, size, oo.weight, oo.font, oo.track)), total = wd.reduce((a, b) => a + b + sp, -sp);
+  let cx = o.align === 'center' ? x - total / 2 : o.align === 'right' ? x - total : x;
+  ws.forEach((w, i) => {
+    const a = clamp((t - w.on) / fade);
+    if (a > 0 && i !== held) { word(c, w.w, cx, y, { ...oo, alpha: a, color: line, stroke: size * 0.12 }); word(c, w.w, cx, y, { ...oo, alpha: a, color: fill }); }
+    if (a > 0 && i === held) { // hollow: the keyline outside the glyph, then a thin rim (glyph minus its erosion), centre left open
+      const [core, , bx, by] = erodeWord('karaokeCore', w.w, oo, size * 0.035), [kv, k] = scratch('karaokeKey', core.width, core.height), [rv, r] = scratch('karaokeRim', core.width, core.height);
+      word(k, w.w, bx, by, { ...oo, color: line, stroke: size * 0.12 }); k.globalCompositeOperation = 'destination-out'; word(k, w.w, bx, by, oo);
+      word(r, w.w, bx, by, { ...oo, color: fill }); r.globalCompositeOperation = 'destination-out'; r.drawImage(core, 0, 0);
+      c.save(); c.globalAlpha *= a; c.drawImage(kv, cx - bx, y - by); c.drawImage(rv, cx - bx, y - by); c.restore();
+    }
+    cx += wd[i] + sp;
+  });
+}
+// Type behind the subject: footage, then the type, then the footage again through the matte. The matte's ALPHA is the subject (RGBA PNG).
+function behind(c, frame, matte, drawType, box = [0, 0, W, H]) {
+  c.drawImage(frame, ...box); drawType(c);
+  const [cv, s] = scratch('behind'); s.drawImage(frame, ...box); s.globalCompositeOperation = 'destination-in'; s.drawImage(matte, ...box);
+  c.drawImage(cv, 0, 0);
+}
+
+// ---- HUD ----
+const HUD = { per: 0.035, roll: 28, settle: 0.25 }; // glyphHud timing; scrambleCues reads the same numbers, so ticks can't drift from picture
+// Glyph HUD word: mono cells scramble under 45° hatching with coordinate labels, then resolve left to right.
+// Re-skin it with the brand's own objects instead of copying the reference's look: o.cell(c, x, top, w, h, i, lt) draws an
+// unresolved cell in place of the hatching, o.label(i, x, y, lt) returns its label text in place of `x: y:`.
+function glyphHud(c, str, x, y, t, o = {}) {
+  const { size = 140 * S, color = '#ffffff', ground = '#000000', hatch = 13 * S, seed = 5, labels = true } = o, { per, roll, settle } = { ...HUD, ...o };
+  const font = o.font || TYPE.mono, cw = tw(c, 'M', size, 500, font, 0), AZ = 'abcdefghijklmnopqrstuvwxyz0123456789_/:';
+  const x0 = o.align === 'center' ? x - (cw * str.length) / 2 : o.align === 'right' ? x - cw * str.length : x;
+  [...str].forEach((ch, i) => {
+    const gx = x0 + i * cw, lt = t - i * per; if (lt < 0 || ch === ' ') return;
+    const done = lt > settle, g = done ? ch : AZ[Math.floor(rng(seed + i * 31 + Math.floor(lt * roll))() * AZ.length)];
+    if (!done) {
+      if (o.cell) { c.save(); o.cell(c, gx, y - size * 0.82, cw, size * 1.02, i, lt); c.restore(); }
+      else {
+        c.save(); c.beginPath(); c.rect(gx, y - size * 0.82, cw, size * 1.02); c.clip(); c.strokeStyle = color; c.lineWidth = 1.6 * S; c.beginPath();
+        for (let k = -size; k < cw + size; k += hatch) { c.moveTo(gx + k, y + size * 0.2); c.lineTo(gx + k + size * 1.02, y - size * 0.82); }
+        c.stroke(); c.restore();
+      }
+      if (labels) ui(c, o.label ? o.label(i, gx, y, lt) : `x: ${Math.round(gx / S)} y: ${Math.round(y / S)}`, gx, i % 2 ? y + size * 0.2 + 22 * S : y - size * 0.82 - 10 * S, { size: 15 * S, font: TYPE.mono, track: 0, color });
+    }
+    word(c, g, gx, y, { size, font, track: 0, weight: 500, color: done ? color : ground });
+  });
+}
+// Tracker hairlines: a reticle on each point, crosshair lines out to the frame edges, a mono coordinate label. pts = [[x, y]].
+function trackers(c, pts, p = 1, o = {}) {
+  if (p <= 0) return; const { color = '#ffffff', box = 28 * S, line = 0.3, labels = true } = o, e = ease.out(clamp(p)), b = box / 2;
+  c.save(); c.strokeStyle = color; c.lineWidth = Math.max(1, S); const A = c.globalAlpha;
+  for (const [px, py] of pts) {
+    const X = Math.round(px) + 0.5, Y = Math.round(py) + 0.5;
+    c.globalAlpha = A * line; c.beginPath(); c.moveTo(X - b - W * e, Y); c.lineTo(X - b, Y); c.moveTo(X + b, Y); c.lineTo(X + b + W * e, Y);
+    c.moveTo(X, Y - b - H * e); c.lineTo(X, Y - b); c.moveTo(X, Y + b); c.lineTo(X, Y + b + H * e); c.stroke();
+    c.globalAlpha = A; c.strokeRect(X - b * e, Y - b * e, box * e, box * e);
+    if (labels) ui(c, `x: ${Math.round(px / S)} y: ${Math.round(py / S)}`, X + b + 8 * S, Y - b - 6 * S, { size: 15 * S, font: TYPE.mono, track: 0, color, alpha: prog(e, 0.5, 1) });
+  }
+  c.restore();
+}
+// Corner ticks: four L-marks framing a box, so small type can sit in big space. p draws them in.
+function cornerTicks(c, x, y, w, h, o = {}) {
+  const { len = 24 * S, lw = 2 * S, color = '#ffffff', p = 1 } = o, l = len * ease.out(clamp(p)); if (l <= 0) return;
+  c.save(); c.strokeStyle = color; c.lineWidth = lw; c.beginPath();
+  for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) { c.moveTo(cx + sx * l, cy); c.lineTo(cx, cy); c.lineTo(cx, cy + sy * l); }
+  c.stroke(); c.restore();
+}
+// Phosphor draw-on: a wide soft glow pass plus a white-hot core, drawn along polylines to fraction p (reuses polyPart).
+function drawOn(c, lines, p, o = {}) {
+  if (p <= 0) return; const { color = '#BFBFBF', core = '#ffffff', lw = 8 * S, coreW = 2.5 * S, blur = 6 * S, alpha = 0.35 } = o, all = typeof lines[0][0] === 'number' ? [lines] : lines;
+  c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  c.globalAlpha *= alpha; c.filter = `blur(${blur}px)`; c.strokeStyle = color; c.lineWidth = lw; all.forEach(l => polyPart(c, l, p));
+  c.globalAlpha /= alpha; c.filter = 'none'; c.strokeStyle = core; c.lineWidth = coreW; all.forEach(l => polyPart(c, l, p));
+  c.restore();
+}
+// Colour bars with dark scanlines: a CRT backdrop. colors run top to bottom; p wipes them in from the left.
+function rainbowBars(c, x, y, w, h, o = {}) {
+  const { colors = ['#F2F2F2', '#D9D9D9', '#BFBFBF', '#A6A6A6', '#8C8C8C', '#737373', '#595959', '#404040'], p = 1, scan = 4 * S, lineW = 1.5 * S, dark = 'rgba(0,0,0,0.35)' } = o, bh = h / colors.length;
+  c.save(); c.beginPath(); c.rect(x, y, w * ease.inOut(clamp(p)), h); c.clip();
+  colors.forEach((col, i) => { c.fillStyle = col; c.fillRect(x, y + i * bh, w, bh + 0.5); });
+  c.fillStyle = dark; for (let yy = y; yy < y + h; yy += scan) c.fillRect(x, yy, w, lineW);
+  c.restore();
+}
+// Starburst: seeded light rays from a point (the head of a wipe beam, an impact). p grows them, then they fade.
+function starburst(c, x, y, r, o = {}) {
+  const { n = 20, color = '#ffffff', seed = 3, p = 1, width = 0.035, spin = 0 } = o, a = Math.sin(Math.PI * clamp(p) * 0.999 + 0.0005), rr = rng(seed), R = r * ease.out(clamp(p * 1.6));
+  if (a <= 0 || R <= 0) return;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= a; c.translate(x, y); c.rotate(spin); c.beginPath();
+  for (let i = 0; i < n; i++) { // spikes: wide at the centre, tapering to a point
+    const ang = (i / n) * Math.PI * 2 + rr() * 0.25, len = R * (0.35 + rr() * 0.65), b = len * width * (0.5 + rr()), px = -Math.sin(ang) * b, py = Math.cos(ang) * b;
+    c.moveTo(px, py); c.lineTo(Math.cos(ang) * len, Math.sin(ang) * len); c.lineTo(-px, -py); c.closePath(); }
+  const g = c.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, color); g.addColorStop(0.2, color + 'CC'); g.addColorStop(1, color + '00'); c.fillStyle = g; c.fill(); c.restore();
+}
+// Heart monitor: a P-QRS-T beat at bpm, swept left to right with a bright head and a fading trail. (x, y) = left end of the baseline.
+const ecgAt = u => 0.12 * Math.exp(-(((u - 0.18) / 0.03) ** 2)) - 0.12 * Math.exp(-(((u - 0.3) / 0.008) ** 2)) + Math.exp(-(((u - 0.33) / 0.011) ** 2)) - 0.28 * Math.exp(-(((u - 0.36) / 0.01) ** 2)) + 0.24 * Math.exp(-(((u - 0.55) / 0.05) ** 2));
+function ecg(c, x, y, w, h, t, o = {}) {
+  const { bpm = 72, color = '#ffffff', lw = 3 * S, span = 3, n = 240 } = o, head = ((t / span) % 1) * w, beat = 60 / bpm;
+  c.save(); c.strokeStyle = color; c.lineWidth = lw; c.lineJoin = 'round'; c.lineCap = 'round'; const A = c.globalAlpha;
+  let prev = null;
+  for (let i = 0; i <= n; i++) {
+    const xx = (i / n) * w, age = (((head - xx) % w) + w) % w / w * span, tt = t - age, v = tt < 0 ? 0 : ecgAt(((tt % beat) + beat) % beat / beat), pt = [x + xx, y - v * h];
+    if (prev && age < span * 0.92) { c.globalAlpha = A * (1 - age / span); c.beginPath(); c.moveTo(...prev); c.lineTo(...pt); c.stroke(); }
+    prev = pt;
+  }
+  const at = u => ecgAt(((u % beat) + beat) % beat / beat), k = Math.floor((head / w) * n), hp = [x + head, y - at(t) * h], kt = t - ((head - (k / n) * w) / w) * span;
+  c.globalAlpha = A; c.fillStyle = color; c.beginPath(); c.moveTo(x + (k / n) * w, y - (kt < 0 ? 0 : at(kt)) * h); c.lineTo(...hp); c.stroke(); // join the last sample to the head
+  c.beginPath(); c.arc(...hp, lw * 1.6, 0, 7); c.fill();
+  c.restore();
+}
+// Voice waveform bars, mirrored about the centre line y. level 0..1 scales them (0 = a flat row of dots).
+function waveBars(c, x, y, w, h, t, o = {}) {
+  const { n = 48, gap = 0.4, color = '#ffffff', level = 1, seed = 2 } = o, rr = rng(seed), bw = w / n, ww = bw * (1 - gap);
+  c.save(); c.fillStyle = color;
+  for (let i = 0; i < n; i++) {
+    const f1 = 2 + rr() * 4, f2 = 7 + rr() * 9, ph = rr() * 6.28, env = Math.sin((Math.PI * (i + 0.5)) / n) ** 0.6;
+    const bh = Math.max(ww, h * level * env * (0.2 + 0.8 * Math.abs(0.6 * Math.sin(t * f1 + ph) + 0.4 * Math.sin(t * f2 + ph * 2))));
+    rrect(c, x + i * bw + (bw - ww) / 2, y - bh / 2, ww, bh, ww / 2); c.fill();
+  }
+  c.restore();
+}
+
+// ---- fields / lists ----
+// Square-dot field on a grid with 4 opacity tiers. fn(i, j, t) returns a level 0..4 per cell (bloom, a hole for text, spreads on beats).
+const TIERS = [0, 0.15, 0.35, 0.6, 1];
+function pixelField(c, fn, t, o = {}) {
+  const { pitch = 42 * S, size = 0.62, color = '#ffffff', x0 = 0, y0 = 0, w = W, h = H } = o, s = pitch * size;
+  c.save(); c.fillStyle = color; const A = c.globalAlpha;
+  for (let j = 0; j < Math.ceil(h / pitch); j++) for (let i = 0; i < Math.ceil(w / pitch); i++) {
+    const l = fn(i, j, t) | 0; if (l <= 0) continue;
+    c.globalAlpha = A * TIERS[Math.min(4, l)]; c.fillRect(x0 + i * pitch + (pitch - s) / 2, y0 + j * pitch + (pitch - s) / 2, s, s);
+  }
+  c.restore();
+}
+// Slot list: the item at `pos` sits centred, neighbours fade (o.fade per row) and blur away. items = array (wraps) or i => string.
+// pos may be fractional: slotStep(t) gives the stepping feature roll; a raw number gives a rolling counter (see counterRoll).
+// o.side = 1 shows only upcoming items (-1 only previous); a negative lh stacks upcoming items above.
+function slotList(c, items, x, y, pos, o = {}) {
+  const { lh = 64 * S, size = 54 * S, color = '#111111', fade = [1, 0.45, 0.15], blur = 1.5 * S, side = 0 } = o, k = Math.floor(pos), fr = pos - k;
+  const get = i => (typeof items === 'function' ? items(i) : items[((i % items.length) + items.length) % items.length]);
+  for (let d = -fade.length; d <= fade.length; d++) {
+    const off = d - fr, dd = Math.abs(off), f = Math.floor(dd);
+    let a = lerp(fade[f] ?? 0, fade[f + 1] ?? 0, dd - f); if (side && off * side < 0) a *= clamp(1 - dd * 2);
+    if (a < 0.01) continue;
+    c.save(); if (blur && dd > 0.5) c.filter = `blur(${dd * blur}px)`; word(c, String(get(k + d)), x, y + off * lh, { weight: 500, ...o, size, color, alpha: a }); c.restore();
+  }
+}
+const slotStep = (t, step = 0.27, move = 0.35) => { const f = t / step, k = Math.floor(f); return k + ease.inOut(clamp((f - k) / move)); };
+// Rolling counter: the value with the next two stacked above it, fading (v, v+1, v+2 at 1, .4, .15). fmt formats each integer.
+const counterRoll = (c, v, x, y, o = {}) => slotList(c, i => (o.fmt || String)(i), x, y, v, { side: 1, fade: [1, 0.4, 0.15], ...o, lh: -(o.lh || 64 * S) });
+// Card deck that fans out into a vortex of tumbling tiles (scaleX = |cos|, back face when cos < 0). p: 0 = stacked deck, 1 = vortex.
+// draw(c, i, w, h) paints tile i's face centred on 0,0 (omit for plain tiles).
+function tumbleTiles(c, n, x, y, p, t, o = {}) {
+  const { w = 150 * S, h = 200 * S, R = 520 * S, face = '#ffffff', back = '#BDBDBD', edge = 'rgba(0,0,0,0.18)', seed = 9, spin = 0.5, draw } = o, rr = rng(seed), e = ease.inOut(clamp(p));
+  const tiles = Array.from({ length: n }, (_, i) => {
+    const a0 = rr() * 6.28, r0 = (0.3 + rr() * 0.7) * R, fl = rr() * 6.28, fs = 1.5 + rr() * 2.5, tilt = (rr() - 0.5) * 1.2, ang = a0 + t * spin;
+    return { i, x: x + Math.cos(ang) * r0 * e, y: y + Math.sin(ang) * r0 * 0.55 * e - (i - n / 2) * 1.5 * S * (1 - e), s: lerp(1, 0.75 + 0.22 * Math.sin(ang), e), z: Math.sin(ang) * e + i * 1e-3,
+      flip: Math.cos(fl * e + t * fs * e), rot: lerp((i - n / 2) * 0.03, tilt, e) };
+  });
+  for (const tl of tiles.sort((a, b) => a.z - b.z)) {
+    c.save(); c.translate(tl.x, tl.y); c.rotate(tl.rot); c.scale(Math.max(0.02, Math.abs(tl.flip)) * tl.s, tl.s);
+    rrect(c, -w / 2, -h / 2, w, h, 12 * S); c.fillStyle = tl.flip >= 0 ? face : back; c.fill(); c.strokeStyle = edge; c.lineWidth = 1.5 * S; c.stroke();
+    if (tl.flip >= 0 && draw) draw(c, tl.i, w, h);
+    c.restore();
+  }
+}
+// Picture as ASCII: any image or canvas sampled into cols × rows of luminance, one glyph per cell from `ramp` (dark -> bright).
+// ramp '01' with alpha: true gives the 0/1 portrait. o.p reveals cells in a seeded order.
+function asciiImage(c, src, x, y, w, h, o = {}) {
+  const { cols = 64, rows = 48, ramp = ' .:-=+*#%@', color = '#ffffff', font = TYPE.mono, alpha = false, p = 1, seed = 3 } = o, cw = w / cols, ch = h / rows;
+  const [, s] = scratch('ascii', cols, rows); s.drawImage(src, 0, 0, cols, rows); const d = s.getImageData(0, 0, cols, rows).data, r = rng(seed);
+  c.save(); c.font = `500 ${o.size || ch * 1.05}px "${font}"`; c.letterSpacing = '0px'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = color; const A = c.globalAlpha;
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const k = (j * cols + i) * 4, v = ((d[k] * 54 + d[k + 1] * 183 + d[k + 2] * 19) / 65280) * (d[k + 3] / 255), g = ramp[Math.min(ramp.length - 1, Math.floor(v * ramp.length))];
+    if (r() >= p || g === ' ' || (alpha && v < 0.04)) continue;
+    c.globalAlpha = alpha ? A * v : A; c.fillText(g, x + (i + 0.5) * cw, y + (j + 0.5) * ch);
+  }
+  c.restore();
+}
+// Numbered annotation pins popping in one after another (with optional labels). pts = [[x, y]]. Returns how many are in.
+function pins(c, pts, t, o = {}) {
+  const { gap = 0.18, r = 22 * S, fill = '#ffffff', ink = '#000000', stem = 18 * S, labels = [] } = o; let n = 0;
+  pts.forEach(([px, py], i) => {
+    const p = ease.back(clamp((t - i * gap) / 0.3)); if (p <= 0) return; n++;
+    c.save(); c.translate(px, py); c.scale(p, p); c.fillStyle = fill; c.fillRect(-S, -stem, 2 * S, stem); c.beginPath(); c.arc(0, -stem - r, r, 0, 7); c.arc(0, 0, 3 * S, 0, 7); c.fill();
+    word(c, String(i + 1), 0, -stem - r + r * 0.36, { size: r, weight: 600, font: TYPE.ui, track: 0, color: ink, align: 'center' }); c.restore();
+    if (labels[i]) ui(c, labels[i], px + r * 1.5, py - stem - r + 9 * S, { color: fill, alpha: clamp(p) });
+  });
+  return n;
+}
+// Exponential live counter (time passing, scale growing): v0 -> v1 on a log scale (v0 > 0). expCount formats with MILLION / BILLION.
+const expLerp = (v0, v1, p, g = 1) => v0 * (v1 / v0) ** (clamp(p) ** g);
+const bigNum = v => (v >= 1e9 ? (v / 1e9).toFixed(1) + ' BILLION' : v >= 1e6 ? (v / 1e6).toFixed(1) + ' MILLION' : Math.round(v).toLocaleString('en-US'));
+const expCount = (p, v0, v1, g = 1) => bigNum(expLerp(v0, v1, p, g));
+
+// ---- line / paper ----
+// Tapered comet hairline: the head at distance `head` px along a polyline, the tail `len` px behind thinning to nothing.
+function pen(c, pts, head, o = {}) {
+  const { len = W * 0.25, lw = 3 * S, color = '#000000', n = 48, dot = lw * 1.3 } = o;
+  c.save(); c.strokeStyle = color; c.fillStyle = color; c.lineCap = 'butt'; const A = c.globalAlpha;
+  let prev = polyAt(pts, head - len);
+  for (let i = 1; i <= n; i++) { const f = i / n, q = polyAt(pts, head - len + len * f); c.globalAlpha = A * f; c.lineWidth = lw * f; c.beginPath(); c.moveTo(prev[0], prev[1]); c.lineTo(q[0], q[1]); c.stroke(); prev = q; }
+  if (dot) { c.globalAlpha = A; c.beginPath(); c.arc(prev[0], prev[1], dot, 0, 7); c.fill(); }
+  c.restore();
+}
+// Echo smear: n copies of a drawing trailing behind it along (dx, dy), fading (swaps, fast moves). fn(c, ox, oy) draws one copy.
+// even: true makes n equal copies centred on the position, summed so it stays opaque (true motion blur; whip uses it).
+function smear(c, fn, dx, dy, o = {}) {
+  const { n = 8, alpha = 0.6, even = false } = o;
+  if (!even) { for (let k = n - 1; k >= 1; k--) { c.save(); c.globalAlpha *= alpha * (1 - k / n); fn(c, (-dx * k) / (n - 1), (-dy * k) / (n - 1)); c.restore(); } return fn(c, 0, 0); }
+  const [cv, s] = scratch('smear'); s.setTransform(c.getTransform()); s.globalCompositeOperation = 'lighter'; s.globalAlpha = 1 / n;
+  for (let k = 0; k < n; k++) fn(s, dx * (k / (n - 1) - 0.5), dy * (k / (n - 1) - 0.5));
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(cv, 0, 0); c.restore();
+}
+// Onion skin: the same moving thing drawn at earlier times, fading (ghosts behind a rider, a spark). fn(c, t) draws it at time t.
+function onion(c, fn, t, o = {}) {
+  const { n = 5, dt = 0.06, alpha = 0.5 } = o;
+  for (let k = n; k >= 1; k--) { c.save(); c.globalAlpha *= alpha * (1 - k / (n + 1)); fn(c, t - k * dt); c.restore(); }
+  fn(c, t);
+}
+// Torn paper slip with a quote, flying from `from` to `to` on an arc: scale 0.55 -> 1, blurred mid-flight, shadow lifting then landing.
+// p = flight progress (0.45 s in the reference; stagger by distance at 0.04 s). lines = string or array of strings.
+function slip(c, lines, from, to, p, o = {}) {
+  const { w = 440 * S, h = 120 * S, paper = '#F4F2EC', ink = '#222222', size = 28 * S, seed = 4, arc = 0.3 } = o, e = ease.inOut(clamp(p)), lift = Math.sin(Math.PI * e), r = rng(seed);
+  const rot = o.rot ?? (r() - 0.5) * 0.08, [x, y] = qbez(from, [(from[0] + to[0]) / 2, Math.min(from[1], to[1]) - Math.hypot(to[0] - from[0], to[1] - from[1]) * arc], to, e), sc = lerp(0.55, 1, e);
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(sc, sc); if (lift > 0.05) c.filter = `blur(${lift * 2.5 * S}px)`;
+  c.shadowColor = 'rgba(0,0,0,0.22)'; c.shadowBlur = (6 + lift * 30) * S; c.shadowOffsetY = (2 + lift * 22) * S;
+  c.beginPath(); const teeth = Math.round(w / (14 * S));
+  for (let i = 0; i <= teeth; i++) c.lineTo(-w / 2 + (w * i) / teeth, -h / 2 + (r() - 0.5) * 6 * S);
+  for (let i = teeth; i >= 0; i--) c.lineTo(-w / 2 + (w * i) / teeth, h / 2 + (r() - 0.5) * 6 * S);
+  c.closePath(); c.fillStyle = paper; c.fill(); c.shadowColor = 'transparent';
+  const ls = [].concat(lines); ls.forEach((s, i) => ui(c, s, -w / 2 + size * 0.9, (i - (ls.length - 1) / 2) * size * 1.3 + size * 0.36, { size, color: ink, weight: 500 }));
+  c.restore();
+}
+// Washi tape: a translucent strip with zigzag ends and 45° stripes, multiplied onto what it holds down. (x, y) = centre.
+function tape(c, x, y, w, h, o = {}) {
+  const { color = '#D6D2C8', rot = 0, alpha = 0.9, stripe = 0.18, teeth = 6 } = o, z = h / teeth;
+  c.save(); c.translate(x, y); c.rotate(rot); c.globalCompositeOperation = 'multiply'; c.globalAlpha *= alpha; c.beginPath();
+  for (let i = 0; i <= teeth; i++) c.lineTo(w / 2 - (i % 2) * z * 0.7, -h / 2 + i * z);
+  for (let i = teeth; i >= 0; i--) c.lineTo(-w / 2 + (i % 2) * z * 0.7, -h / 2 + i * z);
+  c.closePath(); c.fillStyle = color; c.fill(); c.clip();
+  c.globalAlpha *= stripe; c.strokeStyle = '#000000'; c.lineWidth = h * 0.12; c.beginPath();
+  for (let k = -w / 2 - h; k < w / 2 + h; k += h * 0.4) { c.moveTo(k, h / 2); c.lineTo(k + h, -h / 2); }
+  c.stroke(); c.restore();
+}
+// Callout attached to an object: a dot on the anchor, a 45° elbow leader, then a label. Tick a number in the label for a live count.
+function callout(c, ax, ay, lx, ly, label, p, o = {}) {
+  const { color = '#ffffff', size = 26 * S, dot = 5 * S, lw = 1.5 * S } = o, e = ease.out(clamp(p)); if (e <= 0) return;
+  const dir = Math.sign(lx - ax) || 1, ex = ax + dir * Math.min(Math.abs(ly - ay), Math.abs(lx - ax));
+  c.save(); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = lw; c.beginPath(); c.arc(ax, ay, dot * ease.back(clamp(p * 3)), 0, 7); c.fill();
+  polyPart(c, [[ax, ay], [ex, ly], [lx, ly]], prog(p, 0.1, 0.7)); c.restore();
+  ui(c, label, lx + dir * 10 * S, ly + size * 0.35, { size, color, align: dir > 0 ? 'left' : 'right', alpha: prog(p, 0.6, 1) });
+}
+
+// ---- containers / transitions ----
+// Player frame that hosts content on a desk: rounded window, content clipped inside, a scrub bar with a playhead, comment pins.
+// fn(c, x, y, w, h) draws the content. o.time 0..1 = playhead; o.marks = [0..1] pins on the bar; o.label = filename above.
+function player(c, x, y, w, h, fn, o = {}) {
+  const { r = 18 * S, frame = '#161616', ink = '#ffffff', bar = 56 * S, time = 0, marks = [], label = '', accent = ink } = o, pad = 26 * S, by = y + h + bar / 2;
+  c.save(); c.shadowColor = 'rgba(0,0,0,0.28)'; c.shadowBlur = 50 * S; c.shadowOffsetY = 18 * S; rrect(c, x, y, w, h + bar, r); c.fillStyle = frame; c.fill(); c.restore();
+  c.save(); rrect(c, x, y, w, h, [r, r, 0, 0]); c.clip(); fn(c, x, y, w, h); c.restore();
+  c.save(); c.fillStyle = ink; c.globalAlpha *= 0.25; c.fillRect(x + pad, by - 2 * S, w - pad * 2, 4 * S); c.globalAlpha *= 4; c.fillStyle = accent; c.fillRect(x + pad, by - 2 * S, (w - pad * 2) * clamp(time), 4 * S);
+  marks.forEach(m => { c.beginPath(); c.arc(x + pad + (w - pad * 2) * m, by - 14 * S, 5 * S, 0, 7); c.fill(); });
+  c.beginPath(); c.arc(x + pad + (w - pad * 2) * clamp(time), by, 8 * S, 0, 7); c.fillStyle = ink; c.fill(); c.restore();
+  if (label) ui(c, label, x, y - 16 * S, { size: 20 * S, font: TYPE.mono, track: 0, color: o.labelColor || ink });
+}
+// Slit reveal: the next shot opens through a band growing from the centre line, edges lit. fn(c) draws the next shot.
+function slitReveal(c, p, fn, o = {}) {
+  const { line = '#ffffff', lw = 2 * S, vertical = false, cx = W / 2, cy = H / 2 } = o, e = ease.inOut(clamp(p)); if (p <= 0) return;
+  const r = vertical ? [cx - (W * e) / 2, 0, W * e, H] : [0, cy - (H * e) / 2, W, H * e];
+  c.save(); c.beginPath(); c.rect(...r); c.clip(); fn(c); c.restore();
+  if (line && e < 1) { c.save(); c.globalAlpha *= 1 - e; c.fillStyle = line; vertical ? (c.fillRect(r[0] - lw / 2, 0, lw, H), c.fillRect(r[0] + r[2] - lw / 2, 0, lw, H)) : (c.fillRect(0, r[1] - lw / 2, W, lw), c.fillRect(0, r[1] + r[3] - lw / 2, W, lw)); c.restore(); }
+}
+// Shape-match morph: one rounded box becomes another about their centres (card -> dot -> button -> screen). a/b = { x, y, w, h, r }.
+function morphMatch(c, a, b, p, o = {}) {
+  const { color = '#ffffff', stroke, lw = 2 * S } = o, e = (o.ease || ease.inOut)(clamp(p)), w = lerp(a.w, b.w, e), h = lerp(a.h, b.h, e);
+  const x = lerp(a.x + a.w / 2, b.x + b.w / 2, e) - w / 2, y = lerp(a.y + a.h / 2, b.y + b.h / 2, e) - h / 2, r = Math.min(lerp(a.r || 0, b.r || 0, e), w / 2, h / 2);
+  rrect(c, x, y, w, h, r); if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } else { c.fillStyle = color; c.fill(); }
+  return { x, y, w, h, r };
+}
+// Shutter into a button: bars close over box (first `split` of p, ~0.4 s), then the closed block morphs into a labelled button.
+function shutterButton(c, box, btn, p, o = {}) {
+  const { color = '#2A2A2A', ink = '#ffffff', label = 'Export', bars = 6, size = 30 * S, split = 0.57 } = o, a = clamp(p / split), b = clamp((p - split) / (1 - split)), bh = box.h / bars;
+  if (p <= 0) return;
+  if (b <= 0) { c.fillStyle = color; for (let i = 0; i < bars; i++) c.fillRect(box.x, box.y + i * bh, box.w, bh * ease.inOut(clamp(a * 1.6 - (i / bars) * 0.6)) + 0.5); return; }
+  const m = morphMatch(c, { ...box, r: 0 }, btn, b, { color, ease: ease.out });
+  if (b > 0.6) word(c, label, m.x + m.w / 2, m.y + m.h / 2 + size * 0.36, { size, weight: 600, font: TYPE.ui, track: -0.01, color: ink, align: 'center', alpha: prog(b, 0.6, 1) });
+}
+// Spark hopping between points on arcs with a comet tail (an agent visiting data sources). hop + rest seconds per jump.
+// Returns { i, u, x, y }: the hop index, its progress and the head, so tiles can light up as it lands.
+function sparkHop(c, pts, t, o = {}) {
+  if (t < 0 || pts.length < 2) return; const { hop = 0.45, rest = 0.15, height = 0.35, color = '#ffffff', lw = 3 * S, r = 6 * S, len = 240 * S, halo = 0.5 } = o;
+  const i = Math.min(pts.length - 2, Math.floor(t / (hop + rest))), u = clamp((t - i * (hop + rest)) / hop), e = ease.inOut(u);
+  const arcPts = (a, b) => { const k = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - Math.hypot(b[0] - a[0], b[1] - a[1]) * height]; return Array.from({ length: 25 }, (_, j) => qbez(a, k, b, j / 24)); };
+  const prev = i > 0 ? arcPts(pts[i - 1], pts[i]) : [], cur = arcPts(pts[i], pts[i + 1]), head = polyLen(prev) + polyLen(cur) * e, [x, y] = polyAt([...prev, ...cur.slice(prev.length ? 1 : 0)], head);
+  pen(c, [...prev, ...cur.slice(prev.length ? 1 : 0)], head, { len: len * Math.sin(Math.PI * u), lw, color, dot: 0 });
+  if (halo) glow(c, x, y, r * 6, color, halo, 'source-over');
+  c.save(); c.fillStyle = color; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.restore();
+  return { i, u, x, y };
+}
+// Skeleton flash: boxes appear as outlines, flash to solid placeholder blocks, then fade as real content arrives.
+// Returns each box's content progress 0..1, so you draw the charts with it.
+function skeletonFlash(c, boxes, p, o = {}) {
+  const { line = 'rgba(128,128,128,0.7)', block = 'rgba(128,128,128,0.28)', r = 12 * S, lw = 1.5 * S, gap = 0.05 } = o, span = 1 - gap * Math.max(0, boxes.length - 1);
+  return boxes.map((b, i) => {
+    const q = clamp((p - i * gap) / span), out = 1 - prog(q, 0.65, 1);
+    c.save(); rrect(c, b.x, b.y, b.w, b.h, r); const A = c.globalAlpha;
+    c.globalAlpha = A * prog(q, 0, 0.12) * out; c.strokeStyle = line; c.lineWidth = lw; c.stroke();
+    c.globalAlpha = A * prog(q, 0.3, 0.36) * out; c.fillStyle = block; c.fill(); c.restore();
+    return prog(q, 0.55, 1);
+  });
+}
+// Click feedback: a grey disc that swells and fades under the pointer tip. t = seconds since the click.
+function clickDisc(c, x, y, t, o = {}) {
+  const { r = 30 * S, color = 'rgba(128,128,128,0.45)', dur = 0.35 } = o, q = t / dur; if (q < 0 || q > 1) return;
+  c.save(); c.globalAlpha *= 1 - q; c.fillStyle = color; c.beginPath(); c.arc(x, y, r * (0.6 + 0.6 * ease.out(q)), 0, 7); c.fill(); c.restore();
+}
+// Screen insert (UGC): a search field types a query at cps, the pointer arcs to the button and clicks, result rows blur in 40 ms apart.
+// (x, y, w) = panel top-left and width. Returns the times and the first result's box, to aim shotCam's push at it.
+function screenInsert(c, x, y, w, t, o = {}) {
+  const { query = 'search query', results = ['First result title', 'Second result title', 'Third result title'], cps = 12, size = 30 * S, ground = '#ffffff', ink = '#111111',
+    mute = '#8A8A8A', line = '#DDDDDD', accent = '#2A2A2A', button = 'Search', from = [x + w * 0.4, y + 420 * S] } = o;
+  const fh = size * 2.4, pad = size, rowH = size * 3.2, h = fh + pad * 3 + rowH * results.length, typedAt = query.length / cps, tMove = typedAt + 0.15, tClick = tMove + 0.4, tRes = tClick + 0.15;
+  c.save(); c.shadowColor = 'rgba(0,0,0,0.25)'; c.shadowBlur = 50 * S; c.shadowOffsetY = 16 * S; rrect(c, x, y, w, h, 20 * S); c.fillStyle = ground; c.fill(); c.restore();
+  const fx = x + pad, fy = y + pad, n = Math.floor(clamp(t * cps, 0, query.length)), shown = query.slice(0, n), tx = fx + size * 0.8, ty = fy + fh / 2 + size * 0.36;
+  rrect(c, fx, fy, w - pad * 2, fh, fh / 2); c.strokeStyle = line; c.lineWidth = 2 * S; c.stroke();
+  word(c, shown, tx, ty, { size, weight: 400, font: TYPE.ui, track: -0.01, color: ink });
+  if (n < query.length || Math.floor(t * 2.5) % 2 === 0) { c.fillStyle = ink; c.fillRect(tx + tw(c, shown, size, 400, TYPE.ui, -0.01) + 3 * S, ty - size * 0.8, 2.5 * S, size); }
+  const bw = tw(c, button, size * 0.8, 600, TYPE.ui, 0) + size * 1.4, bx = fx + w - pad * 2 - bw - 8 * S, by = fy + 8 * S, bh = fh - 16 * S, press = t >= tClick && t < tClick + 2 / 30 ? 0.94 : 1;
+  c.save(); c.translate(bx + bw / 2, by + bh / 2); c.scale(press, press); rrect(c, -bw / 2, -bh / 2, bw, bh, bh / 2); c.fillStyle = accent; c.fill();
+  word(c, button, 0, size * 0.29, { size: size * 0.8, weight: 600, font: TYPE.ui, track: 0, color: ground, align: 'center' }); c.restore();
+  results.forEach((r, i) => {
+    const q = ease.out(clamp((t - tRes - i * 0.04) / 0.75)); if (q <= 0) return; const ry = fy + fh + pad * 1.5 + i * rowH;
+    c.save(); c.globalAlpha *= q; if (q < 1) c.filter = `blur(${(1 - q) * 8 * S}px)`;
+    word(c, r, fx + size * 0.4, ry + size, { size: size * 1.1, weight: 600, font: TYPE.ui, track: -0.01, color: ink });
+    c.fillStyle = mute; c.globalAlpha *= 0.35; c.fillRect(fx + size * 0.4, ry + size * 1.7, (w - pad * 2) * (0.5 + 0.3 * rng(i + 7)()), size * 0.4); c.restore();
+  });
+  const target = [bx + bw * 0.55, by + bh * 0.6], cp = qbez(from, [lerp(from[0], target[0], 0.2), target[1] + 160 * S], target, ease.inOut(clamp((t - tMove) / 0.4)));
+  clickDisc(c, ...target, t - tClick); pointer(c, cp[0], cp[1], t >= tClick && t < tClick + 2 / 30 ? 0.9 : 1, { fill: '#ffffff', stroke: ink });
+  return { typedAt, tClick, tRes, first: { x: fx, y: fy + fh + pad * 1.5, w: w - pad * 2, h: rowH } };
+}
+// Footage camera that never sits still, applied through cam(). u = seconds since the shot started.
+// z0/tau: zoom-settle on entry (1.25–1.5, 0.35–0.5 s); slide: lateral drift in W per s; kw: u when a keyword fires a pull-back from kwZ to 1;
+// push: u when an accelerating push-in starts (pushZ over pushDur). ax/ay = anchor 0..1. Returns the zoom.
+function shotCam(c, u, o = {}) {
+  const { z0 = 1.3, tau = 0.4, ax = 0.5, ay = 0.5, slide = 0, kw, kwZ = 1.2, kwDur = 2.8, push, pushZ = 0.4, pushDur = 1 } = o;
+  let z = 1 + (z0 - 1) * Math.exp(-Math.max(0, u) / tau);
+  if (kw != null) z *= lerp(kwZ, 1, ease.inOut(clamp((u - kw) / kwDur)));
+  if (push != null) z *= 1 + pushZ * ease.in(clamp((u - push) / pushDur));
+  cam(c, z, ax * W, ay * H, -slide * W * u, 0); return z;
+}
+// Exposure flash on a cut: a full-frame overlay stepping down a per-frame table. whiteout ramps up INTO tCut + 6 frames; dip is 2 dark frames.
+const FLASH = { exposure: [1, 0.75, 0.5, 0.3, 0.15, 0.05], whiteout: [0.15, 0.3, 0.5, 0.7, 0.85, 1], dip: [1, 1] };
+function flash(c, t, tCut, o = {}) {
+  const { table = FLASH.exposure, color = '#ffffff', fps = 24 } = o, k = Math.floor((t - tCut) * fps + 1e-6); if (k < 0 || k >= table.length) return;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha *= table[k]; c.fillStyle = color; c.fillRect(0, 0, W, H); c.restore();
+}
+// Glitch box: for a few frames the region's slices jump sideways and a channel copy splits off, then it snaps clean. Box in screen px.
+// Call after drawing the region. tint is a channel colour (red split), not a palette colour; op 'lighten' suits dark grounds,
+// on light grounds pass op: 'darken' with a cyan tint.
+function glitchBox(c, x, y, w, h, t, o = {}) {
+  const { frames = 4, fps = 24, split = 4 * S, tint = '#ff0000', op = 'lighten', seed = 7, min = 10 * S, max = 60 * S } = o, f = Math.floor(t * fps); if (t < 0 || f >= frames) return;
+  const r = rng(seed * 131 + f), [cv, s] = scratch('glitch', Math.ceil(w), Math.ceil(h)), [tv, tx] = scratch('glitchTint', Math.ceil(w), Math.ceil(h));
+  s.drawImage(c.canvas, x, y, w, h, 0, 0, w, h); tx.drawImage(cv, 0, 0); tx.globalCompositeOperation = 'multiply'; tx.fillStyle = tint; tx.fillRect(0, 0, w, h); // keeps darks dark, tints the bright content
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); const A = c.globalAlpha; c.globalCompositeOperation = op; c.globalAlpha = A * 0.8; c.drawImage(tv, x + split, y); c.globalCompositeOperation = 'source-over'; c.globalAlpha = A;
+  for (let k = 0, n = 3 + Math.floor(r() * 3); k < n; k++) { const sy = r() * h * 0.9, sh = (0.04 + r() * 0.16) * h, dx = (r() < 0.5 ? -1 : 1) * lerp(min, max, r()); c.drawImage(cv, 0, sy, w, sh, x + dx, y + sy, w, sh); }
+  c.restore();
+}
+// Soft cut: a 1–2 frame crossfade instead of a hard cut (keep hard cuts for drops and section starts). drawB must paint an opaque ground.
+function softcut(c, t, tCut, drawA, drawB, o = {}) {
+  const { frames = 2, fps = 30 } = o, p = clamp(((t - tCut) * fps + 1) / (frames + 1));
+  if (p < 1) drawA(c); if (p > 0) { c.save(); c.globalAlpha *= p; drawB(c); c.restore(); }
+}
+// Whip pan across a wide world: drawWorld(c, ox) draws it shifted by ox; eased in-out with 8-copy motion blur peaking mid-move.
+function whip(c, drawWorld, x0, x1, p, o = {}) {
+  const e = ease.inOut(clamp(p)), ox = -lerp(x0, x1, e), v = Math.sin(Math.PI * clamp(p)) * Math.abs(x1 - x0) * (o.blur ?? 0.06);
+  if (v < 1) return drawWorld(c, ox);
+  smear(c, (cc, dx) => drawWorld(cc, ox + dx), v, 0, { n: o.n || 8, even: true });
+}
+// Synthetic depth of field: blur everything drawn so far except a sharp horizontal band at y (±band), then a soft vignette. Call last.
+function dof(c, y = H / 2, band = 0.08 * H, o = {}) {
+  const { blur = 7 * S, feather = 0.08 * H, vignette = 0.35 } = o, [cv, s] = scratch('dof'), [mv, m] = scratch('dofSharp'), top = y - band - feather, span = (band + feather) * 2;
+  s.drawImage(c.canvas, 0, 0); m.drawImage(cv, 0, 0); m.globalCompositeOperation = 'destination-in';
+  const g = m.createLinearGradient(0, top, 0, top + span); g.addColorStop(0, '#00000000'); g.addColorStop(feather / span, '#000000'); g.addColorStop(1 - feather / span, '#000000'); g.addColorStop(1, '#00000000');
+  m.fillStyle = g; m.fillRect(0, 0, W, H);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.filter = `blur(${blur}px)`; c.drawImage(cv, 0, 0); c.filter = 'none'; c.drawImage(mv, 0, 0);
+  if (vignette) { const v = c.createRadialGradient(W / 2, y, H * 0.3, W / 2, y, Math.hypot(W, H) * 0.6); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, `rgba(0,0,0,${vignette})`); c.fillStyle = v; c.fillRect(0, 0, W, H); }
+  c.restore();
+}
+
+// ---- timing ----
+// Sound from the picture's own constants, as sfx.py cues [t, name, gain, {params}]. Same numbers in, so sound can't drift.
+// typeCues: a pitched thock per typed glyph, stepping df Hz per glyph. Pass the gap the picture types at (1 / cps).
+const typeCues = (t0, str, gap = 0.105, f0 = 1300, df = 180, g = 1) => [...str].flatMap((ch, i) => (ch === ' ' ? [] : [[+(t0 + i * gap).toFixed(3), 'thock', g, { f: f0 + i * df }]]));
+// scrambleCues: one tick burst (roll ticks/s) covering a glyphHud word from its first cell to its last settle.
+const scrambleCues = (t0, str, g = 0.6, o = {}) => { const { per, roll, settle } = { ...HUD, ...o }; return [[+t0.toFixed(3), 'ticks', g, { n_ticks: Math.round((per * (str.length - 1) + settle) * roll), gap: +(1 / roll).toFixed(4) }]]; };
+// Beat pulse from a BPM alone (lib.js pulse() needs a BEATS list): 1 + amt on every beat, decaying. Multiply a scale by it.
+const bpmPulse = (t, bpm = 120, amt = 0.04, decay = 0.09) => { const b = 60 / bpm; return 1 + amt * Math.exp(-(((t % b) + b) % b) / decay); };
+// Which shot is showing in a burst of very short shots. frames = per-shot lengths in frames, from montageFrames() or flipFrames().
+function cutIndex(t, t0, frames, fps = 30) { let at = t0; for (let i = 0; i < frames.length; i++) { at += frames[i] / fps; if (t < at) return i; } return frames.length - 1; }
+const montageFrames = (n, seed = 1, pool = [1, 1, 2, 2, 3]) => { const r = rng(seed); return Array.from({ length: n }, () => pool[Math.floor(r() * pool.length)]); }; // B&W flash montage (24 fps)
+const flipFrames = (n, f0 = 3, f1 = 1) => Array.from({ length: n }, (_, i) => Math.round(f0 + ((f1 - f0) * i) / Math.max(1, n - 1))); // accelerating flip-book: 3,3,2…1
+const MONTAGE = 'grayscale(1) contrast(1.3)'; // c.filter for flash-montage shots
+// Paste-up collage: scrap k lands at t0 + k·step frames, no easing, at a seeded ±8° tilt. Returns the landed scraps for you to draw.
+const pasted = (t, t0, n, o = {}) => { const { step = 3.5, fps = 30, tilt = 0.14, jitter = 0, seed = 99 } = o; return Array.from({ length: n }, (_, k) => k).filter(k => t >= t0 + (k * step) / fps).map(k => { const r = rng(seed + k * 7); return { k, rot: (r() - 0.5) * 2 * tilt, dx: (r() - 0.5) * jitter, dy: (r() - 0.5) * jitter }; }); };
+// Reverse replay: maps t in [ts, ts + dur] to a source time running back from ts over `span` s, one frame per output frame. Then drawAt it.
+const rewind = (t, ts, dur = 1, span = 3, fps = 30) => ts - (Math.floor(clamp((t - ts) / dur) * dur * fps) / (dur * fps)) * span;
+// Draw every scene live at time tt (rewinds, flip-books of earlier shots). skip = the calling scene, so it doesn't recurse.
+const drawAt = (c, tt, skip) => VIDEO.scenes.forEach(s => s !== skip && tt >= s.start && tt < s.end && (c.save(), s.draw(c, prog(tt, s.start, s.end), tt, s), c.restore()));

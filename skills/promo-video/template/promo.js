@@ -1,8 +1,8 @@
-// SaaS-promo helpers on top of lib.js (bg text cover prog ease rng lerp clamp img W H).
+// SaaS-promo helpers on top of lib.js (bg text cover prog ease rng lerp clamp img spring W H).
 // Every helper is a pure function of the values you pass in, so frames stay deterministic.
+// spring lives in lib.js and takes both forms: spring(p) / spring(p, 8) is the 0..1 overshoot-a-touch ease for UI
+// entering; spring(t, [[t0, v0], [t1, v1], ...]) is the closed-form spring in seconds through targets.
 
-// Critically damped-ish spring: overshoots a touch, settles. Nicer than ease.out for UI entering.
-const spring = (p, k = 8) => (p <= 0 ? 0 : p >= 1 ? 1 : 1 - Math.exp(-k * p) * Math.cos(k * 0.9 * p));
 // Stagger: progress of item i when items start `gap` seconds apart from t0 and each takes `dur`.
 const stagger = (t, t0, i, gap = 0.06, dur = 0.5) => prog(t, t0 + i * gap, t0 + i * gap + dur);
 

@@ -17,16 +17,80 @@ const ease = {
   out: p => 1 - (1 - p) ** 3,
   in: p => p ** 3,
   inOut: p => (p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2),
-  back: p => 1 + 2.7 * (p - 1) ** 3 + 1.7 * (p - 1) ** 2,
+  back: p => p <= 0 ? 0 : 1 + 2.7 * (p - 1) ** 3 + 1.7 * (p - 1) ** 2,   // exact 0 at p=0 (float residue made arc() radii negative)
   elastic: p => (p <= 0 || p >= 1 ? p : 2 ** (-10 * p) * Math.sin((p * 10 - 0.75) * (2 * Math.PI / 3)) + 1),
+  lift: bezier(0.32, 0.72, 0, 1), // the 700 ms "discrete choice" ease from hairline-style motion: fast out, long soft landing
 };
+// CSS cubic-bezier(x1, y1, x2, y2) as an easing p -> value (bisection on x, exact to ~1e-7).
+function bezier(x1, y1, x2, y2) {
+  const f = (u, a, b) => 3 * a * u * (1 - u) ** 2 + 3 * b * u * u * (1 - u) + u ** 3;
+  return p => { if (p <= 0) return 0; if (p >= 1) return 1; let lo = 0, hi = 1, u = p; for (let i = 0; i < 26; i++) { u = (lo + hi) / 2; if (f(u, x1, x2) < p) lo = u; else hi = u; } return f(u, y1, y2); };
+}
 function rng(seed) { // mulberry32, seeded so every frame is reproducible
   let a = seed >>> 0;
   return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-// Hand-drawn "boil": the value only changes 12x/second, like animation on twos.
-const boil = (t, fps = 12) => Math.floor(t * fps);
+// Hand-drawn "boil": the value only changes 12x/second, like animation on twos. Use it as a seed.
+// cycle = how many drawings loop: stop-motion is boil(t, 12, 3) (3 drawings, 4 loops a second, measured off a
+// hand-drawn reference). The default never loops, so older callers (wobble, type.js marks/grain) draw what they always did.
+const boil = (t, fps = 12, cycle = Infinity) => Math.floor(t * fps) % cycle;
 const wobble = (seed, t, amp = 2) => { const r = rng(seed * 7919 + boil(t)); return [(r() - 0.5) * amp, (r() - 0.5) * amp]; };
+
+// ---- stop-motion (12 fps, 3-drawing boil, ±2 px whole-pixel jitter, ±1.2 % flicker) ----
+// Hold time on a 12 fps grid: draw scene(stepT(t)) and the motion steps like stop-motion while the render stays 30 fps.
+const stepT = (t, fps = 12) => Math.floor(t * fps + 1e-6) / fps;
+// Whole-frame jitter for frame f = boil(t): c.translate(...jitter(boil(t))) before drawing. Whole pixels, as measured.
+const jitter = (f, amp = 2, seed = 1) => { const r = rng(seed * 7919 + f); return [Math.round((r() * 2 - 1) * amp), Math.round((r() * 2 - 1) * amp)]; };
+// Exposure flicker for frame f: a gain around 1. Apply as black (g < 1) or white (g > 1) at |1 - g| over the frame.
+const flickerGain = (f, amp = 0.012, seed = 3) => 1 + (rng(seed * 104729 + f)() * 2 - 1) * amp;
+// Closed-form spring in SECONDS through targets: keys = [[t0, v0], [t1, v1], ...] (v0 is the resting value; each later
+// key starts one damped step response at its time, all summed, so motion stays continuous and frame 812 needs no history).
+// k 100 / c 18 (mass 1) is within 1 % by 0.5 s and overshoots 0.2 %; c 12 bounces ~10 %. spring(p) / spring(p, 8) is promo.js's 0..1 spring.
+// Assigned to window, not declared: projects made before promo.js dropped its `const spring` would otherwise hit a duplicate-declaration SyntaxError
+// (where promo.js is loaded its own spring(p) wins; drop that line there and this one takes both forms).
+window.spring = (t, keys = 8, k = 100, c = 18) => {
+  if (!Array.isArray(keys)) return t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.exp(-keys * t) * Math.cos(keys * 0.9 * t);
+  const w = Math.sqrt(k), z = c / (2 * w), wd = w * Math.sqrt(Math.abs(1 - z * z)), r1 = -w * (z - Math.sqrt(Math.max(0, z * z - 1))), r2 = -w * (z + Math.sqrt(Math.max(0, z * z - 1)));
+  const step = s => s <= 0 ? 0 : z < 1 ? 1 - Math.exp(-z * w * s) * (Math.cos(wd * s) + (z * w / wd) * Math.sin(wd * s)) : z === 1 ? 1 - Math.exp(-w * s) * (1 + w * s) : 1 - (r2 * Math.exp(r1 * s) - r1 * Math.exp(r2 * s)) / (r2 - r1);
+  let v = keys[0][1]; for (let i = 1; i < keys.length; i++) v += (keys[i][1] - keys[i - 1][1]) * step(t - keys[i][0]); return v;
+};
+// Hand-drawn stroke, no rough.js: pts [[x, y], ...] drawn in two wobbly passes (the second lighter and 1.5–2 px off),
+// optional 45° hachure fill. Sharp corners (> 30°) end one stroke and start the next with a small overshoot, so boxes and
+// stars cross at the corners like pencil; gentle turns (a 24-point circle) stay one smooth stroke.
+// o: seed closed color lw wob (px) bow over (px) p (draw-on 0..1, in stroke order) fill (hachure colour) gap angle light.
+// A box is [[x, y], [x + w, y], [x + w, y + h], [x, y + h]] with closed: true. Boil it: seed: id * 3 + boil(t, 12, 3).
+function sketch(c, pts, o = {}) {
+  const { seed = 1, closed = false, color = '#383933', lw = 1.8, wob = 1.4, bow = 0.012, over = 3, p = 1, fill, gap = 6, angle = Math.PI / 4, light = 0.55 } = o;
+  const line = (r, a, b, amp) => { // one wobbly, slightly bowed segment as points
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, n = Math.max(2, Math.ceil(L / 28)), nx = (a[1] - b[1]) / L, ny = (b[0] - a[0]) / L, bw = (r() - 0.5) * 2 * bow * L;
+    return Array.from({ length: n + 1 }, (_, i) => { const u = i / n, d = bw * Math.sin(Math.PI * u) + (r() - 0.5) * 2 * amp; return [lerp(a[0], b[0], u) + nx * d, lerp(a[1], b[1], u) + ny * d]; });
+  };
+  const len = q => q.reduce((s, v, i) => (i ? s + Math.hypot(v[0] - q[i - 1][0], v[1] - q[i - 1][1]) : 0), 0);
+  const stroke = (q, width, alpha, part) => { // smooth path through q, drawn to fraction `part` of its length
+    if (part <= 0) return; const L = len(q);
+    c.globalAlpha = alpha; c.lineWidth = width; c.setLineDash(part < 1 ? [L * part, L + 1] : []); c.beginPath(); c.moveTo(...q[0]);
+    for (let i = 1; i < q.length - 1; i++) c.quadraticCurveTo(q[i][0], q[i][1], (q[i][0] + q[i + 1][0]) / 2, (q[i][1] + q[i + 1][1]) / 2);
+    c.lineTo(...q.at(-1)); c.stroke();
+  };
+  const draw = (strokes, width, alpha) => { let left = strokes.reduce((a, q) => a + len(q), 0) * p; for (const q of strokes) { const l = len(q); stroke(q, width, alpha, left / l); left -= l; } };
+  const P = closed ? [...pts, pts[0]] : pts, dir = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]), groups = [[0]];
+  for (let i = 1; i < P.length; i++) { groups.at(-1).push(i); if (i < P.length - 1 && Math.abs(((dir(P[i], P[i + 1]) - dir(P[i - 1], P[i]) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) > 0.52) groups.push([i]); }
+  const r = rng(seed * 9973 + 7), passes = [0, 1].map(k => { // geometry first, so p never changes the wobble
+    const a = r() * 6.283, m = k ? 1.5 + r() * 0.5 : 0;
+    return groups.map(g => { const q = g.slice(1).flatMap((j, i) => line(r, P[j - 1], P[j], wob).slice(i ? 1 : 0)), [q0, q1, y, z] = [q[0], q[1], q.at(-2), q.at(-1)], e0 = over * r(), e1 = over * r(), d0 = dir(q1, q0), d1 = dir(y, z);
+      return [[q0[0] + Math.cos(d0) * e0, q0[1] + Math.sin(d0) * e0], ...q, [z[0] + Math.cos(d1) * e1, z[1] + Math.sin(d1) * e1]].map(([x, y]) => [x + Math.cos(a) * m, y + Math.sin(a) * m]); });
+  });
+  c.save(); c.lineCap = c.lineJoin = 'round'; c.strokeStyle = color;
+  if (fill && p > 0) { // hachure: parallel strokes across the bounding box, clipped to the shape, drawn on in order with p
+    const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const R = Math.hypot(Math.max(...xs) - cx, Math.max(...ys) - cy), dx = Math.cos(angle), dy = Math.sin(angle), rh = rng(seed * 31 + 1), n = Math.floor((2 * R) / gap);
+    c.save(); c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.clip(); c.strokeStyle = fill;
+    for (let i = 0; i <= n; i++) { const d = -R + i * gap, q = line(rh, [cx - dy * d - dx * R, cy + dx * d - dy * R], [cx - dy * d + dx * R, cy + dx * d + dy * R], wob * 0.6); if (i < (n + 1) * p) stroke(q, lw * 0.7, 0.9, 1); }
+    c.restore();
+  }
+  draw(passes[0], lw, 1); draw(passes[1], lw * 0.8, light);
+  c.restore();
+}
 
 // ---- music ----
 const lyricAt = t => LYRICS.find(l => t >= l.start && t < l.end);
@@ -87,14 +151,20 @@ function paper(c, strength = 0.5, seed = 1) {
 }
 
 // ---- engine ----
+// VIDEO.stopmo = true (or { fps, jitter, flicker }) is the stop-motion paper look, off by default: time held on a 12 fps
+// grid, the whole frame jittered ±2 whole px (overscanned so no edge shows) and its exposure flickered ±1.2 % per drawing.
+// For the 3-drawing boil, seed hand-drawn lines with boil(t, 12, 3), e.g. sketch(c, pts, { seed: id * 3 + boil(t, 12, 3) }).
 function seek(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, W, H);
+  const sm = VIDEO.stopmo && { fps: 12, jitter: 2, flicker: 0.012, ...VIDEO.stopmo };
+  if (sm) { t = stepT(t, sm.fps); const [dx, dy] = jitter(boil(t, sm.fps), sm.jitter), k = 1 + (2 * sm.jitter + 1) / Math.min(W, H); ctx.setTransform(k, 0, 0, k, dx - (W * (k - 1)) / 2, dy - (H * (k - 1)) / 2); }
   for (const s of VIDEO.scenes) {
     if (t < s.start || t >= s.end) continue;
     ctx.save(); s.draw(ctx, prog(t, s.start, s.end), t, s); ctx.restore();
   }
   if (VIDEO.overlay) { ctx.save(); VIDEO.overlay(ctx, t); ctx.restore(); }
+  if (sm) { const g = flickerGain(boil(t, sm.fps), sm.flicker); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = Math.abs(1 - g); ctx.fillStyle = g < 1 ? '#000' : '#fff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
 
 function boot() {
@@ -106,7 +176,11 @@ function boot() {
     document.head.appendChild(l);
   });
   const loads = (VIDEO.assets || []).map(n => new Promise(res => { const i = new Image(); i.onload = () => { IMGS[n] = i; res(); }; i.onerror = () => { console.warn('missing asset', n); res(); }; i.src = 'assets/' + n; }));
-  window.ready = Promise.all([...loads, css.then(() => Promise.all(fonts.map(f => document.fonts.load(`40px "${f.split(':')[0]}"`))))]).then(() => document.fonts.ready);
+  // Preload every face a spec names ('Inter:wght@400;600' → 400 and 600, 'Instrument Serif:ital@0;1' → roman and italic),
+  // or a weight that isn't loaded yet draws in a fallback face on the first frames.
+  const faces = f => { const [fam, ax = ''] = f.split(':'), [keys = '', vals] = ax.split('@'), k = keys.split(',');
+    return (vals ? vals.split(';') : ['']).map(v => { const x = v.split(','); return `${x[k.indexOf('ital')] === '1' ? 'italic ' : ''}${k.includes('wght') ? x[k.indexOf('wght')].split('..')[0] : 400} 40px "${fam}"`; }); };
+  window.ready = Promise.all([...loads, css.then(() => Promise.all(fonts.flatMap(faces).map(f => document.fonts.load(f))))]).then(() => document.fonts.ready);
   if (RENDER) return document.getElementById('hud').remove();
   // Preview: click to play/pause, arrows scrub, #12.5 in the URL jumps to 12.5s.
   const au = new Audio(VIDEO.audio || ''); const hud = document.getElementById('hud');

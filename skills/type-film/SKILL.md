@@ -1,6 +1,6 @@
 ---
 name: type-film
-description: Make an ORIGINAL brand motion film (10–30 s) from one or more reference videos plus the brand's own site. It takes each reference's techniques (pacing, type behaviour, camera, texture), never its shots, and invents a new concept and shot list native to the brand's world. The brand's real logo, colours, fonts and copy are drawn as JS canvas animation with seek(t), scored with synthesised music and SFX, and rendered frame-exact to MP4. Styles so far: Swiss kinetic type (the Whop film), and cinematic narration with glass UI and a curved gallery (the Nexus launch and a portfolio reel). Use when the user shares motion references (x.com links, MP4s) and wants "one like this for <brand>", a brand film, launch video, motion-design reel, kinetic type piece or a new variant of an earlier one.
+description: Make an ORIGINAL brand motion film (10–30 s) from one or more reference videos plus the brand's own site. It takes each reference's techniques (pacing, type behaviour, camera, texture, sound), never its shots, and invents a new concept and shot list native to the brand's world. The brand's real logo, colours, fonts and copy are drawn as JS canvas animation with seek(t), scored with synthesised music or sonified UI, and rendered frame-exact to MP4. Styles: Swiss kinetic type, cinematic narration with glass UI, screen HUD, 80s vector CRT, monochrome single-take morph, line catalogue and isometric product. Use when the user shares motion references (x.com links, MP4s) and wants "one like this for <brand>", a brand film, launch video, motion-design reel, kinetic type piece or a new variant of an earlier one.
 ---
 
 # Type film: references + brand → an original motion film
@@ -12,92 +12,104 @@ description: Make an ORIGINAL brand motion film (10–30 s) from one or more ref
 D=~/Movies/type-films/<slug>; mkdir -p "$D"/{assets,docs} && cp ~/.claude/skills/type-film/template/* "$D"/ \
   && cp ~/.claude/skills/music-video/template/{lib.js,render.mjs} ~/.claude/skills/promo-video/template/{promo.js,sfx.py} "$D"/
 ```
-- **`type.js`:** the helper vocabulary. Read it once.
+`index.html` loads lib → promo → type → look → iso → video. Put data files (e.g. a `data.js` of real numbers) before video.js.
+- **`type.js`:** the helper vocabulary, in sections (type, captions, HUD, fields, line/paper, containers, timing). Read the section comments once.
+- **`look.js`:** film and screen finishes, off unless the style asks: `overlay(c, t) { applyLook(c, t, null, LOOK.crt); }`, presets `film16 archival crt lcd vhs`, event passes such as `lutStab crtCollapse filmBurn`. `sh filmlook.sh in.mp4 out.mp4 0.4` does the film look as an ffmpeg pass instead.
+- **`iso.js`:** an isometric camera for canvas: `ISO.cam slab face extrude lift order shadow tilt`, the `ISO.LINE` tokens, its own `spring` and `tween`. `node -e "require('./iso.js').selftest()"` checks its maths.
 - **`examples/*.js`:** finished films, there to show how the API is used. **Never copy a scene from an example or a reference.**
-- **`references.md`:** references that have already been deconstructed. Check it first and add to it.
+- **`references.md`:** references that have already been deconstructed, with credits. Check it first and add to it.
 
 ## 1. Deconstruct each reference → `docs/grammar.md`
-Use `x-video-frames` or ffmpeg to get frames at 2–4 fps, plus 8 fps sheets per 3 s segment. Measure the beat grid with librosa (`uv run` with `numpy librosa soundfile`).
+`uv run ~/.claude/skills/x-video-frames/deconstruct.py <x.com url | file> [--stems] [--drift]` writes frames, 8 fps sheets, the cuts, a spectrogram with cuts, beats and SFX marked, the tempo and a report.md with empty TAKE/LEAVE sections. Use `--stems` for any reference with a voice, or its SFX are lost under the speech. Its sound classes are guesses: look at the sheets and the spectrogram yourself.
 
 Fill in a TAKE / LEAVE table per reference:
-- **TAKE (transferable):**
-  - average shot length and cuts per beat
-  - how type enters and leaves
-  - camera language and transition logic
-  - palette *roles* (which colour is the ground, the text, the accent)
-  - texture and lighting
-  - sound feel
-  - 1–2 signature techniques, described abstractly (e.g. "a concave wall that wraps the viewer")
-- **LEAVE (recognisably theirs):** the shot order, compositions, specific set pieces, script and copy, metaphors, logo moments.
+- **TAKE (transferable):** shot length and cuts per beat; how type enters and leaves; camera and transition logic; palette *roles*; texture and lighting; sound feel; 1–2 signature techniques described abstractly ("a concave wall that wraps the viewer").
+- **LEAVE (recognisably theirs):** the shot order, compositions, set pieces, script and copy, metaphors, logo moments, and their colourway as a whole.
 
 ## 2. Find the brand's world → `docs/concept.md`
-- **Objects:** from the site and the product, list 10+ objects, rituals and artefacts native to the domain. For Keychain: barcodes, lot codes, spec sheets, pouches, supplier profiles, factory floors, a chain of links.
-- **Metaphor:** pick one core metaphor.
-- **Logline:** write it in the brand's voice.
-- **Story arc:** the film tells a story (hook → tension → product → proof → logo). It is not a tour of techniques.
-- **Copy:** use real copy and real numbers only. Never invent stats or customers; use descriptors ("Co-packer · New Jersey") instead.
+- **Objects:** list 10+ objects, rituals and artefacts native to the brand's domain (Keychain: barcodes, lot codes, spec sheets, pouches, a chain of links).
+- **Metaphor, logline** in the brand's voice, and a **story arc** (hook → tension → product → proof → logo), not a tour of techniques.
+- **Copy:** real copy and real numbers only; read numbers from the source at render time where you can. Never invent stats or customers.
+- **Banned list:** what this film won't do. Name each reference's signature look one by one, then the house bans: glass cards, decorative gradients, stage beams, bouncy type, blanket fades, dead holds, invented numbers. The critic checks against it.
 
 ## 3. Invent the shot list → `docs/shotlist.md`
-- **Formula:** write every shot as `technique (from TAKE) × brand object × real copy`.
-- **Invention:** add at least 3 devices that appear in **no** reference and no earlier film in this folder, and mark them "new".
-- **The same-sentence test:** no shot keeps a reference shot's composition *and* motion. If one sentence describes both your shot and a reference shot, redesign it.
-- **Transitions:** build them from the story's objects, not generic wipes. For example, barcode bars fatten into the cut to black, or the final chain link closes into the logo.
-- **Beat grid:** choose the BPM from the mood (brisk Swiss ≈150, cinematic narration ≈100). Every scene starts on a beat.
-- **A variant of an earlier film:** list the earlier film's concept and devices first, then change the concept, the ground and lighting mood, the pacing, and at least 70% of the devices.
-- If the user is interactive, show them the concept and shot list before building. Otherwise continue.
+- Write every shot as `technique (from TAKE) × brand object × real copy`, and add at least 3 devices that appear in **no** reference and no earlier film here, marked "new".
+- **The same-sentence test:** if one sentence describes both your shot and a reference shot (composition *and* motion), redesign it. Re-skinning the colours isn't enough.
+- Build transitions from the story's objects (barcode bars fattening into the cut; a cell growing into the next shot).
+- Pick a beat grid from the mood (brisk Swiss ≈150 BPM, narration ≈100, HUD 120) and start every scene on it.
+- A variant of an earlier film: list that film's concept and devices first, then change the concept, ground, pacing and at least 70% of the devices.
+- If the user is interactive, show the concept and shot list before building.
+
+## Styles
+Mix freely. Details and credits are in `references.md`.
+
+| Style | Picture | Sound | From |
+|---|---|---|---|
+| Swiss kinetic type | huge grotesk on grid paper, masked rises, scrambled meta labels | bright bed ≈150 BPM | Whop |
+| Cinematic narration | small words out of a blur, glass UI, `keylight dust`, a curved wall | slow bed ≈100 BPM | Nexus, portfolio reel |
+| Screen HUD | `glyphHud` scramble → resolve with **re-skinned** `cell`/`label`, `trackers cornerTicks`, live counters; look `lcd` or `crt`, light | no music: `drone` room tone, `typeCues` and `scrambleCues`, pentatonic blips, true silence | 19, 09, 17 |
+| 80s vector CRT | `drawOn` phosphor strokes, `inlineWord`, `rainbowBars starburst`, `crtCollapse`, `vhsTear`; look `crt` | synth bed, `bed.mutes`, `crt_off` then silence | 08 |
+| Monochrome single-take morph | one shape becomes the next (`morphMatch smear`), lowercase full-stop headlines, construction lines | a chord change per visual beat, whoosh-then-impact per morph | 12 |
+| Line catalogue | `ISO.LINE` tiers, one `pen` threading every figure, mono state labels, an index ruler, echo-smear swaps | sparse foley or none | 20 |
+| Isometric product | `ISO.slab` hull solids, one highlight, `ISO.lift` from the flat plan, springs for *where*, tweens for *which* | foley for objects, `swell` under the lift, silence before the payoff | 01, 13 |
 
 ## 4. Build
-- **Motion:** `spr track cam`.
-- **Type:** `word ui rise riseChars scramble typed words` (words out of a blur).
-- **Surfaces:** `grid hl glass keylight dust marks grain`.
-- **Objects:** `arrow check marquee ring3d orbit tunnel guides barcode flap chain bend pointer`.
-- **Layers:** `cached scratch`.
-- **From promo.js:** `pill counter rrect glow`.
+- **Motion:** `spr track cam shotCam`, `ISO.spring`/`ISO.tween`. lib.js's `spring` loses to promo.js's `const spring` here, so use `track()` for summed closed-form springs. Stop-motion: `boil(t, 12, 3)` gives 3 drawings looping 4 times a second; lib.js also has `stepT jitter flickerGain sketch`.
+- **Type:** `word ui rise riseChars scramble typed words hotWord glowIn inlineWord shimmer selectHL textOnPath`; captions `leadIn karaoke`.
+- **HUD and fields:** `glyphHud trackers cornerTicks pixelField slotList counterRoll tumbleTiles asciiImage ecg waveBars expCount`.
+- **Line, paper, containers:** `drawOn pen smear onion slip tape callout pins player slitReveal morphMatch shutterButton sparkHop skeletonFlash screenInsert`.
+- **Surfaces and objects:** `grid hl glass keylight dust marks grain arrow check marquee ring3d orbit tunnel guides barcode flap chain bend pointer`; from promo.js `pill counter rrect glow`.
+- **Timing:** `flash softcut whip dof glitchBox cutIndex flipFrames pasted rewind drawAt bpmPulse`. `drawAt(c, t, self)` draws the film at another time, inside a cell or a rewind.
+- **Sound from the picture:** build cues from the constants the scenes read: `typeCues(t0, str, gap, f0, df)`, `scrambleCues(t0, str, g, {per, settle})`, one array of times shared by a scene and its cues. `VIDEO.drone`, `lufs`, `lp`, `bed.mutes` pass through `render.mjs --cues` to sfx.py (its docstring lists every sound and its params).
 
-When you invent a device that could be reused, add it to `type.js` with a one-line comment, then record it in `references.md`.
+When you invent a reusable device, add it to `type.js` with a one-line comment and record it in `references.md`.
 
-Brand rules:
-- **Colours:** take them from CSS variables (convert `hsl()` to hex) and logo pixels.
-- **Fonts:** take them from `@font-face` / `next/font`, and use the nearest Google font if needed.
-- **Logo:** use the SVG wordmark (make a white copy with `sed 's/fill="black"/fill="white"/'`). Redraw a geometric mark as canvas paths so it can assemble itself.
-- **Pale accents** (yellow, lime) are never text on light grounds; use them only as fields there.
+**Rules for cuts and sound:**
+- **Cut ON the audio burst.** fframes cuts 3 frames before its burst. Put the cut frame and the burst on the same time.
+- **Hold a 0.3 s gap before the hero word:** picture still, sound silent. `[t, 'gap', 1, {dur: 0.3}]` silences the bed and the drone. End a dry build where the gap starts (`sub_swell`, `suck_in`); a riser with a reverb send rings straight through the gap.
+- **Foley for objects, silence for clicks.** Something that moves, lands or grows gets a sound when it moves. A pointer click, an Enter or a caret gets none. Use pitch only where it carries information (a typing ladder, a walk up a scale).
+- **Loop closure:** if the film can loop, its last frame is frame 0. Fade in from frame 0 anything that appears after it, and check with `node render.mjs --loopcheck --query look=0` (have `overlay` skip the look when the query says so).
 
-## 5. Critique: craft AND originality
+**Brand rules:** colours from CSS variables (`hsl()` → hex) and logo pixels; fonts from `@font-face` / `next/font` or the nearest Google font; the SVG wordmark (white copy: `sed 's/fill="black"/fill="white"/'`); a geometric mark redrawn as canvas paths so it can assemble itself. Pale accents (yellow, lime) are never text on light grounds. A brand with no identity gets a designed one: a palette with roles, two fonts, a mark from its own objects.
+
+## 5. Gates and critique: craft AND originality
+1. **Stills gate:** before any full render, `node render.mjs --still <one t per shot, plus every transition midpoint>` and tile them: `(cd review && ffmpeg -loglevel error -y -pattern_type glob -i 't*.png' -vf "scale=480:-1,tile=6x5:padding=4" -frames:v 1 ../sheet.jpg)`. Fix layout, collisions and readability here, where a fix costs seconds.
+2. **Render:** `node render.mjs --cues && uv run sfx.py && node render.mjs --out <slug>.mp4 --subframes 4`. Subframes give motion blur at 4× the render time; leave them off for drafts.
+3. **Critique pack:**
 ```bash
-node render.mjs --still <one t per shot, plus the transition midpoints>
-(cd review && ffmpeg -loglevel error -y -pattern_type glob -i 't*.png' -vf "scale=480:-1,tile=6x5:padding=4" -frames:v 1 ../sheet.jpg)
-node render.mjs --cues && uv run sfx.py && node render.mjs --out <slug>.mp4
-ffmpeg -i <slug>.mp4 -vf "fps=1.5,scale=384:-1,tile=6x6" -frames:v 1 contact.jpg
+ffmpeg -i <slug>.mp4 -vf "fps=2,scale=384:-1,tile=6x6" -frames:v 1 contact.jpg
 for s in <transition times>; do ffmpeg -loglevel error -y -ss $s -t 0.7 -i <slug>.mp4 -vf "fps=13,scale=320:-1,tile=9x1" -frames:v 1 strip_$s.jpg; done
 ```
-Look at every sheet at full size and at half-res 2×2 zooms. Score each of these 1–10:
-- a hook in the first 2 s
-- readability at phone size
-- motion
-- variety
-- brand accuracy
-- sound sync
-- **originality**
+   Plus a spectrogram with the cuts marked (`sfx.plot(mono, [(t, label)], 'spec.png')`) to check every sound against its picture event.
+4. **Score each 1–10:** hook in the first 2 s, readability at phone size, motion, variety, brand accuracy, sound sync, **originality**. For originality, put your contact sheet beside each reference's sheet: any shot that reads as "their shot" scores 4 or less and gets redesigned.
+5. **Fresh critic:** spawn one subagent that didn't make the film. Give it concept.md with the banned list, the sheet, strips, spectrogram, stills and the reference sheets, and ask for scores and the 5 worst problems. It sees what you've stopped seeing.
 
-To score originality, put your contact sheet beside each reference's sheet. Any shot that reads as "their shot" scores 4 or less and gets redesigned. Fix the 3 worst problems and do at least 2 rounds, until every score is 8+.
+Fix the 3 worst problems; do at least 2 rounds, until every score is 8+.
 
 Problems these films actually had:
-- **Stage lights:** striped volumetric beams looked like curtains (the user called them bad). Use one soft `keylight` plus `dust`.
-- **Split-flap too slow:** it never settled. Keep the riffle ≤0.35 s and centre the word in its cells.
-- **Transitions through gray:** a light/dark crossfade passes through mud. Hard-cut on the beat instead.
-- **Text over a growing object:** narration drawn over something that grows gets eaten by it. Fade the words before the object arrives.
-- **Overlapping meta labels:** measure widths before placing them.
-- **Text overflowing a frame:** size the frame from the text.
-- **Leftover word in a push:** the previous shot's word shows through a camera push. Fade it by `push*3`.
-- **Colliding scatter rows:** advance each row by its descender plus the next row's cap height.
+- **Stage lights:** striped volumetric beams looked like curtains. Use one soft `keylight` plus `dust`.
+- **Split-flap too slow:** keep the riffle ≤0.35 s and centre the word in its cells.
+- **Transitions through grey:** a light/dark crossfade passes through mud. Hard-cut on the beat instead.
+- **Text over a growing object** gets eaten by it: fade the words before the object arrives.
+- **Overlapping labels; text overflowing a frame; a leftover word in a push; colliding scatter rows:** measure widths, size frames from the text, fade the old word by `push*3`, advance rows by descender plus cap height.
+- **Re-skinning isn't redesigning.** A centred mono word in scramble cells read as fframes whatever the colours; a typed mono line with a grey label above it read as ryanvogel's; a pen plus a mono state label plus an index ruler was hairline's film complete. New compositions fixed them: the code over the film's own timeline on a red field, the line's pitches as a skyline above it, sounds drawing their own waveforms.
+- **A spark hopping tile to tile was 13's device.** Let the data do the visiting: each tile grows to its real number in turn.
+- **Proof too small to read:** numbers at 20–26 px vanish at phone size. Make the number the display element (150 px), and keep labels at 28 px or more.
+- **The call to action flashed by:** a URL that finishes typing 0.2 s before the loop-out is never read. Type it fast and hold the lockup for over a second.
+- **Subframes smeared a live clock:** digits that change within a frame blur into each other. Read clocks at the frame's time (`Math.floor(t * fps) / fps`).
+- **A 3×3 of rounded squares plus a dot read as a phone keypad.** 16:9 cells made it a contact sheet.
+- **The loop didn't close:** a prompt glyph drawn at t=0 but gone at the end. Fade everything but the shared element in from frame 0.
+- **The gap wasn't silent:** a `glide_riser` ending on it left its reverb tail ringing at −35 dB. A `sub_swell` that stops dead made it 13 dB quieter than the room tone.
+- **A -1 index matched:** an unvisited tile's `indexOf` (-1) equalled "nothing selected yet" (-1) and lit up. Guard lookups that can miss.
 
 Only ship 9:16 or 1:1 if asked. Those formats need a re-layout, not a crop.
 
 ## Examples (to show the API, not to re-skin)
-- **`examples/keychain-v1-swiss.js`:** Swiss kinetic type after Whop. It is too literal a copy of its reference, so keep it only as a demo of the Swiss helpers.
-- **`examples/keychain-v2-cinematic.js`:** "Every product on the shelf started with someone who could make it." It opens with a barcode scan whose bars cut to black, then Keychain's real Generate Products prompt, a generated spec sheet with a drawn pouch, a curved supplier conveyor, a split-flap category board, a chain-of-links network and a final link that closes into the k mark.
+- **`examples/keychain-v1-swiss.js`:** Swiss kinetic type after Whop. Too literal a copy of its reference; keep it only as a demo of the Swiss helpers.
+- **`examples/keychain-v2-cinematic.js`:** a barcode scan whose bars cut to black, Keychain's Generate Products prompt, a spec sheet with a drawn pouch, a curved supplier conveyor, a split-flap board, a chain whose last link closes into the k mark.
+- **`examples/claude-s-hud-iso.js`:** the demo (`demos/type-film.html`): screen HUD + isometric product + a monochrome morph, no music. A prompt whose keys' pitches rise above it as a skyline, `seek(t)` on a red field over the film's own timeline, a contact sheet of its own frames, sounds that draw their real waveforms as they play, the skills growing to their SKILL.md lengths and folding into the mark, and a caret loop. Its numbers and waveforms come from the repo via `examples/claude-s-gen_data.py`.
 
 ## Limits
-- Canvas 2D only: fake 3D comes from layers, strips and camera scale.
-- There is no motion blur.
+- Canvas 2D only. Fake 3D comes from layers, strips and camera scale; `iso.js` adds orthographic solids with per-face Lambert light, but no perspective.
+- Motion blur costs render time: `--subframes 4` takes 4 screenshots per frame.
 - Music is synthesised unless the user supplies a licensed track (`VIDEO.music`).

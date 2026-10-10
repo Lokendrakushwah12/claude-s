@@ -146,12 +146,16 @@ function endCard(ctx, th, t, from, title, sub) {
   text(ctx, sub, W / 2, H / 2 + 30, { size: 18, color: th.muted, align: "center", alpha: span(t, from + 0.6, from + 1.6) });
 }
 
-/** The caption, burnt in: white on a dark rounded box at the bottom, below SAFE_BOTTOM. */
-function caption(ctx, s) {
+/**
+ * The caption, burnt in below SAFE_BOTTOM. defineLesson draws it. Default: white on a dark rounded box. slip: ink on a
+ * paper slip taped to the page (graphite). shown: characters typed so far (typed captions); the lines are laid out
+ * for the whole text, so they never reflow while it types. o: { th, slip, shown, seed }.
+ */
+function caption(ctx, s, o = {}) {
   if (!s) return;
-  const size = 21, line = size * 1.35, max = W * 0.82;
+  const slip = o.slip && o.th, size = slip ? 20 : 21, line = size * 1.35, max = W * 0.8;
   ctx.save();
-  ctx.font = `400 ${size}px ${fonts.sans}`;
+  ctx.font = `400 ${size}px ${slip ? fonts.mono : fonts.sans}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const lines = [];
@@ -160,13 +164,45 @@ function caption(ctx, s) {
     if (last !== undefined && ctx.measureText(`${last} ${word}`).width <= max) lines[lines.length - 1] = `${last} ${word}`;
     else lines.push(word);
   }
-  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + size * 1.2, h = lines.length * line + size * 0.5;
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + size * (slip ? 2.4 : 1.2), h = lines.length * line + size * (slip ? 1.1 : 0.5);
   const y = H * 0.95 - h;
-  ctx.fillStyle = "rgba(0,0,0,0.75)";
-  roundRect(ctx, W / 2 - w / 2, y, w, h, 6);
-  ctx.fill();
-  ctx.fillStyle = "#fff";
-  lines.forEach((l, i) => ctx.fillText(l, W / 2, y + size * 0.25 + line * (i + 0.5)));
+  if (slip) {
+    const th = o.th;
+    ctx.translate(W / 2, y + h / 2);
+    ctx.rotate((hash(o.seed ?? 0, 3) - 0.5) * 0.012); // each slip sits a hair crooked, and stays that way
+    ctx.translate(-W / 2, -(y + h / 2));
+    ctx.save();
+    ctx.shadowColor = alpha("#000000", th.dark ? 0.5 : 0.25);
+    ctx.shadowOffsetX = 3 * ctx.getTransform().a;
+    ctx.shadowOffsetY = 4 * ctx.getTransform().a;
+    ctx.shadowBlur = 3 * ctx.getTransform().a;
+    ctx.fillStyle = th.panel;
+    ctx.fillRect(W / 2 - w / 2, y, w, h);
+    ctx.restore();
+    for (const [tx, rot] of [[W / 2 - w / 2 + 18, -0.3], [W / 2 + w / 2 - 18, 0.26]]) {
+      ctx.save();
+      ctx.translate(tx, y + 1);
+      ctx.rotate(rot);
+      ctx.fillStyle = alpha("#dbd6b7", th.dark ? 0.45 : 0.8);
+      ctx.fillRect(-22, -8, 44, 16);
+      ctx.restore();
+    }
+    ctx.fillStyle = th.ink;
+  } else {
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    roundRect(ctx, W / 2 - w / 2, y, w, h, 6);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+  }
+  let left = o.shown ?? Infinity;
+  lines.forEach((l, i) => {
+    if (left <= 0) return;
+    const part = l.slice(0, left);
+    left -= l.length + 1;
+    // typed: draw the typed part from where the whole line starts, so letters never shift as more arrive
+    const x = part === l ? W / 2 : W / 2 - ctx.measureText(l).width / 2 + ctx.measureText(part).width / 2;
+    ctx.fillText(part, x, y + size * (slip ? 0.55 : 0.25) + line * (i + 0.5));
+  });
   ctx.restore();
 }
 
@@ -217,6 +253,35 @@ const LOOKS = {
       dark: pal(true, { bg: "#1e1c30", panel: "#28263e", ink: "#f3ede1", muted: "#c9c3d9", faint: "#3a3754", accent: "#ff6fb5", red: "#ff6f93", blue: "#79aef2", teal: "#5fd3c3", amber: "#f5c84c" }),
     },
     backdrop: "paper", grain: 0.7, fill: "halftone", stroke: "riso", misregister: { light: "#ff48b0", dark: "#ff48b0" }, cards: false, motes: 0,
+  },
+  /**
+   * Pencil on grey paper, shot as stop-motion. Measured off a hand-drawn explainer: 12 fps, 3 boiling drawings, ±2 px
+   * whole-pixel jitter, ±1.2 % flicker, paper #ECECE6 falling to #BDC0BB in the corners, double-pass graphite lines,
+   * 45° hachure, colour only in thin blue and red pencil and a highlighter, captions on taped paper slips.
+   * The hands come in one weight, so 700 is synthesised: keep text at 400–500.
+   */
+  graphite: {
+    mood: "algorithms, data structures and step-by-step mechanisms as a notebook sketch; first-person explainers",
+    fonts: { sans: "Patrick Hand", heading: "Caveat", mono: "Special Elite" },
+    themes: {
+      light: pal(false, { bg: "#ECECE6", panel: "#F5F5EF", ink: "#383933", muted: "#4E4F49", faint: "#C9CBC4", accent: "#625FB8", red: "#AC505B", blue: "#625FB8", teal: "#2F7468", amber: "#8A6A12", highlight: "#E1DDA9" }),
+      dark: pal(true, { bg: "#2A2B28", panel: "#34352F", ink: "#E7E6DF", muted: "#B3B2AA", faint: "#4A4B46", accent: "#AFACF2", red: "#F0A0A8", blue: "#AFACF2", teal: "#8ED5C6", amber: "#E8CF7A", highlight: "#6A6232" }),
+    },
+    backdrop: "pencil", vignette: 0.19, grain: 0.3, fill: "hachure", stroke: "graphite", cards: true, motes: 0,
+    caption: "slip", shadow: [3, 4, 3, 0.25], stop: { fps: 12, boil: 3, jitter: 1.5, flicker: 0.012 },
+  },
+  /**
+   * Hairlines on pale paper: four greys and one ink accent. No fills: a shape is paper (the ground) with an outline, so
+   * near hides far and it still reads as line art. Colour marks the one thing being discussed. Pairs with iso.js.
+   */
+  hairline: {
+    mood: "data stories, systems and devices in plan and isometric, precise and quiet; colour only on the one highlight",
+    fonts: { sans: "Geist", heading: "Geist", mono: "Geist Mono" },
+    themes: {
+      light: pal(false, { bg: "#EAEAE4", panel: "#F4F4F0", ink: "#1D1916", muted: "#64605D", faint: "#D6D2CE", accent: "#D2491F", red: "#C2402A", blue: "#2F5BC8", teal: "#1F7A6B", amber: "#9A6B00", highlight: "#F3D9C9" }),
+      dark: pal(true, { bg: "#191918", panel: "#222220", ink: "#ECEBE6", muted: "#9C9B95", faint: "#3A3936", accent: "#FF7A4D", red: "#FF8A70", blue: "#8FB0FF", teal: "#6FD6C2", amber: "#E8B94A", highlight: "#4A2A1E" }),
+    },
+    backdrop: "flat", grain: 0.12, fill: "plate", stroke: "clean", weight: 0.55, cards: false, motes: 0,
   },
 };
 
@@ -303,6 +368,12 @@ function applyLook(ctx, look, th, t) {
   style.cards = look.cards;
   style.misregister = look.misregister?.[th.dark ? "dark" : "light"] ?? th.accent;
   style.texture = (kind) => (kind === "speckle" ? pattern(ctx, "speckle", speckleTile) : kind === "halftone" ? pattern(ctx, "halftone", halftoneTile) : null);
+  style.weight = look.weight ?? 1;
+  style.knockout = look.fill === "hachure" || look.fill === "plate";
+  style.ink = th.ink;
+  style.paper = look.fill === "plate" ? th.bg : th.panel; // hairline plates are the ground itself
+  style.shadow = look.shadow;
+  style.grain = look.grain;
   ctx.fillStyle = th.bg;
   ctx.fillRect(0, 0, W, H);
   if (look.backdrop === "wall") {
@@ -331,6 +402,14 @@ function applyLook(ctx, look, th, t) {
   } else if (look.backdrop === "grid") {
     for (let x = 0; x <= W; x += 24) { ctx.fillStyle = alpha(th.ink, x % 120 === 0 ? 0.13 : 0.05); ctx.fillRect(x, 0, 1, H); }
     for (let y = 0; y <= H; y += 24) { ctx.fillStyle = alpha(th.ink, y % 120 === 0 ? 0.13 : 0.05); ctx.fillRect(0, y, W, 1); }
+  } else if (look.backdrop === "pencil") {
+    // Paper under a lamp: measured −14 % at the side edges and −19 % (vignette) in the corners
+    const R = Math.hypot(W / 2, H / 2), g = ctx.createRadialGradient(W / 2, H / 2, R * 0.25, W / 2, H / 2, R);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.83, alpha("#000000", look.vignette * 0.74));
+    g.addColorStop(1, alpha("#000000", look.vignette));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
   } else if (look.backdrop === "paper") {
     const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.75);
     g.addColorStop(0, "rgba(0,0,0,0)");
@@ -354,21 +433,39 @@ function applyLook(ctx, look, th, t) {
   }
 }
 
+/**
+ * A paper thing dropping onto the page, as graphite's cards do (measured): it lands from 30 units up, turned up to 8°,
+ * settles in 0.2 s (2-3 stop-motion drawings), then idles within 0.6°. Nothing fades in. fn() draws it around (x, y).
+ */
+function settle(ctx, t, t0, x, y, seed, fn) {
+  if (t < t0) return;
+  const p = span(t, t0, t0 + 0.2, ease.out), turn = hash(seed, 1) < 0.5 ? -0.14 : 0.14;
+  ctx.save();
+  ctx.translate(x, y - (1 - p) * 30);
+  ctx.rotate(turn * (1 - p) + Math.sin(t * 1.3 + seed) * 0.0105);
+  ctx.translate(-x, -y);
+  fn();
+  ctx.restore();
+}
+
 /** A paper card pinned with two strips of tape: the quiet surface coloured text needs on a textured backdrop. */
 function card(ctx, th, x, y, w, h, a = 1) {
   if (a <= 0) return;
   ctx.save();
   ctx.globalAlpha *= a;
-  ctx.shadowColor = alpha("#000000", th.dark ? 0.4 : 0.22);
-  ctx.shadowBlur = 22;
-  ctx.shadowOffsetY = 8;
-  roundRect(ctx, x, y, w, h, 10);
+  // A look's hard shadow ([dx, dy, blur, alpha], graphite) means paper cut square; else a soft drop under a rounded card
+  const [dx, dy, blur, sa] = style.shadow ?? [0, 8, 22, 0.22], k = style.shadow ? ctx.getTransform().a : 1;
+  ctx.shadowColor = alpha("#000000", th.dark ? Math.min(1, sa * 1.8) : sa);
+  ctx.shadowBlur = blur * k;
+  ctx.shadowOffsetX = dx * k;
+  ctx.shadowOffsetY = dy * k;
+  roundRect(ctx, x, y, w, h, style.shadow ? 2 : 10);
   ctx.fillStyle = th.panel;
   ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.save();
   ctx.clip();
-  ctx.globalAlpha *= 0.8;
+  ctx.globalAlpha *= 0.8 * Math.min(1, style.grain / 0.55); // as grainy as the look's backdrop: clean paper for graphite
   ctx.fillStyle = pattern(ctx, `grain-${th.dark}`, () => grainTile(th.dark));
   ctx.fillRect(x, y, w, h);
   ctx.restore();
@@ -380,5 +477,146 @@ function card(ctx, th, x, y, w, h, a = 1) {
     ctx.fillRect(-26, -9, 52, 18);
     ctx.restore();
   }
+  ctx.restore();
+}
+
+// ---- data story: counts as proof, callouts, routes, the clock, the lift, the grade, the highlighter ----
+
+/**
+ * A number counting from `from` to `to` over [at, at + dur] (script time). exp counts in equal ratios, so 1 → 500,000
+ * spends as long reaching 700 as going from 700 to 500,000, and a huge number still reads as counting.
+ * c: { at, dur, from, to, exp?, ease? (ease.out), format? (v => string; default a rounded, comma-grouped integer) }
+ */
+function countAt(t, c) {
+  const p = span(t, c.at, c.at + c.dur, c.ease ?? ease.out);
+  return c.exp ? c.from * (c.to / c.from) ** p : lerp(c.from, c.to, p);
+}
+const countText = (v, c) => (c.format ? c.format(v) : Math.round(v).toLocaleString("en-US"));
+
+/** The sound of a count: a cue each time the shown number changes, at most `rate` a second, pitch rising by `step`. */
+function countCues(c, sound = "tick", o = {}) {
+  const rate = o.rate ?? 12, out = [];
+  let shown = countText(countAt(c.at, c), c);
+  for (let k = 1; k <= Math.ceil(c.dur * rate); k++) {
+    const t = c.at + Math.min(c.dur, k / rate), now = countText(countAt(t, c), c);
+    if (now !== shown) out.push({ at: t, sound, gain: o.gain, pitch: (o.pitch ?? 1) + out.length * (o.step ?? 0) });
+    shown = now;
+  }
+  return out;
+}
+
+/**
+ * A label on a leader line from a point on the drawing: a value read off the thing it belongs to. With `count` the
+ * number ticks (the count is the proof); give the same count to countCues() for its sound. `to` is the number's
+ * baseline start, or its end with align: 'right' (for a label left of its point). o: { from: [x, y], to: [x, y], a,
+ * label, value?, count?, color?, size? (28), align? }
+ */
+function callout(ctx, th, t, o) {
+  if (o.a <= 0) return;
+  const [x0, y0] = o.from, [x1, y1] = o.to, size = o.size ?? 28, right = o.align === "right", side = right ? 10 : -10;
+  ctx.save();
+  ctx.globalAlpha *= clamp(o.a);
+  // from above, the leader stops over the label; from beside, at the number's side. Never through the words
+  const top = y1 - size - 22, end = y0 < top ? [x1 + side / 2, top] : [x1 + side, y1 - size * 0.35];
+  path(ctx, [[x0, y0], end], th.muted, 1.5, clamp(o.a * 1.5));
+  circle(ctx, x0, y0, 3.5, th.ink);
+  const align = right ? "right" : "left", v = o.count ? countText(countAt(t, o.count), o.count) : o.value;
+  text(ctx, o.label, x1, y1 - size - 4, { size: 16, color: th.muted, font: "mono", align });
+  if (v !== undefined) text(ctx, v, x1, y1, { size, weight: 500, color: o.color ?? th.ink, font: "mono", align });
+  ctx.restore();
+}
+
+/** Length of a polyline, and the point at distance d along it. */
+const polyLength = (pts) => pts.reduce((s, q, i) => (i ? s + Math.hypot(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1]) : 0), 0);
+function along(pts, d) {
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], l = Math.hypot(x1 - x0, y1 - y0);
+    if (d <= l || i === pts.length - 1) { const k = clamp(d / (l || 1)); return [lerp(x0, x1, k), lerp(y0, y1, k)]; }
+    d -= l;
+  }
+  return pts[0];
+}
+
+/**
+ * A journey drawn on from its start: the path grows with `p` with a dot riding its tip, then `dots` dots loop along it
+ * (data moving, a flow, a commute). Returns the tip. o: { p (1), dots (0), speed (loops a second, 0.4), dash, lw (2.5), color }
+ */
+function route(ctx, th, t, pts, o = {}) {
+  const p = clamp(o.p ?? 1), color = o.color ?? th.accent, lw = o.lw ?? 2.5;
+  if (p <= 0) return null;
+  ctx.save();
+  if (o.dash) ctx.setLineDash(o.dash);
+  path(ctx, pts, color, lw, p);
+  ctx.restore();
+  const L = polyLength(pts), tip = along(pts, L * p);
+  if (p < 1) circle(ctx, tip[0], tip[1], lw + 2.5, color);
+  for (let i = 0; i < (o.dots ?? 0); i++) {
+    const q = along(pts, L * p * ((((i / o.dots + t * (o.speed ?? 0.4)) % 1) + 1) % 1));
+    circle(ctx, q[0], q[1], lw + 1, color);
+  }
+  return tip;
+}
+
+/** A pill with a small clock and a mono label, for time passing ("05:30", "day 3", "40 ms"). turns spins the minute hand. Left edge x, centred on y. */
+function clockPill(ctx, th, x, y, a, label, turns = 0) {
+  if (a <= 0) return;
+  ctx.save();
+  ctx.globalAlpha *= clamp(a);
+  ctx.font = `500 16px ${fonts.mono}`;
+  roundRect(ctx, x, y - 17, ctx.measureText(label).width + 54, 34, 17);
+  ctx.fillStyle = th.panel;
+  ctx.fill();
+  ctx.strokeStyle = th.faint;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  circle(ctx, x + 20, y, 9, undefined, th.ink, 1.5);
+  for (const [len, ang] of [[5, turns / 12], [7.5, turns]]) path(ctx, [[x + 20, y], [x + 20 + Math.sin(ang * 6.283) * len, y - Math.cos(ang * 6.283) * len]], th.ink, 1.5);
+  text(ctx, label, x + 38, y + 6, { size: 16, weight: 500, color: th.ink, font: "mono" });
+  ctx.restore();
+}
+
+/**
+ * The flat plan rising into 3D on the same coordinates (needs iso.js, which the setup line copies in). p 0 is the plan
+ * exactly as drawn, in canvas units; p 1 is the oblique view `to`. `pin` stays put on screen. Returns P(x, y, z) ->
+ * [sx, sy] for plan points at height z (canvas units, z up) and the ISO camera C for ISO.slab and ISO.face. Draw a
+ * box's top at z = h and it rises out of the plan as the view tilts; S shrinks the 3D view to fit. Ease p, and put a
+ * `swell` under it.
+ */
+function lift(p, { pin = [W / 2, 280], to = { az: 30, el: 35 }, S = 1 } = {}) {
+  const C = ISO.lift(clamp(p), { from: { az: 0, el: 90 }, to, S: lerp(1, S, clamp(p)), at: [pin[0], pin[1], 0], cx: pin[0], cy: pin[1] });
+  return { C, P: (x, y, z = 0) => ISO.P(C, x, y, z) };
+}
+
+/**
+ * Wash everything drawn so far with `color` at strength k (0..1): multiply darkens toward night, screen lifts toward
+ * dawn, soft-light tints, source-over fades. Works in device pixels, so a jittered frame is covered to its edges.
+ * Call it last in scene(): the caption is drawn after, ungraded.
+ */
+function grade(ctx, color, k, mode = "multiply") {
+  if (k <= 0) return;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = mode;
+  ctx.globalAlpha = clamp(k);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.restore();
+}
+
+/** A highlighter swiped over [x, y, w, h] from left to right as p goes 0 → 1. Draw it over the words it marks. */
+function highlight(ctx, th, x, y, w, h, p) {
+  if (p <= 0) return;
+  const ww = w * clamp(p);
+  ctx.save();
+  ctx.globalCompositeOperation = th.dark ? "screen" : "multiply";
+  ctx.globalAlpha *= 0.75;
+  ctx.fillStyle = th.highlight ?? mix(th.amber, th.bg, 0.55);
+  ctx.beginPath(); // a slanted chisel tip at each end
+  ctx.moveTo(x + 3, y);
+  ctx.lineTo(x + ww, y + 1);
+  ctx.lineTo(x + ww - 3, y + h);
+  ctx.lineTo(x, y + h - 1);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }

@@ -1,0 +1,18 @@
+{
+ "preset": "creator",
+ "size": "1080x1920",
+ "brand": {"name": "acme", "accent": "#3B6CFF", "font": "Inter Tight", "ui": "Inter", "mono": "JetBrains Mono"},
+ "phrases": [
+  {"say": "Every launch I did", "cam": "A", "kw": "launch", "z0": 1.5, "ay": 0.36},
+  {"say": "flopped.", "cam": "B", "kw": "flopped", "hold": 0.3},
+  {"say": "Six months of building,", "kw": "building", "insert": {"kind": "montage", "items": ["01", "09", "17", "26"]}},
+  {"say": "one giant release,", "cam": "W", "kw": "giant", "graphic": true, "pull": true},
+  {"say": "and then, silence.", "cam": "A", "kw": "silence", "hush": true},
+  {"say": "So now we ship small.", "cam": "A", "kw": "small", "behind": true, "flash": true, "build": true},
+  {"say": "One feature a week.", "kw": "week", "insert": {"kind": "screen", "query": "Dark mode toggle", "button": "Ship", "clickOn": "week",
+     "results": ["v1.43  Dark mode toggle", "v1.42  Undo on delete"]}},
+  {"say": "Ship it, and learn.", "cam": "B", "kw": "learn", "push": 0},
+  {"say": "That's the whole idea.", "caption": false, "insert": {"kind": "card", "title": "ship small", "sub": "learn fast"}}
+ ],
+ "end": {"kind": "end", "text": "acme", "sub": "ship small.", "dur": 1.4}
+}

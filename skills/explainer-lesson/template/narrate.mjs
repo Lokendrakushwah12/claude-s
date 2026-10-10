@@ -5,7 +5,10 @@
 //   node narrate.mjs             Chatterbox (story-video's local TTS) when it's installed, else macOS `say`
 //   node narrate.mjs --say       macOS `say`: instant and flat, fine for drafts (SAY_VOICE=Daniel picks the voice)
 //   node narrate.mjs --redo 3,7  record lines 3 and 7 again (numbers as printed below): re-roll a bad take
-//   node narrate.mjs --check     also transcribe every take with Whisper, to catch clipped or garbled ones unheard
+//   node narrate.mjs --check     also transcribe every take with Whisper, to catch clipped or garbled ones unheard,
+//                                and print when each word starts in its take: put the beats on the words
+//   node narrate.mjs --mix <slug>.mp4   transcribe the finished film and print what's heard under each caption, so a
+//                                buried, clipped or mistimed line shows up in the final mix, not just in its take
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -15,12 +18,33 @@ import { parseArgs } from 'node:util';
 import vm from 'node:vm';
 
 const dir = dirname(fileURLToPath(import.meta.url)), out = join(dir, 'voices');
-const { values: o } = parseArgs({ options: { say: { type: 'boolean' }, redo: { type: 'string', default: '' }, check: { type: 'boolean' } } });
+const { values: o } = parseArgs({ options: { say: { type: 'boolean' }, redo: { type: 'string', default: '' }, check: { type: 'boolean' }, mix: { type: 'string' } } });
 
-// The lesson, loaded as the page loads it: classic scripts that touch no DOM at load time
+// The lesson, loaded as the page loads it: classic scripts that touch no DOM at load time (with the recorded lengths,
+// so its caption times are the film's)
 const ctx = vm.createContext({ console });
-for (const f of ['engine.js', 'kit.js', 'audio.js', 'lesson.js']) vm.runInContext(readFileSync(join(dir, f), 'utf8'), ctx, { filename: f });
+const files = [...(existsSync(join(out, 'voices.js')) ? ['voices/voices.js'] : []), 'engine.js', 'kit.js', 'audio.js', 'lesson.js'];
+for (const f of files) vm.runInContext(readFileSync(join(dir, f), 'utf8'), ctx, { filename: f });
 const { LESSON, speakable, speechSeconds, voiceKey } = vm.runInContext('({ LESSON, speakable, speechSeconds, voiceKey })', ctx);
+if (LESSON.voice === 'typed') { console.log("voice: 'typed': the captions type on, so there's nothing to record"); process.exit(0); }
+
+if (o.mix) {
+  // Whisper small.en over the whole mix, words with times, each word filed under the caption showing when it starts
+  const py = `import json, subprocess, sys
+import numpy as np
+from faster_whisper import WhisperModel
+caps = json.load(sys.stdin)
+pcm = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", sys.argv[1], "-ac", "1", "-ar", "16000", "-f", "f32le", "-"], capture_output=True, check=True).stdout
+segs, _ = WhisperModel("small.en", compute_type="int8").transcribe(np.frombuffer(pcm, np.float32), language="en", word_timestamps=True, vad_filter=True)
+words = [w for s in segs for w in s.words]
+for i, (n, at, text) in enumerate(caps):
+    end = caps[i + 1][1] if i + 1 < len(caps) else 1e9
+    heard = "".join(w.word for w in words if at - 0.25 <= w.start < end - 0.25).strip()
+    print(f"{n:3} {at:6.1f}s said:  {text}\\n            heard: {heard}", flush=True)`;
+  const caps = LESSON.captions.map((c, i) => [i + 1, +c.at.toFixed(2), speakable(c.say ?? c.text, LESSON.pronounce)]);
+  const r = spawnSync('uv', ['run', '-q', '--with', 'faster-whisper', '--with', 'numpy', 'python', '-c', py, o.mix], { input: JSON.stringify(caps), stdio: ['pipe', 'inherit', 'inherit'] });
+  process.exit(r.status ?? 1);
+}
 
 const TTS = join(process.env.STORY_VIDEO_TTS || join(homedir(), '.local/share/story-video/tts-venv'), 'bin/python');
 const chatterbox = !o.say && existsSync(TTS);
@@ -73,8 +97,10 @@ from faster_whisper import WhisperModel
 m = WhisperModel("tiny", compute_type="int8")
 for n, text, f in json.load(sys.stdin):
     w = wave.open(f); x = np.frombuffer(w.readframes(w.getnframes()), "<i2").astype(np.float32) / 32768
-    heard = " ".join(s.text.strip() for s in m.transcribe(x[: len(x) // 3 * 3].reshape(-1, 3).mean(1), language="en")[0])
-    print(f"{n:3} said:  {text}\\n    heard: {heard}", flush=True)`;
+    segs = list(m.transcribe(x[: len(x) // 3 * 3].reshape(-1, 3).mean(1), language="en", word_timestamps=True)[0])
+    heard = " ".join(s.text.strip() for s in segs)
+    words = " ".join(f"{w.word.strip()}@{w.start:.2f}" for s in segs for w in s.words)
+    print(f"{n:3} said:  {text}\\n    heard: {heard}\\n    times: {words}", flush=True)`;
   spawnSync('uv', ['run', '-q', '--with', 'faster-whisper', '--with', 'numpy', 'python', '-c', py],
     { input: JSON.stringify(lines.map((l) => [l.n, l.text, wav(l.key)])), stdio: ['pipe', 'inherit', 'inherit'] });
 }

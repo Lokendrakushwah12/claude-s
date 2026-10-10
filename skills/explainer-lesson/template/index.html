@@ -14,6 +14,8 @@
 <div id="hud"></div>
 <!-- voices.js is written by narrate.mjs; until then the browser's voice reads the captions in preview -->
 <script src="voices/voices.js"></script>
+<!-- iso.js (kit's lift()) is copied in by the setup line; a lesson that doesn't lift never calls it -->
+<script src="iso.js"></script>
 <script src="engine.js"></script>
 <script src="kit.js"></script>
 <script src="audio.js"></script>
@@ -34,8 +36,7 @@ function paint(t) {
   ctx.setTransform(PW / W, 0, 0, PW / W, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  LESSON.draw(ctx, t, view);
-  if (view.captions) caption(ctx, LESSON.captions[activeIndex(LESSON.captions, t)]?.text);
+  LESSON.draw(ctx, t, view); // the caption too, in the look's style (typed, for voice: 'typed')
 }
 
 // Fonts: the look's Google fonts. Ask for the weights by name (a bare family serves only 400, and 500/700 come out
@@ -74,26 +75,29 @@ if (q.has('render')) {
   });
 } else {
   // ---- preview: the audio clock drives the picture; sounds are booked ~150 ms ahead (web.dev "A Tale of Two Clocks") ----
-  const EVENTS = lessonEvents(LESSON);
+  const EVENTS = lessonEvents(LESSON), LEVEL = LESSON.music ? musicLevel(LESSON) : null;
   const P = { t: parseFloat(location.hash.slice(1)) || LESSON.poster, playing: false, ac: null, out: null, session: null, nodes: [], timer: 0, anchor: { clock: 0, t: 0 }, next: 0 };
   const clock = () => (P.ac ? P.ac.currentTime : performance.now() / 1000);
   const now = () => (P.playing ? Math.min(P.anchor.t + clock() - P.anchor.clock, LESSON.duration) : P.t);
 
   function startAudio() {
-    const ac = P.ac, session = ac.createGain();
+    const ac = P.ac, session = ac.createGain(), music = ac.createGain();
     session.connect(P.out);
+    music.connect(session);
     P.session = session;
     P.anchor = { clock: clock(), t: P.t };
-    const bus = { ctx: ac, out: session }, t0 = P.t;
+    const bus = { ctx: ac, out: session }, mbus = { ctx: ac, out: music }, t0 = P.t, on = (e) => (e.bus === 'music' ? mbus : bus);
+    // The music's level (ducked under the voice, up in the breaths, silent in gaps) from here on
+    if (LEVEL) { const i0 = Math.floor(t0 / LEVEL.step), rest = LEVEL.g.slice(i0); if (rest.length > 1) music.gain.setValueCurveAtTime(rest, ac.currentTime, LEVEL.step * (rest.length - 1)); }
     // Held pad chords already under way at the seek point resume for what is left of them
-    for (const e of EVENTS) if (e.len > 0 && e.at < t0 && e.at + e.len > t0 + 0.3) P.nodes.push(...e.play(bus, ac.currentTime + 0.01, e.at + e.len - t0));
+    for (const e of EVENTS) if (e.len > 0 && e.at < t0 && e.at + e.len > t0 + 0.3) P.nodes.push(...e.play(on(e), ac.currentTime + 0.01, e.at + e.len - t0));
     P.next = EVENTS.findIndex((e) => e.at >= t0);
     if (P.next < 0) P.next = EVENTS.length;
     const schedule = () => {
       const horizon = now() + 0.15;
       while (P.next < EVENTS.length && EVENTS[P.next].at < horizon) {
         const e = EVENTS[P.next++];
-        P.nodes.push(...e.play(bus, Math.max(ac.currentTime, P.anchor.clock + e.at - P.anchor.t), e.len));
+        P.nodes.push(...e.play(on(e), Math.max(ac.currentTime, P.anchor.clock + e.at - P.anchor.t), e.len));
       }
       if (P.nodes.length > 400) P.nodes = P.nodes.slice(-200);
     };
@@ -130,7 +134,7 @@ if (q.has('render')) {
       this.synth?.cancel();
       this.el.pause();
       this.busy = null;
-      if (!c?.text) return;
+      if (!c?.text || LESSON.voice === 'typed') return;
       if (c.clip) {
         if (off > c.clip.seconds - 0.15) return;
         const url = new URL(c.clip.url, location.href).href;

@@ -1,7 +1,7 @@
 // THE creative file. Replace this demo with the storyboard from treatment.md, using the product's real brand.
 // Colours must be #rrggbb (the helpers append alpha). Lay out with W/H so --size 1080x1920 still works.
 const B = { bg: '#050505', fg: '#fafafa', accent: '#ff5a1f', blue: '#3b82f6', green: '#22c55e', violet: '#8b5cf6', font: 'Inter', name: 'acme' };
-const S = Math.min(W, H) / 1080; // scale factor so sizes hold up in every aspect ratio
+// S = min(W, H) / 1080 comes from type.js (don't redeclare it): the scale factor so sizes hold up in every aspect ratio.
 const DATA = series(70, 7);
 
 window.VIDEO = {

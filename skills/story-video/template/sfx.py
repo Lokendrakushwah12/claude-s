@@ -2,10 +2,12 @@
 # dependencies = ["numpy", "scipy", "matplotlib"]
 # ///
 """Soundtrack: a synthesised music bed + SFX cues (+ a licensed track, + a voice-over), mixed, reverbed and mastered to
-a LUFS target under a -1 dBTP ceiling -> audio.wav (48 kHz stereo). Shared by promo-video, type-film and ugc-edit.
+a LUFS target under a -1.5 dBTP ceiling -> audio.wav (48 kHz stereo). Shared by promo-video, type-film and ugc-edit.
 
     node render.mjs --cues && uv run sfx.py     # cues.json -> audio.wav
     uv run sfx.py --audition                    # every sound in turn, 0.4 s apart -> audition.wav, audition.png, numbers
+    uv run sfx.py --plot                        # audio.wav -> spectrogram.png labelled with the cues and sections, and
+                                                # each cue's loudest 50 ms against the bed's around it (balance without a voice)
     from sfx import autocue                     # edit events -> cue rows (or put the events in cues.json)
 
 cues.json. vo, drone, lufs, lp, lp_master, events and mutes may sit at the top level (render.mjs --cues copies them
@@ -18,7 +20,8 @@ there from VIDEO) OR inside bed (a bed with no bpm plays no music and just carri
              SFX is set by LEVEL for its family
   drone      true or {hum: 50, whine: 7812, gain: 1}: room tone (mains hum, CRT whine, hiss). Without a bed this is the
              no-music "sonified UI" mode: dry blips over room tone
-  lufs       master loudness: -14 by default, -16 in the drone mode. The ceiling is always -1 dBTP
+  lufs       master loudness: -14 by default, -16 in the drone mode. The ceiling is always -1.5 dBTP (AAC encoding adds up to
+             ~0.5 dB, so the MP4 stays under -1)
   lp         [[t, hz], ...] low-pass automation on the music bus (hero reveal: 4500 until the land, then 20000).
              lp_master: true runs it on the whole mix, voice included (the "collapse to a line" pivot)
   bed        {bpm, chords, sections, type, kick, kick_pattern, mutes}
@@ -105,8 +108,9 @@ HIT = a swell runs into the cue and the hit lands on it. Every SFX takes **param
                                                                     next section (or for hold s)
   gap             END   dur .4 hold 0                               silence the music bus before a payoff (and for
                                                                     hold s after t). {hold: 99} cuts it for good
-  echo            .     n 6 note bpm                                ending: bed stops at t; its last pluck repeats on
-                                                                    dotted 8ths, -4 dB and darker each time
+  echo            .     n 6 note bpm decay .63                      ending: bed stops at t; its last pluck repeats on
+                                                                    dotted 8ths, x decay (-4 dB) and darker each time;
+                                                                    {n: 8, decay: .8} carries ~3 s
   none            .                                                 placeholder, plays nothing
 
 autocue(events) -> cue rows for cut-driven edits. Event = {t, kind, ...}; t = the cut, or the moment the word lands.
@@ -115,8 +119,9 @@ autocue(events) -> cue rows for cut-driven edits. Event = {t, kind, ...}; t = th
   flash        flash_hit      glitch  glitch          pill          blip_pop
   build        sub_swell ending on t ({dur: .8})      type          key_tap per character ({text} or {n}, {cps: 12})
   montage_in   flash_hit (music comes back up by itself in the VO gap)    montage_out   sub_drop
-  Density, among the event rows: at most one air sound per 0.4 s (the earlier one wins); a suck_in is dropped if any
-  other sound is within 0.25 s of it.
+  Density, among the event rows: at most one air sound per 0.4 s (the earlier one wins, except that a cut's sound
+  (cut, cut_insert, flash, montage_out) beats a keyword's (keyword, keyword_stat, pill): a cut is never left silent);
+  a suck_in is dropped if any other sound is within 0.25 s of it.
 """
 import json, subprocess, sys, wave
 from pathlib import Path
@@ -570,12 +575,12 @@ def gap(at, g=1.0, dur=0.4, hold=0.0, **_): gate(mg, at - dur, at + hold)
 
 
 @reg(None)
-def echo(at, g=1.0, n=6, note=None, bpm=None, **_):
+def echo(at, g=1.0, n=6, note=None, bpm=None, decay=0.63, **_):
     d = 0.75 * 60 / (bpm or BED.get("bpm", 120)); heard = [p for p in PLUCKS if p[0] < at - 0.01]
     t0, m = heard[-1] if heard and note is None else (at - d, note or 76)
     gate(mg, at, DUR + 1); k, j = 0, 1
     while k < n:
-        if t0 + j * d >= at - 1e-6: pluck(m, t0 + j * d, g * 0.63 ** (k + 1), pan=0.4 if k % 2 else -0.4, lp=6000 * 0.7 ** k, bus="sfx"); k += 1
+        if t0 + j * d >= at - 1e-6: pluck(m, t0 + j * d, g * decay ** (k + 1), pan=0.4 if k % 2 else -0.4, lp=6000 * 0.7 ** k, bus="sfx"); k += 1
         j += 1
 
 
@@ -779,7 +784,7 @@ def loudness(x):  # integrated LUFS, BS.1770-4 gating
 def true_peak(x): return np.abs(resample_poly(x, 4, 1, axis=1)).max(0)
 
 
-def limit(x, ceil=10 ** (-1.05 / 20)):  # look-ahead true-peak limiter: 40 ms hold, 5 ms ramps, never above what's needed
+def limit(x, ceil=10 ** (-1.55 / 20)):  # look-ahead true-peak limiter: 40 ms hold, 5 ms ramps, never above what's needed
     need = np.minimum(1, ceil / np.maximum(true_peak(x)[: 4 * x.shape[1]].reshape(-1, 4).max(1), 1e-9))
     return x if need.min() >= 1 else x * uniform_filter1d(minimum_filter1d(need, int(0.04 * SR) | 1), int(0.005 * SR))
 
@@ -831,6 +836,9 @@ AUTO = {"cut": [(-0.05, "passby", 0.8)], "cut_insert": [(0, "sub_boom", 1), (-0.
         "montage_in": [(0, "flash_hit", 1)], "montage_out": [(0, "sub_drop", 1)]}
 
 
+CUT_KINDS, KEY_KINDS = {"cut", "cut_insert", "flash", "montage_out"}, {"keyword", "keyword_stat", "pill"}
+
+
 def autocue(events):
     """[{t, kind, ...}] -> [[t, name, gain(, params)], ...] by group A's placement rules, with the density cap."""
     rows = []
@@ -839,16 +847,18 @@ def autocue(events):
         if kind not in AUTO: raise ValueError(f"autocue: unknown kind {kind!r}; known: {' '.join(AUTO)}")
         if kind == "type":
             text = e.get("text") or "x" * e.get("n", 8); r = np.random.default_rng(int(t * 1000))
-            rows += [[t + i / e.get("cps", 12) + r.uniform(-0.02, 0.02), "key_tap", 1.0] for i, ch in enumerate(text) if ch != " "]
-        rows += [[t + dt, name, gain] + ([{"dur": e["dur"]}] if "dur" in e and kind == "build" else []) for dt, name, gain in AUTO[kind]]
-    rows.sort(key=lambda r: r[0]); out, last_air = [], -9.0
-    for r in rows:
-        if r[1] == "suck_in" and any(o is not r and o[1] != "suck_in" and abs(o[0] - r[0]) < 0.25 for o in rows): continue
+            rows += [([t + i / e.get("cps", 12) + r.uniform(-0.02, 0.02), "key_tap", 1.0], kind) for i, ch in enumerate(text) if ch != " "]
+        rows += [([t + dt, name, gain] + ([{"dur": e["dur"]}] if "dur" in e and kind == "build" else []), kind) for dt, name, gain in AUTO[kind]]
+    rows.sort(key=lambda r: r[0][0]); out, air = [], None  # air = the last air row kept, and the event kind it came from
+    for r, kind in rows:
+        if r[1] == "suck_in" and any(o is not r and o[1] != "suck_in" and abs(o[0] - r[0]) < 0.25 for o, _ in rows): continue
         if FAMILY[r[1]] == "air":
-            if r[0] - last_air < 0.4: continue
-            last_air = r[0]
-        out.append([round(r[0], 3)] + r[1:])
-    return out
+            if air and r[0] - air[0][0] < 0.4:
+                if kind in CUT_KINDS and air[1] in KEY_KINDS: out.remove(air[0])  # the keyword's sound goes, the cut's stays
+                else: continue
+            air = (r, kind)
+        out.append(r)
+    return [[round(r[0], 3)] + r[1:] for r in out]
 
 
 # ---------- audition ----------
@@ -894,5 +904,27 @@ def plot(m, marks, path, row=20.0):
     axs[-1, 0].set_xlabel("seconds"); fig.tight_layout(); fig.savefig(path, dpi=80); print(f"{path}: spectrogram, {len(marks)} labels")
 
 
+def report(cues):
+    global CAP, BED
+    rows = [] if cues.get("sfx") in (None, "none") else cues["sfx"]; bed = cues.get("bed") or {}
+    plot(load("audio.wav").mean(0), [(r[0], r[1]) for r in rows] + [(s[0], s[1]) for s in bed.get("sections") or []], "spectrogram.png", max(20.0, cues["duration"]))
+    reset(cues["duration"]); BED = bed if bed.get("bpm") else {}; ST.update(bus="mus", g=1.0)
+    if BED: play_bed(BED)
+    for t0, t1 in cues.get("mutes") or bed.get("mutes") or []: gate(side, t0, t1)
+    for at, name, *rest in rows:  # gap, echo and tape_stop shape the bed
+        if name in SFX and FAMILY[name] is None: SFX[name](at, rest[0] if rest else 1.0, **(rest[1] if len(rest) > 1 else {}))
+    mus, db = (BUS["mus"][0] + BUS["duck"][0] * side) * mg, lambda v: 20 * np.log10(v + 1e-12); ST.update(bus="sfx", g=1.0)
+    print(f"{'t':>6} {'cue':14} {'dBFS':>6} {'bed':>6} {'diff':>6}   pre-master; foley ~6-12 dB under the bed, ticks can sit lower")
+    for at, name, *rest in rows:
+        if not FAMILY.get(name): continue
+        CAP = []; SFX[name](at, rest[0] if rest else 1.0, **(rest[1] if len(rest) > 1 else {})); evs, CAP = CAP, None
+        if not evs: continue
+        i0 = min(e[1] for e in evs); d = np.zeros((2, max(e[1] + e[2].shape[1] for e in evs) - i0))
+        for e in evs: d[:, e[1] - i0 : e[1] - i0 + e[2].shape[1]] += e[2]
+        b = db(level(mus[:, max(0, int((at - 1) * SR)) : int((at + 1) * SR)]))
+        print(f"{at:6.2f} {name:14} {db(level(d)):6.1f} " + (f"{b:6.1f} {db(level(d)) - b:+6.1f}" if BED else "     -      -"))
+
+
 if __name__ == "__main__":
-    audition() if "--audition" in sys.argv else render(json.loads(Path("cues.json").read_text()))
+    q = lambda: json.loads(Path("cues.json").read_text())
+    audition() if "--audition" in sys.argv else report(q()) if "--plot" in sys.argv else render(q())
