@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-s references and results</title>
+<style>
+/* Layout: one column; a sticky tab bar switches between the reference wall and the results grid; skill chips cross-link the two. */
+:root {
+  --bg: #0e0e0d; --panel: #161614; --raise: #1d1d1a; --fg: #ecebe6; --dim: #8e8d87; --faint: #4a4944; --rule: #2a2a27;
+  --accent: #ff6a3d; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif; color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f5f4f0; --panel: #ffffff; --raise: #ecebe6; --fg: #1a1a18; --dim: #66655f; --faint: #b9b8b1; --rule: #dcdbd5; --accent: #d9481c; color-scheme: light; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); padding-inline: 16px; padding-block: 0 80px; }
+a { color: inherit; }
+.wrap { max-width: 1200px; margin-inline: auto; }
+header { padding-block: 48px 20px; display: grid; gap: 10px; }
+.k { font: 500 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+h1 { margin: 0; font-size: clamp(30px, 5vw, 48px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; }
+.lede { margin: 0; max-width: 62ch; color: var(--dim); }
+.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--rule); padding-block: 12px; display: grid; gap: 10px; }
+.tabs { display: flex; gap: 6px; }
+.tab { font: 600 14px/1 var(--sans); padding: 10px 16px; border-radius: 999px; border: 1px solid var(--rule); background: transparent; color: var(--dim); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tab .n { font: 500 12px var(--mono); opacity: .7; margin-left: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 12px/1 var(--mono); padding: 7px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--fg); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.chip:hover { border-color: var(--faint); }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.chip.ref { color: var(--dim); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+section[hidden] { display: none; }
+.intro { color: var(--dim); margin: 22px 0 14px; max-width: 70ch; }
+h2 { font-size: 13px; font-family: var(--mono); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin: 34px 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; transition: border-color .4s, box-shadow .4s; }
+.card.flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.num { font: 600 13px var(--mono); color: var(--accent); }
+.who { font-weight: 650; }
+.meta { font: 12px var(--mono); color: var(--dim); }
+.title { margin: 0; font-size: 17px; line-height: 1.3; text-wrap: balance; }
+.took { margin: 0; color: var(--dim); }
+.feeds { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.feeds .lab { font: 11px var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
+.out { font: 13px var(--sans); color: var(--dim); text-decoration: none; justify-self: start; }
+.out:hover { color: var(--fg); text-decoration: underline; }
+.poster { position: relative; aspect-ratio: 16 / 10; border-radius: 8px; overflow: hidden; background: #000; border: 0; padding: 0; cursor: pointer; display: block; width: 100%; }
+.poster img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.poster .play { position: absolute; left: 12px; bottom: 12px; font: 600 13px var(--sans); color: #fff; background: rgba(0,0,0,.66); padding: 8px 12px; border-radius: 999px; }
+.skill { font: 650 18px/1.2 var(--mono); }
+.skill a { text-decoration: none; }
+.skill a:hover { text-decoration: underline; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { font: 11px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--raise); color: var(--dim); }
+.badge.voice { color: var(--accent); }
+.links { display: flex; gap: 14px; flex-wrap: wrap; }
+dialog { width: min(1100px, 96vw); height: min(92vh, 1000px); padding: 0; border: 1px solid var(--rule); border-radius: 12px; background: var(--bg); color: var(--fg); }
+dialog::backdrop { background: rgba(0,0,0,.7); }
+dialog .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font: 13px var(--mono); }
+dialog button { font: 600 13px var(--sans); background: var(--raise); color: var(--fg); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+dialog iframe { width: 100%; height: calc(100% - 50px); border: 0; display: block; background: var(--bg); }
+.empty { color: var(--dim); font-style: italic; }
+@media (max-width: 640px) { #filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; } }
+footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--dim); font: 12px var(--mono); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="k">claude-s · video skills for Claude</div>
+    <h1>What each skill learned, and what it made</h1>
+    <p class="lede">References are the videos and pages the skills learned from; each one lists the techniques taken and the skills that took them. Results are the test renders each skill made, linked back to its references. Pick a skill to see only its side of both.</p>
+  </header>
+
+  <div class="bar">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-reference" aria-controls="reference" data-tab="reference">Reference<span class="n" id="n-ref"></span></button>
+      <button class="tab" role="tab" id="tab-result" aria-controls="result" data-tab="result">Result<span class="n" id="n-res"></span></button>
+    </div>
+    <div class="chips" id="filter" aria-label="Filter by skill"></div>
+  </div>
+
+  <section id="reference" role="tabpanel" aria-labelledby="tab-reference">
+    <p class="intro">We took techniques from these, never their shots, copy, palettes or brands. Each skill's “LEAVE” list says what stays theirs (see <a href="skills/type-film/references.md">type-film/references.md</a>).</p>
+    <h2>The batch of 2026-10-10</h2>
+    <div class="grid" id="refs-batch"></div>
+    <h2>Earlier references</h2>
+    <div class="grid" id="refs-early"></div>
+  </section>
+
+  <section id="result" role="tabpanel" aria-labelledby="tab-result" hidden>
+    <p class="intro">Every result is a self-contained demo page in <code>demos/</code> with its video and sound embedded. Play it here, open the page, or read the skill that made it.</p>
+    <div class="grid" id="results"></div>
+  </section>
+
+  <footer>github.com/Lokendrakushwah12/claude-s · MIT</footer>
+</div>
+
+<dialog id="player" aria-label="Demo player">
+  <div class="head"><span id="player-title"></span><span><a id="player-open" class="out" target="_blank" rel="noopener">Open page</a> <button id="player-close">Close</button></span></div>
+  <iframe id="player-frame" title="Demo"></iframe>
+</dialog>
+
+<script>
+const GH = 'https://github.com/Lokendrakushwah12/claude-s/tree/main/skills/';
+
+const SKILLS = [
+  { id: 'ugc-edit', makes: 'Creator-style edits of your own footage: cuts on the words, a camera that never sits still, hot-keyword captions, a sound on every cut. Also a screen-recording tutorial preset.',
+    demo: 'ugc-edit', title: 'A creator cut from a placeholder talking head', meta: '28.5 s, 9:16 · plus a 7.7 s tutorial clip', voice: true },
+  { id: 'type-film', makes: 'Original brand motion films from reference videos plus the brand’s own site: kinetic type, screen HUD, vector CRT, single-take morph, line catalogue, isometric product.',
+    demo: 'type-film', title: 'claude-s: a brand film for the repo, made by its own skill', meta: '18 s, 16:9 · sonified UI, no music' },
+  { id: 'promo-video', makes: 'Launch promos built from a product’s real repo: logo, colours, fonts, UI and numbers, scored with synthesised sound.',
+    demo: 'promo-video', title: 'Plexus launch promo', meta: '18 s, 16:9' },
+  { id: 'explainer-lesson', makes: 'Narrated animated lessons on one hard idea, with picture, sound and voice on one clock. Looks include blueprint, chalkboard, gouache, riso, graphite stop-motion and hairline.',
+    demo: 'explainer-lesson', title: 'How does a hash table find one name in a million?', meta: '58.5 s, 16:9 · graphite look', voice: true },
+  { id: 'music-video', makes: 'Lyric-driven music videos from a song, or a spoken-word lyric essay over a synthesised bed: karaoke words, live counters, cuts on the drops.',
+    demo: 'music-video', title: 'Small things compound: a spoken-word lyric essay', meta: '29 s, 16:9', voice: true },
+  { id: 'story-video', makes: 'Narrated kinetic-typography stories: a card per phrase, an expressive local voice, ducked music and a sub on every hard cut.',
+    demo: 'story-video', title: 'A founder story in 27 seconds', meta: '27 s, 16:9 · invented brand and person', voice: true },
+  { id: 'explorable-explainer', makes: 'Interactive “how does X work” essays with line-art and isometric figures you scrub and pick, published as a claude.ai Artifact.',
+    demo: 'explorable-explainer', title: 'How does a mechanical keyboard switch work?', meta: 'interactive page' },
+  { id: 'archive-footage', makes: 'Public-domain archival film clips, with each licence checked at the archive it came from and the credits written for you.',
+    demo: 'archive-footage', title: 'Old film b-roll, licences checked at the source', meta: '12.5 s montage' },
+  { id: 'x-video-frames', makes: 'Frames from any x.com video, and deconstruct.py: cuts, spectrogram, SFX events, beats, ducking, words and camera drift for any reference.',
+    demo: 'x-video-frames', title: 'A deconstruction report of our own heat-pump lesson', meta: 'report page' },
+];
+
+// feeds: which skills took something from it (in our words, never theirs)
+const REFS = [
+  { n: '01', who: '@srushtiddesign', url: 'https://x.com/srushtiddesign/status/2108473831262494790', meta: 'X video · 19 s · no audio',
+    title: 'An exploded isometric device, made with Opus 5.5 and hairline-create',
+    took: 'Rounded solids with one crease and no vertical corner lines, plates painted back to front, a gap that rides a spring, one highlighted layer.',
+    feeds: ['explorable-explainer', 'type-film'] },
+  { n: '02', who: '@Falex_mp4', url: 'https://x.com/Falex_mp4/status/2108411178984812546', meta: 'X video · 50 s',
+    title: 'A podcast clip re-edited as a dense creator cut',
+    took: 'Cuts that lead the next word, a camera that never stops, a keyword born in the accent colour that cools letter by letter (sometimes behind the speaker), and three sound families (sub, air, micro) at fixed levels under the voice.',
+    feeds: ['ugc-edit', 'promo-video'] },
+  { n: '06', who: '@reathchris', url: 'https://x.com/reathchris/status/2108723438861058326', meta: 'X video · 45 s · square · no audio',
+    title: 'A four-month recap built as one moodboard you fly across',
+    took: 'A flip-book hook that speeds up, paste-ups on threes, whip-pans across one board, scatter then snap into order, a one-second reverse replay into a seamless loop.',
+    feeds: ['type-film'] },
+  { n: '07', who: '@alemu_creatives', url: 'https://x.com/alemu_creatives/status/2108617934310678712', meta: 'X video · 8 s',
+    title: 'A YouTube edit highlight with a recreated screen',
+    took: 'A rebuilt UI acted out on the spoken words (typing, cursor, click), an accelerating push with a synthetic depth of field, and a quiet chord that enters just before the cut.',
+    feeds: ['ugc-edit'] },
+  { n: '08', who: '@TrenchersAI', url: 'https://x.com/TrenchersAI/status/2108609525213548701', meta: 'X video · 18 s + 31 s',
+    title: 'A phone launch spot and an 80s vector-CRT hackathon promo',
+    took: 'Music kept muffled until the product lands, a held beat before the hero word, phosphor line art, CRT collapse transitions and a TV power-off ending.',
+    feeds: ['type-film', 'promo-video'] },
+  { n: '09', who: '@ryanvogel', url: 'https://x.com/ryanvogel/status/2108760169501040748', meta: 'X video · 29 s · narrated',
+    title: 'A narrated manifesto in a terminal-HUD look',
+    took: 'Narration typed in sync with the voice, chapter and status corners, film burns with a low whoomp as section breaks, and the whole mix closing to a line before a hard reopen.',
+    feeds: ['type-film', 'promo-video'] },
+  { n: '10', who: '@antic', url: 'https://x.com/antic/status/2108582512960368715', meta: 'X video · 3 min 42 s · song',
+    title: 'A deep-time lyric film',
+    took: 'Karaoke words on the sung onsets with the held word in outline, exponential counters, hard cuts only on drops, a drums-out break before the turn, choruses that get louder.',
+    feeds: ['music-video'] },
+  { n: '11', who: '@eliana_jordan', url: 'https://x.com/eliana_jordan/status/2108867254255505792', meta: 'X video · 9 s · vertical',
+    title: 'A POV joke built from jump cuts in one fixed frame',
+    took: 'Jump cuts snapped to the beat grid about 50 ms early, a punchline beat that gets shorter each time, one static caption as the whole script.',
+    feeds: ['ugc-edit'] },
+  { n: '12', who: '@gxjo_dev', url: 'https://x.com/gxjo_dev/status/2108632470551933011', meta: 'X video · 19 s',
+    title: 'A monochrome single-take morph, made with Opus',
+    took: 'Every scene born from the last scene’s shape, full-stop headlines, construction lines as ornament, and a whoosh then impact on every morph.',
+    feeds: ['type-film'] },
+  { n: '13', who: '@claudeai', url: 'https://x.com/claudeai/status/2108271552991252810', meta: 'X video · 82 s · narrated',
+    title: 'The Claude Dashboards and Claude Motion launch',
+    took: 'One player frame that hosts everything, a 2D chart lifting into a 3D city with the same coordinates, a clock that grades the colour, a voice-led edit with silences before each payoff and an echo-tail ending.',
+    feeds: ['promo-video', 'explainer-lesson', 'explorable-explainer'] },
+  { n: '14', who: '@azlenelza', url: 'https://x.com/azlenelza/status/2108768504006774968', meta: 'X video · 13 s · paper foley',
+    title: 'Breaking apart a book',
+    took: 'The source gives up its evidence (quotes fly out, holes stay behind), and paper-only foley that starts when the object moves, not on the click.',
+    feeds: ['explorable-explainer', 'promo-video'] },
+  { n: '15', who: '@MotionByLeo', url: 'https://x.com/MotionByLeo/status/2108226331125457249', meta: 'X video · 26 s',
+    title: 'A product launch built from one shape',
+    took: 'One primitive (the square) for every transition, a four-tier dot field, a slot-list feature roll, cuts on kicks with the bass muted under each new idea.',
+    feeds: ['promo-video'] },
+  { n: '16', who: '@shadcn', url: 'https://x.com/shadcn/status/2108804948750393689', meta: 'X video · 4 min 33 s · narrated',
+    title: 'A screen-recording product tutorial',
+    took: 'Demo before definition, two framings joined by 4–6-frame zooms, an oversized cursor, typing sped up about 8×, 2-second chapter bumpers, a dry voice with no music.',
+    feeds: ['ugc-edit'] },
+  { n: '17', who: '@mnowakdesign', url: 'https://x.com/mnowakdesign/status/2108253918086176899', meta: 'X video · 5 s · no audio',
+    title: 'A style test in a screen-HUD idiom',
+    took: '2–3-frame palette stabs as cut glue, overlapping coordinate labels as texture, a horizontal stutter-repeat.',
+    feeds: ['type-film'] },
+  { n: '18', who: '@ayushsoni_io', url: 'https://x.com/ayushsoni_io/status/2108649039340487082', meta: 'X video · 9 s',
+    title: 'A live-event promo',
+    took: 'A poster card that drops while the background snaps back into focus, a pixel-block glitch over painterly footage, and a full sound arc (swell, downlifter, bell) in nine seconds.',
+    feeds: ['promo-video'] },
+  { n: '19', who: '@neogoose_btw', url: 'https://x.com/neogoose_btw/status/2108558320873218535', meta: 'X video · 6 s + 10 s',
+    title: 'A brand sting whose sound is the point (“do not unmute”)',
+    took: 'No music: room tone as the score, typing whose pitch steps with each letter, status blips that walk a pentatonic scale and resolve on “Done”.',
+    feeds: ['type-film', 'promo-video'] },
+  { n: '20', who: '@lucasmarkes__', url: 'https://x.com/lucasmarkes__/status/2106502812498632707', meta: 'X video · 12 s · no audio',
+    title: 'A hairline line-art release reel (and the MIT hairline-create skill)',
+    took: 'Four greys and one ink stroke as the only highlight, a persistent pen that threads the montage, the drawn line as the title’s mask.',
+    feeds: ['explainer-lesson', 'explorable-explainer', 'type-film'] },
+  { n: 'E1', who: 'prompt-motion.com', url: 'https://prompt-motion.com/', meta: 'website · a gallery of Opus 5.5 motion pieces',
+    title: 'How the best prompted motion pieces were briefed',
+    took: 'Banned lists carry the taste, the beat grid comes first, stills before the full render, a fresh critic, real material only.',
+    feeds: ['type-film', 'promo-video'] },
+  { n: 'E2', who: '@_nikolajankovic', url: 'https://prompt-motion.com/nikolajankovic-ce4ff4', meta: 'prompt-motion entry · 58 s · no audio',
+    title: 'A hand-drawn stop-motion product explainer',
+    took: '12 fps with a three-drawing boil, whole-pixel jitter and flicker, double-pass graphite lines, captions typed at 37 characters a second, the product as first-person narrator.',
+    feeds: ['explainer-lesson'] },
+  { n: 'E3', who: 'movingimagearchive.com', url: 'https://www.movingimagearchive.com/', meta: 'website · public-domain film, by the shot',
+    title: 'An archive of old film split into searchable shots',
+    took: 'Shot-level search for archival b-roll, and the rule that a licence is checked at the original archive, not the aggregator.',
+    feeds: ['archive-footage'] },
+];
+
+const EARLY = [
+  { n: 'A1', who: 'How do bike gears work?', url: 'https://claude.ai/artifact/Ez6BXp1sGc4fCEGihotM61', meta: 'claude.ai artifact',
+    title: 'An explorable essay with animated line-art figures',
+    took: 'The house style: serif prose, numbered figure panels, white line drawings with hatching and leader labels, one control per figure.',
+    feeds: ['explorable-explainer'] },
+  { n: 'T1', who: '@az_andrian', url: 'https://x.com/az_andrian/status/2104495114534133847', meta: 'X video',
+    title: 'A Swiss kinetic-type brand film',
+    took: 'Shot length, type entries and exits, beat-locked cuts.', feeds: ['type-film'] },
+  { n: 'T2', who: '@Jerrythe2d', url: 'https://x.com/Jerrythe2d/status/2104236249855017381', meta: 'X video',
+    title: 'A cinematic portfolio reel', took: 'Glass UI, a curved gallery wall, words out of a blur.', feeds: ['type-film'] },
+  { n: 'T3', who: '@Kendel4204k', url: 'https://x.com/Kendel4204k/status/2104168085687267716', meta: 'X video',
+    title: 'A dark AI launch film', took: 'Cinematic narration, one soft key light, dust in the air.', feeds: ['type-film'] },
+  { n: 'P1', who: 'Dub.co launch video', url: '', meta: 'no link on file',
+    title: 'A one-shot SaaS launch video made inside the product’s repo',
+    took: 'The repo is the trick: real logo, colours, fonts, copy and UI, so the video looks like the product, not a template.', feeds: ['promo-video'] },
+  { n: 'M1', who: 'donald jewkes · “Claude Pop”', url: '', meta: 'no link on file',
+    title: 'A music video remake prompt', took: 'A style bible, a mascot protagonist, lyrics as the main attention device, ruthless self-review.', feeds: ['music-video'] },
+  { n: 'K1', who: 'Kevin Ngo', url: 'https://x.com/kevin_t_ngo/status/2102437977435893771', meta: 'X video',
+    title: 'Code-drawn shorts, one HTML file per video', took: 'A canvas and scripts, no media files: the method explainer-lesson is built on.', feeds: ['explainer-lesson'] },
+];
+
+const $ = s => document.querySelector(s), esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ALL = [...REFS, ...EARLY];
+const fedBy = id => ALL.filter(r => r.feeds.includes(id));
+let filter = null;
+
+function refCard(r) {
+  const link = r.url ? `<a class="out" href="${r.url}" target="_blank" rel="noopener">Open original ↗</a>` : '';
+  const chips = r.feeds.map(f => `<a class="chip" href="#skill-${f}" data-go="${f}">${f}</a>`).join('');
+  return `<article class="card" id="ref-${r.n}" data-skills="${r.feeds.join(' ')}">
+    <div class="top"><span class="num">#${r.n}</span><span class="who">${esc(r.who)}</span><span class="meta">${esc(r.meta)}</span></div>
+    <h3 class="title">${esc(r.title)}</h3>
+    <p class="took">${esc(r.took)}</p>
+    <div class="feeds"><span class="lab">Feeds</span>${chips}</div>${link}</article>`;
+}
+function resCard(s) {
+  const refs = fedBy(s.id), chips = refs.length ? refs.map(r => `<a class="chip ref" href="#ref-${r.n}" data-ref="${r.n}">#${r.n} ${esc(r.who)}</a>`).join('')
+    : '<span class="empty">A tool: it takes references apart for the others</span>';
+  return `<article class="card" id="skill-${s.id}" data-skills="${s.id}">
+    <button class="poster" data-play="${s.demo}" data-title="${esc(s.title)}" aria-label="Play the ${s.id} demo"><img src="demos/posters/${s.demo}.jpg" alt="" loading="lazy"><span class="play">▶ Play demo</span></button>
+    <div class="skill"><a href="${GH}${s.id}" target="_blank" rel="noopener">${s.id}</a></div>
+    <p class="took">${esc(s.makes)}</p>
+    <h3 class="title">${esc(s.title)}</h3>
+    <div class="badges"><span class="badge">${esc(s.meta)}</span>${s.voice ? '<span class="badge voice">voiced</span>' : ''}</div>
+    <div class="feeds"><span class="lab">Learned from</span>${chips}</div>
+    <div class="links"><a class="out" href="demos/${s.demo}.html" target="_blank" rel="noopener">Open demo page ↗</a><a class="out" href="${GH}${s.id}/SKILL.md" target="_blank" rel="noopener">Read SKILL.md ↗</a></div></article>`;
+}
+
+$('#refs-batch').innerHTML = REFS.map(refCard).join('');
+$('#refs-early').innerHTML = EARLY.map(refCard).join('');
+$('#results').innerHTML = SKILLS.map(resCard).join('');
+$('#filter').innerHTML = `<button class="chip" data-f="" aria-pressed="true">All skills</button>` + SKILLS.map(s => `<button class="chip" data-f="${s.id}" aria-pressed="false">${s.id}</button>`).join('');
+
+function applyFilter() {
+  let nr = 0, ns = 0;
+  document.querySelectorAll('#reference .card').forEach(c => { const on = !filter || c.dataset.skills.split(' ').includes(filter); c.hidden = !on; nr += on; });
+  document.querySelectorAll('#results .card').forEach(c => { const on = !filter || c.dataset.skills === filter; c.hidden = !on; ns += on; });
+  $('#n-ref').textContent = nr; $('#n-res').textContent = ns;
+  document.querySelectorAll('#filter .chip').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.f || null) === filter)));
+}
+function show(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
+  $('#reference').hidden = tab !== 'reference'; $('#result').hidden = tab !== 'result';
+}
+function flash(el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600); }
+function route() {
+  const h = location.hash.slice(1);
+  if (h.startsWith('skill-')) { show('result'); const el = document.getElementById(h); if (el) { if (el.hidden) { filter = null; applyFilter(); } flash(el); } }
+  else if (h.startsWith('ref-')) { show('reference'); const el = document.getElementById(h); if (el) { if (el.hidden) { filter = null; applyFilter(); } flash(el); } }
+  else show(h === 'result' ? 'result' : 'reference');
+}
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { history.replaceState(null, '', '#' + t.dataset.tab); show(t.dataset.tab); }));
+$('#filter').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; filter = b.dataset.f || null; applyFilter(); });
+window.addEventListener('hashchange', route);
+
+const dlg = $('#player'), frame = $('#player-frame');
+document.addEventListener('click', e => {
+  const p = e.target.closest('[data-play]'); if (!p) return;
+  frame.src = `demos/${p.dataset.play}.html`; $('#player-open').href = frame.src; $('#player-title').textContent = p.dataset.title; dlg.showModal();
+});
+$('#player-close').addEventListener('click', () => dlg.close());
+dlg.addEventListener('close', () => { frame.src = 'about:blank'; });   // stops playback
+
+applyFilter(); route();
+</script>
+</html>
