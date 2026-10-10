@@ -44,6 +44,11 @@ h2 { font-size: 13px; font-family: var(--mono); font-weight: 500; letter-spacing
 .meta { font: 12px var(--mono); color: var(--dim); }
 .title { margin: 0; font-size: 17px; line-height: 1.3; text-wrap: balance; }
 .took { margin: 0; color: var(--dim); }
+.embed { min-height: 120px; display: grid; place-items: center; border-radius: 10px; background: var(--raise); overflow: hidden; }
+.embed:empty::before, .embed.wait::before { content: "Loading the post…"; font: 12px var(--mono); color: var(--dim); padding: 40px 0; }
+.embed.done { background: transparent; min-height: 0; display: block; }
+.embed.done .twitter-tweet { margin: 0 auto !important; }
+.embed.fail { font: 13px var(--sans); color: var(--dim); padding: 24px; text-align: center; }
 .feeds { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .feeds .lab { font: 11px var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
 .out { font: 13px var(--sans); color: var(--dim); text-decoration: none; justify-self: start; }
@@ -202,7 +207,7 @@ const REFS = [
     title: 'How the best prompted motion pieces were briefed',
     took: 'Banned lists carry the taste, the beat grid comes first, stills before the full render, a fresh critic, real material only.',
     feeds: ['type-film', 'promo-video'] },
-  { n: 'E2', who: '@_nikolajankovic', url: 'https://prompt-motion.com/nikolajankovic-ce4ff4', meta: 'prompt-motion entry · 58 s · no audio',
+  { n: 'E2', who: '@_nikolajankovic', url: 'https://prompt-motion.com/nikolajankovic-ce4ff4', x: '2102867033100616097', meta: 'prompt-motion entry · 58 s · no audio',
     title: 'A hand-drawn stop-motion product explainer',
     took: '12 fps with a three-drawing boil, whole-pixel jitter and flicker, double-pass graphite lines, captions typed at 37 characters a second, the product as first-person narrator.',
     feeds: ['explainer-lesson'] },
@@ -241,7 +246,8 @@ let filter = null;
 function refCard(r) {
   const link = r.url ? `<a class="out" href="${r.url}" target="_blank" rel="noopener">Open original ↗</a>` : '';
   const chips = r.feeds.map(f => `<a class="chip" href="#skill-${f}" data-go="${f}">${f}</a>`).join('');
-  return `<article class="card" id="ref-${r.n}" data-skills="${r.feeds.join(' ')}">
+  const tid = r.x || (r.url.match(/(?:x|twitter)\.com\/[^/]+\/status\/(\d+)/) || [])[1];
+  return `<article class="card" id="ref-${r.n}" data-skills="${r.feeds.join(' ')}">${tid ? `<div class="embed" data-tweet="${tid}"></div>` : ''}
     <div class="top"><span class="num">#${r.n}</span><span class="who">${esc(r.who)}</span><span class="meta">${esc(r.meta)}</span></div>
     <h3 class="title">${esc(r.title)}</h3>
     <p class="took">${esc(r.took)}</p>
@@ -295,6 +301,21 @@ document.addEventListener('click', e => {
 });
 $('#player-close').addEventListener('click', () => dlg.close());
 dlg.addEventListener('close', () => { frame.src = 'about:blank'; });   // stops playback
+
+// X posts render through X's own embed (no reference media is stored here). Loaded lazily; do-not-track on.
+let twttrP = null;
+const loadX = () => twttrP ??= new Promise((ok, bad) => {
+  const sc = document.createElement('script'); sc.src = 'https://platform.twitter.com/widgets.js'; sc.async = true;
+  sc.onload = () => window.twttr.ready(ok); sc.onerror = bad; document.head.appendChild(sc);
+});
+const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+const fail = el => { el.className = 'embed fail'; el.textContent = 'The post couldn’t load here (X needs the page served over http). Use “Open original” below.'; };
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (!e.isIntersecting) return; const el = e.target; io.unobserve(el); el.classList.add('wait');
+  loadX().then(tw => tw.widgets.createTweet(el.dataset.tweet, el, { theme: dark() ? 'dark' : 'light', dnt: true, conversation: 'none', align: 'center' }))
+    .then(node => { el.classList.remove('wait'); node ? el.classList.add('done') : fail(el); }).catch(() => fail(el));
+}), { rootMargin: '600px 0px' });
+document.querySelectorAll('.embed[data-tweet]').forEach(el => io.observe(el));
 
 applyFilter(); route();
 </script>
