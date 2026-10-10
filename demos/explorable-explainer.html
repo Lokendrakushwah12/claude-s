@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How does a mechanical keyboard switch work?</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one serif prose column (36rem); numbered figure panels break out to 48rem; monospace chrome frames every figure. */
+:root {
+  --bg: #141413; --panel: #191918; --grid: #262624;
+  --ink: #ecebe6; --dim: #8e8d87; --faint: #45443f; --rule: #2c2b29;
+  --serif: "Crimson Pro", "Iowan Old Style", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f2f2ef; --panel: #fafaf8; --grid: #e2e1dc;
+    --ink: #1c1c1a; --dim: #6b6a65; --faint: #bebdb7; --rule: #d9d8d2;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f2f2ef; --panel: #fafaf8; --grid: #e2e1dc;
+  --ink: #1c1c1a; --dim: #6b6a65; --faint: #bebdb7; --rule: #d9d8d2;
+  color-scheme: light;
+}
+
+body { background: var(--bg); color: var(--ink); font: 400 1.1875rem/1.65 var(--serif); padding-inline: 16px; padding-block: 0 7rem; -webkit-font-smoothing: antialiased; }
+.col { max-width: 36rem; margin-inline: auto; }
+h1 { font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.5rem); line-height: 1.05; letter-spacing: -0.015em; text-wrap: balance; margin: 5rem 0 1.1rem; }
+.dek { color: var(--dim); font-size: 1.3rem; line-height: 1.45; margin: 0 0 2.75rem; text-wrap: pretty; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 0 0 1.75rem; }
+h2 { font-weight: 400; font-size: 1.95rem; line-height: 1.2; text-wrap: balance; margin: 4.5rem 0 1rem; }
+p { margin: 0 0 1.15rem; text-wrap: pretty; }
+b, strong { font-weight: 600; }
+em { font-style: italic; }
+
+/* ---- figure panel ---- */
+.fig { max-width: 48rem; margin: 3rem auto; border: 1px solid var(--rule);
+  background: radial-gradient(circle, var(--grid) 0.8px, transparent 1.2px) 0 0 / 18px 18px, var(--panel); }
+.fig > header { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.1rem 0; font: 400 0.75rem/1.4 var(--mono); letter-spacing: 0.04em; color: var(--dim); }
+.fig > header span:first-child { color: var(--ink); }
+.stage { overflow-x: auto; }
+.stage svg { display: block; width: 100%; min-width: 34rem; height: auto; color: var(--ink);
+  fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.stage svg * { vector-effect: non-scaling-stroke; }
+.stage svg text { fill: currentColor; stroke: none; font: 400 12px var(--mono); letter-spacing: 0.02em; }
+.stage svg .sub { fill: var(--dim); font-size: 11px; }
+.stage svg .solid { fill: var(--panel); }          /* hides the lines behind a part */
+.stage svg .ink { fill: currentColor; }
+.stage svg .hatch { fill: url(#hatch); }
+.stage svg .dots { fill: url(#dots); }
+.stage svg .dash { stroke-dasharray: 3 4; }
+.stage svg .guide { stroke: var(--faint); }
+.stage svg .muted { opacity: 0.22; }
+.stage svg .fade { transition: opacity 0.45s ease; }
+.stage svg .idle { color: var(--dim); }             /* an iso part that is not the picked one */
+.stage svg .pick { transition: color 0.7s cubic-bezier(.32,.72,0,1), opacity 0.7s cubic-bezier(.32,.72,0,1); }
+@media (prefers-reduced-motion: reduce) { .stage svg * { transition: none !important; } }
+.fig > footer { border-top: 1px solid var(--rule); background: var(--panel); padding: 0.95rem 1.1rem 1.05rem; display: grid; gap: 0.95rem; }
+.cap { margin: 0; max-width: 34rem; font-size: 1rem; line-height: 1.5; color: var(--dim); }
+
+/* ---- controls: plain HTML, bound by data-k / data-o ---- */
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; font: 400 0.75rem/1 var(--mono); color: var(--dim); }
+.range { display: flex; align-items: center; gap: 0.75rem; white-space: nowrap; }
+.range input { appearance: none; -webkit-appearance: none; width: 9rem; min-width: 5rem; flex: 1 1 9rem; height: 1.25rem; margin: 0; background: transparent; cursor: pointer; }
+.range input::-webkit-slider-runnable-track { height: 1px; background: var(--dim); }
+.range input::-moz-range-track { height: 1px; background: var(--dim); }
+.range input::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -5px; background: var(--panel); border: 1px solid var(--ink); }
+.range input::-moz-range-thumb { width: 9px; height: 9px; border-radius: 0; background: var(--panel); border: 1px solid var(--ink); }
+.seg { display: inline-flex; }
+.seg button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--dim); padding: 0.5rem 0.75rem; cursor: pointer; }
+.seg button + button { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+@media (max-width: 30rem) { .seg button { padding-inline: 0.55rem; } }   /* six short options still fit a phone */
+.ctl :focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+.out { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin: 0 0 0 auto; }
+.out div { display: flex; gap: 0.5rem; }
+.out dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.hint { margin-left: auto; line-height: 1.4; }
+.stage svg .hot { cursor: help; }
+.defs { position: absolute; width: 0; height: 0; color: var(--ink); }
+/* ---- demo wrapper (not part of the template) ---- */
+.demo-bar { max-width: 48rem; margin: 1.25rem auto 0; display: flex; justify-content: space-between; gap: 1rem; font: 400 0.75rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.src { margin-top: 4.5rem; border-top: 1px solid var(--rule); padding-top: 1.25rem; font-size: 1rem; line-height: 1.5; color: var(--dim); }
+.src h3 { font: 400 0.75rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); margin: 0 0 1rem; }
+.src a, .demo-foot a { color: inherit; text-underline-offset: 2px; }
+.demo-foot { max-width: 36rem; margin: 3rem auto 0; font: 400 0.75rem/1.6 var(--mono); color: var(--dim); }
+</style>
+<script>{ const t = new URLSearchParams(location.search).get("theme"); if (t) document.documentElement.dataset.theme = t; }</script>
+</head>
+<body>
+<!-- shared patterns and arrowhead; reference as url(#hatch), url(#dots), marker-end="url(#arrow)" -->
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="4" stroke="currentColor" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="dots" width="3" height="3" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="0.55" fill="currentColor"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="demo-bar"><span>claude-s · explorable-explainer</span><span>demo</span></div>
+<article>
+  <div class="col">
+    <h1>How does a mechanical keyboard switch work?</h1>
+    <p class="dek">A plastic stem, a steel spring and two strips of gold-plated metal. Halfway down, the computer already knows. The other half of the press is up to you.</p>
+    <hr>
+    <p>You have probably pressed a key a few million times without wondering what happens under it. On a mechanical keyboard every key sits on its own small machine: a switch <span data-n="width"></span> square that turns a push into a closed circuit, and then pushes your finger back.</p>
+    <p>This page takes one apart. The numbers come from Cherry's datasheet for its MX Red, the classic "linear" switch, and every readout below is computed from them.</p>
+
+    <h2>What is inside one key?</h2>
+    <p>Six parts stack along a single axis. The <b>keycap</b> is the part you touch. It grips the cross-shaped top of the <b>stem</b>, the only part that travels. The stem rides inside the <b>top housing</b>, which keeps it straight, and presses on a steel <b>spring</b>. Down in the <b>bottom housing</b>, two thin <b>contact leaves</b> wait for the stem to let them touch, and metal pins carry their signal into the circuit board.</p>
+    <p>Below, the switch comes apart and goes back together. Drag the slider to hold it open, and point at a layer, or tap its name, to pick it out.</p>
+  </div>
+
+  <figure class="fig" id="f1">
+    <header><span>FIG_001</span><span>[ one switch, pulled apart ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">The switch opens and closes on its own until you take a control. The picked part is drawn in ink with its sides hatched; the rest fade to outlines. The housing is 15.63 mm square; other sizes are approximate.</p>
+      <div class="ctl">
+        <label class="range"><span>together</span><input type="range" id="f1-apart" data-k="apart" min="0" max="1" step="0.01" value="0.9" aria-label="how far apart"><span>apart</span></label>
+        <div class="seg" data-k="pick" aria-label="pick a part">
+          <button value="5">cap</button><button value="4">top</button><button value="3">stem</button><button value="2">spring</button><button value="1">leaves</button><button value="0">base</button>
+        </div>
+        <dl class="out"><div><dt>part</dt><dd data-o="part">–</dd></div></dl>
+        <span class="hint" data-o="hint">point at a layer to pick it</span>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>Nothing in this stack is electronic except those two leaves. Everything else is there to move them at the right moment, and to make the motion feel the same on the hundred-millionth press as on the first.</p>
+
+    <h2>When does the key count as pressed?</h2>
+    <p>Press the key slowly and three things change together. The stem slides down, the spring shortens and pushes back harder, and at one exact depth the contact closes.</p>
+    <p>The spring already pushes up with <span data-n="initial"></span> before you touch the key, about the weight of six sheets of printer paper. The resistance then climbs in a straight line, and at <span data-n="pre"></span> it reaches <span data-n="actuation"></span>. That depth is the <b>actuation point</b>. There the stem's side <b>leg</b> slides past the bent tip of the moving leaf, the leaf springs across onto the fixed one, and the circuit closes.</p>
+  </div>
+
+  <figure class="fig" id="f2">
+    <header><span>FIG_002</span><span>[ one press, in section ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Left, a simplified section through the switch. Right, the push the spring needs at each depth. The press plays on its own until you take the slider. The hatched area under the line is the work your finger has done so far.</p>
+      <div class="ctl">
+        <label class="range"><span>up</span><input type="range" id="f2-x" data-k="x" min="0" max="4" step="0.01" value="2.05" aria-label="key travel in millimetres"><span>down</span></label>
+        <dl class="out">
+          <div><dt>travel</dt><dd data-o="travel">–</dd></div>
+          <div><dt>push</dt><dd data-o="push">–</dd></div>
+          <div><dt>contact</dt><dd data-o="contact">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>The key is only halfway down. The stem can travel <span data-n="travel"></span> in all, and the last two millimetres do nothing for the computer. At the bottom the stem lands on the housing and the line turns into a wall. Cherry lists <span data-n="final"></span> as the final force, but by then you are pressing on plastic, not on the spring.</p>
+
+    <h2>Why go all the way down?</h2>
+    <p>Most people do, at least some of the time. The extra travel costs nothing in time: the computer hears the press the moment the stem passes <span data-n="pre"></span>, and whatever your finger does after that cannot make the signal arrive sooner.</p>
+    <p>Below, two presses start at the same instant and at the same speed. Press <b>A</b> eases off just after the actuation point and turns around at <span data-n="aturn"></span>. Press <b>B</b> goes all the way to the floor. One clock along the bottom drives both.</p>
+  </div>
+
+  <figure class="fig" id="f3">
+    <header><span>FIG_003</span><span>[ two presses on one clock ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Slowed down ten times. The press speeds are illustrative; the 2 mm and 4 mm marks and the 5 ms of bounce are Cherry's. The thin line under each press is its circuit. Drag the clock to scrub.</p>
+      <div class="ctl">
+        <label class="range"><span>0 ms</span><input type="range" id="f3-ms" data-k="ms" min="0" max="200" step="1" value="84" aria-label="time in milliseconds"><span>200 ms</span></label>
+        <dl class="out">
+          <div><dt>clock</dt><dd data-o="clock">–</dd></div>
+          <div><dt>work A</dt><dd data-o="wa">–</dd></div>
+          <div><dt>work B</dt><dd data-o="wb">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>Both keys register at the same moment. For a few milliseconds after that the leaves bounce against each other, and the keyboard waits it out before it believes the press. Press B then does about twice the work, <span data-n="wb"></span> against <span data-n="wa"></span>, and spends the rest of its energy hitting the floor.</p>
+    <p>That is not much per press. Over <span data-n="perday"></span> letters a day the difference comes to about <span data-n="joules"></span>, roughly the work of lifting a one-kilogram bag of sugar a metre. It arrives as a small knock at the end of every stroke, which is why some typists teach themselves to stop short.</p>
+
+    <h2>Which switch works hardest?</h2>
+    <p>Every key on the board has the same switch, but they do not get the same life. In English text, <b>e</b> makes up about 12.7% of letters and <b>z</b> about 0.07%, so the switch under E takes about <span data-n="ratio"></span> times as many presses as the one under Z.</p>
+    <p>Below, those shares are written on the keyboard itself, flat, like a table. Then the plan lifts into the room: each key rises in proportion to its share, and every key stays exactly where it was.</p>
+  </div>
+
+  <figure class="fig" id="f4">
+    <header><span>FIG_004</span><span>[ the alphabet, lifted ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Switch between plan and world, and point at a key to read it. Heights are each letter's share of English text. The days assume <span data-n="perday"></span> letters typed a day.</p>
+      <div class="ctl">
+        <div class="seg" data-k="mode" aria-label="view"><button value="plan">plan</button><button value="world" aria-pressed="true">world</button></div>
+        <dl class="out">
+          <div><dt>key</dt><dd data-o="key">–</dd></div>
+          <div><dt>presses a day</dt><dd data-o="day">–</dd></div>
+          <div><dt>to 100 M</dt><dd data-o="years">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>Even the E switch is in no danger. At <span data-n="perday"></span> letters a day it sees about <span data-n="eday"></span> presses, and Cherry rates the switch for more than 100 million, which works out to roughly <span data-n="eyears"></span>. The keycap will be shiny long before the switch under it notices.</p>
+    <p>So the next time you type, notice where your fingers stop. The computer stopped listening at two millimetres.</p>
+
+    <section class="src">
+      <h3>Sources</h3>
+      <p>Cherry, <a href="https://www.cherry.de/en-gb/product/mx2a-red">MX2A Red product page and datasheet</a>: 30 cN initial force, 45 cN actuation force, 100 cN final force, 2 mm pre-travel, 4 mm total travel, 5 ms bounce time, 15.63 mm width, more than 100 million keystrokes, Gold Crosspoint contacts.</p>
+      <p>Keyboard Builders' Digest, <a href="https://kbd.news/switch/Cherry-MX-Red-PCB-mount-422.html">Cherry MX Red switch data</a>: 45 g actuation at 2 mm, 4 mm total travel, stainless steel spring.</p>
+      <p>Robert Lewand, <i>Cryptological Mathematics</i> (MAA, 2000), letter frequencies, via <a href="https://en.wikipedia.org/wiki/Letter_frequency">Wikipedia</a>.</p>
+      <p>The straight line between 30 cN and 45 cN is extended to about 60 cN at 4 mm. The press timings in FIG_003 and the section drawing are simplified.</p>
+    </section>
+  </div>
+</article>
+<footer class="demo-foot">Made with the explorable-explainer skill · <a href="https://github.com/Lokendrakushwah12/claude-s">github.com/Lokendrakushwah12/claude-s</a></footer>
+
+<script>
+/* ===== helpers: keep, extend when a figure needs something reusable ===== */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, a = {}, parent) {               // el('circle', {cx, cy, r, class: 'solid'}, g); a.text sets textContent
+  const n = document.createElementNS(NS, tag);
+  for (const k in a) k === 'text' ? (n.textContent = a[k]) : n.setAttribute(k, a[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function set(n, a) { for (const k in a) k === 'text' ? (n.textContent = a[k]) : n.setAttribute(k, a[k]); return n; }
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+const ease = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;        // in-out quad
+const rot = (x, y, cx, cy, deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  return [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]; };
+function phase(t, beats) {                         // where t sits in a looping sequence: phase(t, [1, .5, 2]) -> {i, p}
+  const T = beats.reduce((a, b) => a + b, 0); t = ((t % T) + T) % T; let i = 0;
+  while (i < beats.length - 1 && t > beats[i]) t -= beats[i++];
+  return { i, p: clamp(t / beats[i]) };
+}
+function label(g, text, sub, anchor = 'start') {   // build once; place with .at(px, py, tx, ty) (dot on the part, text position)
+  // the leader meets the side of the text that faces the part: anchor 'start' = text right of the part,
+  // 'end' = text left of it, 'middle' = text above or below it
+  const G = el('g', { class: 'hot' }, g), ln = el('line', { class: 'guide' }, G), dot = el('circle', { r: 2, class: 'ink' }, G);
+  const t1 = el('text', { 'text-anchor': anchor, text }, G);
+  const t2 = sub ? el('text', { 'text-anchor': anchor, class: 'sub', text: sub }, G) : null;
+  G.at = (px, py, tx, ty) => {
+    const [lx, ly] = anchor === 'start' ? [tx - 5, ty - 4] : anchor === 'end' ? [tx + 5, ty - 4]
+      : [tx, py < ty ? ty - 15 : ty + (sub ? 19 : 6)];
+    set(ln, { x1: px, y1: py, x2: lx, y2: ly }); set(dot, { cx: px, cy: py }); set(t1, { x: tx, y: ty });
+    if (t2) set(t2, { x: tx, y: ty + 14 });
+    return G;
+  };
+  return G;
+}
+function pointer(svg, e) {                         // a mouse/touch event -> [x, y] in the svg's viewBox units
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse()); return [p.x, p.y];
+}
+
+/* ---- iso camera: the SVG twin of iso.js in type-film/template. World: x right and y down on the plan, z up.
+   el 30 = the 2:1 view, 35.26 = true isometric, 90 = the flat plan (lift() moves between them). Create each part's
+   paths once in build, then set their d in draw. Paint order is DOM order: far to near (depth), a stack bottom to top,
+   each guide line just before its plate. */
+function cam({ az = 45, el = 30, S = 1, ox = 0, oy = 0 } = {}) {
+  const a = az * Math.PI / 180, e = el * Math.PI / 180;
+  return { az, el, S, ox, oy, c: Math.cos(a), s: Math.sin(a), k: Math.sin(e), zf: Math.cos(e) };
+}
+const proj = (C, x, y, z = 0) => { const X = x * C.c - y * C.s, Y = x * C.s + y * C.c; return [C.ox + C.S * X, C.oy + C.S * (Y * C.k - z * C.zf)]; };
+const unproj = (C, sx, sy, z = 0) => { const X = (sx - C.ox) / C.S, Y = ((sy - C.oy) / C.S + z * C.zf) / C.k; return [X * C.c + Y * C.s, -X * C.s + Y * C.c]; };
+const depth = (C, x, y, z = 0) => (x * C.s + y * C.c) * C.zf + z * C.k;      // bigger = nearer = later in the DOM
+function lift(p, from = { az: 0, el: 90 }, to = { az: 45, el: 30 }, S = 1) {  // data -> world: p 0 = the plan, 1 = oblique
+  return cam({ az: lerp(from.az, to.az, p), el: lerp(from.el, to.el, p), S });
+}
+function rrectRing(x0, y0, x1, y1, r = 0, n = 4) {  // a rounded-rect footprint as ground points
+  r = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2)); const out = [];
+  for (const [cx, cy, a0] of [[x1 - r, y1 - r, 0], [x0 + r, y1 - r, 90], [x0 + r, y0 + r, 180], [x1 - r, y0 + r, 270]])
+    for (let i = 0; i <= n; i++) { const a = (a0 + 90 * i / n) * Math.PI / 180; out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  return out;
+}
+const circleRing = (cx, cy, R, n = 32) => Array.from({ length: n }, (_, i) => [cx + R * Math.cos(i / n * 2 * Math.PI), cy + R * Math.sin(i / n * 2 * Math.PI)]);
+function hull(pts) {                               // convex hull, monotone chain
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), x = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const q of p) { while (lo.length > 1 && x(lo.at(-2), lo.at(-1), q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length > 1 && x(up.at(-2), up.at(-1), q) <= 0) up.pop(); up.push(q); }
+  lo.pop(); up.pop(); return lo.concat(up);
+}
+const pathD = pts => 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
+// A solid from z0 to z1: { sil, top } path data. sil is the hull of the bottom and top rings, so no vertical corner
+// line is ever drawn; give sil and top the .solid fill and a stroke, add one crease (slabPaths(C, inner, z1, z1).top)
+// and stop. Pass a smaller `top` ring for a taper (a keycap, a frustum).
+function slabPaths(C, ring, z0, z1, top = ring) {
+  const T = top.map(([x, y]) => proj(C, x, y, z1)), B = ring.map(([x, y]) => proj(C, x, y, z0));
+  return { sil: pathD(hull(T.concat(B))), top: pathD(T) };
+}
+// Text or a decal flat on any world plane: set the returned string as the transform of a <g> drawn in plane units.
+// o = origin [x,y,z], U = reading direction, V = "down" on the plane. U x V must point at the camera, or the face is
+// turned away and this returns null (hide the group). Ground: U [1,0,0] V [0,1,0]. Wall facing +y: U [1,0,0] V [0,0,-1].
+// Strokes stay crisp (non-scaling-stroke); font sizes are in plane units, so divide px by C.S.
+function faceMatrix(C, o, U, V) {
+  const N = [U[1] * V[2] - U[2] * V[1], U[2] * V[0] - U[0] * V[2], U[0] * V[1] - U[1] * V[0]];
+  if (N[0] * C.s * C.zf + N[1] * C.c * C.zf + N[2] * C.k <= 1e-9) return null;
+  const p0 = proj(C, ...o), pu = proj(C, o[0] + U[0], o[1] + U[1], o[2] + U[2]), pv = proj(C, o[0] + V[0], o[1] + V[1], o[2] + V[2]);
+  return `matrix(${[pu[0] - p0[0], pu[1] - p0[1], pv[0] - p0[0], pv[1] - p0[1], p0[0], p0[1]].map(v => v.toFixed(4)).join(' ')})`;
+}
+function grid(C, x0, y0, x1, y1, step, z = 0) {    // a ground lattice as one path; give it .guide
+  let s = '';
+  for (let x = x0; x <= x1 + 1e-6; x += step) s += `M${proj(C, x, y0, z).map(v => v.toFixed(1))}L${proj(C, x, y1, z).map(v => v.toFixed(1))}`;
+  for (let y = y0; y <= y1 + 1e-6; y += step) s += `M${proj(C, x0, y, z).map(v => v.toFixed(1))}L${proj(C, x1, y, z).map(v => v.toFixed(1))}`;
+  return s;
+}
+const ISO_TRUE = cam({ el: Math.asin(1 / Math.sqrt(3)) * 180 / Math.PI, S: Math.sqrt(1.5) });
+const iso = (x, y, z) => proj(ISO_TRUE, x, z, y);   // the old helper (x and z on the floor, y up), kept for old figures
+
+/* ---- the two clocks. WHERE a thing is (a gap, a camera, a scrub) chases its target on a spring: it settles in about
+   0.7 s and never jumps when the target moves again. WHICH thing is chosen (a picked part, a mode) changes on a 700 ms
+   tween on ease.lift; colour and opacity changes get it free from the .pick class. Call both from tick. ---- */
+function bezier(x1, y1, x2, y2) {
+  const f = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+  return p => { if (p <= 0) return 0; if (p >= 1) return 1; let lo = 0, hi = 1, t = p; for (let i = 0; i < 32; i++) { t = (lo + hi) / 2; f(x1, x2, t) < p ? (lo = t) : (hi = t); } return f(y1, y2, t); };
+}
+ease.lift = bezier(0.32, 0.72, 0, 1);
+function spring(s, k, target, dt, K = 100, D = 18) {   // s[k] chases target; velocity lives in s[k + 'V']
+  if (STILL.matches) return (s[k] = target);
+  const n = Math.ceil(dt / 0.004), h = dt / (n || 1); let x = s[k] ?? target, v = s[k + 'V'] || 0;
+  for (let i = 0; i < n; i++) { v += (K * (target - x) - D * v) * h; x += v * h; }
+  s[k + 'V'] = v; return (s[k] = x);
+}
+function tween(s, k, dt, dur = 0.7) {              // a discrete s[k] -> { from, to, p }, p easing 0 -> 1 over dur
+  const m = s['_' + k] ||= { from: s[k], to: s[k], t: dur };
+  if (m.to !== s[k]) { m.from = m.to; m.to = s[k]; m.t = 0; }
+  m.t += dt; return { from: m.from, to: m.to, p: STILL.matches ? 1 : ease.lift(clamp(m.t / dur)) };
+}
+
+/* fig(id, { w, h, s, build(svg, s, out) -> refs, draw(refs, s, out), tick(s, dt) })
+   - s holds the state. Put the opening still in it (e.g. s.t at a key moment); it beats the HTML control values.
+   - footer controls bind by data-k: <input type=range data-k> -> number; <div class=seg data-k> -> the clicked button's
+     value, as a number when it looks like one
+   - controls follow s after every draw, so tick may drive them (autoplay, a step list) until the reader
+     takes over: any control the reader touches sets s.touched = true
+   - out('name', text) fills every [data-o="name"] inside the figure
+   - a pointer handler attached in build sets s (and s.touched) and calls this.redraw()
+   - tick runs only while the figure is on screen and the reader allows motion; STILL.matches is true for
+     reduced-motion readers, so check it in draw before animating a one-off transition */
+const FIGS = [], STILL = matchMedia('(prefers-reduced-motion: reduce)');
+const IO = new IntersectionObserver(es => es.forEach(e => { const f = FIGS.find(f => f.root === e.target); if (f) f.on = e.isIntersecting; }), { rootMargin: '80px' });
+const num = v => v !== '' && !isNaN(v) ? +v : v;
+function fig(id, o) {
+  const root = document.getElementById(id), s = o.s || {};
+  const svg = el('svg', { viewBox: `0 0 ${o.w} ${o.h}`, role: 'img', 'aria-label': root.querySelector('header span:last-child')?.textContent.replace(/[\[\]]/g, '').trim() || id }, root.querySelector('.stage'));
+  const out = (k, v) => root.querySelectorAll(`[data-o="${k}"]`).forEach(n => n.textContent = v);
+  const ins = [...root.querySelectorAll('input[data-k]')];
+  const settle = () => { if (STILL.matches && o.tick) o.tick(s, 0); };   // reduced motion: springs and tweens snap to their targets
+  const segs = [...root.querySelectorAll('.seg[data-k]')].map(g => ({ k: g.dataset.k, bs: [...g.querySelectorAll('button')] }));
+  ins.forEach(i => {
+    const k = i.dataset.k; if (!(k in s)) s[k] = +i.value;
+    i.addEventListener('input', () => { s[k] = +i.value; s.touched = true; settle(); draw(); });
+  });
+  segs.forEach(({ k, bs }) => {
+    if (!(k in s)) s[k] = num((bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]).value);
+    bs.forEach(b => b.addEventListener('click', () => { s[k] = num(b.value); s.touched = true; settle(); draw(); }));
+  });
+  const sync = () => {
+    for (const i of ins) if (i !== document.activeElement && +i.value !== s[i.dataset.k]) i.value = s[i.dataset.k];
+    for (const { k, bs } of segs) for (const b of bs) b.setAttribute('aria-pressed', num(b.value) === s[k]);
+  };
+  const refs = o.build(svg, s, out);
+  const draw = () => { o.draw(refs, s, out); sync(); };
+  o.redraw = draw;                                  // for pointer handlers made in build: this.redraw()
+  draw();
+  const f = { root, o, s, draw, on: false };
+  if (o.tick) { FIGS.push(f); IO.observe(root); }
+  return f;
+}
+let LAST = 0;
+requestAnimationFrame(function loop(t) {
+  const dt = Math.min(0.05, (t - LAST) / 1000 || 0); LAST = t;
+  if (!STILL.matches) for (const f of FIGS) if (f.on) { f.o.tick(f.s, dt); f.draw(); }
+  requestAnimationFrame(loop);
+});
+
+/* ===== constants: the prose and every readout come from these ===== */
+const MX = { initial: 30, actuation: 45, final: 100, pre: 2.0, travel: 4.0, bounce: 5, life: 100e6, width: 15.63 };   // CHERRY MX2A RED datasheet
+const RATE = (MX.actuation - MX.initial) / MX.pre;            // 7.5 cN per mm: the spring's straight line
+const force = x => MX.initial + RATE * Math.min(x, MX.travel); // cN needed to hold the key at depth x mm
+const work = d => MX.initial * d + RATE * d * d / 2;          // cN·mm to press to depth d (1 cN·mm = 0.01 mJ)
+const FREQ = { a: 8.2, b: 1.5, c: 2.8, d: 4.3, e: 12.7, f: 2.2, g: 2.0, h: 6.1, i: 7.0, j: 0.16, k: 0.77, l: 4.0, m: 2.4,   // % of letters
+  n: 6.7, o: 7.5, p: 1.9, q: 0.12, r: 6.0, s: 6.3, t: 9.1, u: 2.8, v: 0.98, w: 2.4, x: 0.15, y: 2.0, z: 0.074 };          // Lewand (2000)
+const PER_DAY = 12000;                                         // letters typed a day: about an hour of steady typing
+const A_TURN = 2.4;                                            // FIG_003: where the light press turns around (illustrative)
+const day = ch => PER_DAY * FREQ[ch] / 100, years = ch => MX.life / day(ch) / 365;
+const sig = n => +n.toPrecision(2), mJ = d => (work(d) / 100).toFixed(2) + ' mJ', fmt = n => Math.round(n).toLocaleString('en');
+const N = { width: `${MX.width} mm`, initial: `${MX.initial} cN`, actuation: `${MX.actuation} cN`, pre: `${MX.pre.toFixed(0)} mm`,
+  travel: `${MX.travel.toFixed(0)} mm`, final: `${MX.final} cN`, aturn: `${A_TURN} mm`, wa: mJ(A_TURN).replace('0.', 'about 0.'), wb: mJ(MX.travel),
+  perday: fmt(PER_DAY), joules: `${Math.round(PER_DAY * (work(MX.travel) - work(A_TURN)) / 1e5)} joules`, ratio: fmt(Math.round(FREQ.e / FREQ.z / 10) * 10),
+  eday: fmt(Math.round(day('e') / 100) * 100), eyears: `${fmt(Math.round(years('e') / 10) * 10)} years` };
+document.querySelectorAll('[data-n]').forEach(n => n.textContent = N[n.dataset.n]);
+
+/* ===== FIG_001: scrub and pick. Six parts on one axis; the gap rides a spring, the pick is tested on the rest pose ===== */
+const R = rrectRing;
+const PARTS = [   // bottom to top; mm, rest pose. pieces: [kind, ring, z0, z1, top ring?]; crease: [ring, z]
+  { name: 'bottom housing', sub: 'pins into the board', tip: 'holds the leaves and seats the spring', pieces: [
+    ['slab', circleRing(0, 0, 1.9, 24), -3, 0], ['slab', circleRing(-3.81, -2.54, 0.75, 16), -3.3, 0], ['slab', circleRing(2.54, -5.08, 0.75, 16), -3.3, 0],
+    ['slab', R(-7.8, -7.8, 7.8, 7.8, 1), 0, 5]], crease: [R(-6.6, -6.6, 6.6, 6.6, 0.6), 5] },
+  { name: 'contact leaves', sub: 'touch at 2 mm', tip: 'two gold-plated strips; the circuit closes when they touch', pieces: [
+    ['slab', R(-2.6, -6.1, 2.6, -5.8), 0.6, 5.8], ['slab', R(-2.6, -5.2, 2.6, -4.9), 0.6, 5.4]] },
+  { name: 'spring', sub: '30 cN at rest', tip: 'pushes the stem back up: 30 cN at rest, 45 cN at 2 mm', pieces: [['helix', 2.6, 0.6, 9.6]] },
+  { name: 'stem', sub: 'no bump, no click', tip: 'the only part that travels; its side leg holds the leaves apart', pieces: [
+    ['slab', R(-1.2, -4.9, 1.2, -3.6, 0.2), 5.2, 7.4], ['slab', R(-4.6, -3.6, 4.6, 3.6, 0.8), 5.2, 10.6], ['slab', R(-2, -2, 2, 2, 0.4), 10.6, 15.2]], plus: 15.2 },
+  { name: 'top housing', sub: `${MX.width} mm square`, tip: 'keeps the stem straight and stops it at the top', pieces: [
+    ['slab', R(-7.8, -7.8, 7.8, 7.8, 1), 5, 11.6, R(-6.6, -6.6, 6.6, 6.6, 1)]], crease: [R(-2.4, -2.4, 2.4, 2.4, 0.3), 11.6] },
+  { name: 'keycap', sub: `travels ${MX.travel} mm`, tip: 'the part you touch; it grips the cross on top of the stem', pieces: [
+    ['slab', R(-9, -9, 9, 9, 1.2), 11.9, 18.2, R(-6.8, -7.4, 6.8, 6.2, 1.6)]], crease: [R(-5.6, -6.2, 5.6, 5.0, 1.4), 18.2], legend: 18.2 },
+];
+const SEQ = [5, 4, 3, 2, 1, 0], GAP = 4;                       // autoplay pick order; mm of air between parts when fully apart
+const LIFT = PARTS.map((p, i) => i && Math.max(0, Math.max(...PARTS[i - 1].pieces.map(q => q[3])) - Math.min(...p.pieces.map(q => q[2]))) + GAP)
+  .map((v, i, a) => a.slice(0, i + 1).reduce((x, y) => x + y, 0)).map((v, i, a) => v - a.at(-1) / 2);   // nested parts clear each other first; the middle stays put
+const helix = (C, r, z0, z1, dz, turns = 6) => pathD(Array.from({ length: turns * 24 + 1 }, (_, i) => {
+  const a = i / 24 * 2 * Math.PI; return proj(C, r * Math.cos(a), r * Math.sin(a), z0 + dz + (z1 - z0) * i / (turns * 24)); })).slice(0, -1);
+fig('f1', {
+  w: 720, h: 470, s: { t: 0, apart: 0.9, gap: 0.9, pick: 2 },
+  build(svg, s, out) {
+    const C = cam({ az: 35, el: 30 }), pts = [];                // fit the camera once, to the fully exploded stack
+    PARTS.forEach((p, i) => p.pieces.forEach(q => { const ring = q[0] === 'helix' ? circleRing(0, 0, q[1], 8) : q[1];
+      ring.forEach(([x, y]) => { pts.push(proj(C, x, y, q[2] + LIFT[i]), proj(C, x, y, q[3] + LIFT[i])); }); }));
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), k = Math.min(250 / (Math.max(...xs) - Math.min(...xs)), 420 / (Math.max(...ys) - Math.min(...ys)));
+    C.S = k; C.ox = 190 - k * (Math.max(...xs) + Math.min(...xs)) / 2; C.oy = 240 - k * (Math.max(...ys) + Math.min(...ys)) / 2;
+    const r = { C, items: [] };
+    r.axis = el('line', { class: 'guide dash' }, svg);
+    r.layer = el('g', {}, svg);
+    PARTS.forEach((p, i) => {
+      p.els = [];
+      p.pieces.forEach(q => {
+        const it = { g: el('g', { class: 'pick' }, r.layer), q, i };
+        if (q[0] === 'helix') it.path = el('path', {}, it.g);
+        else { it.sil = el('path', { class: 'solid' }, it.g); it.hat = el('path', { class: 'hatch pick' }, it.g); it.top = el('path', { class: 'solid' }, it.g); }
+        r.items.push(it); p.els.push(it);
+      });
+      if (p.crease) p.creaseEl = el('path', {}, p.els.at(-1).g);
+      if (p.plus) p.plusEl = el('g', {}, p.els.at(-1).g), el('path', { d: 'M-1.6 -0.55H-0.55V-1.6H0.55V-0.55H1.6V0.55H0.55V1.6H-0.55V0.55H-1.6Z' }, p.plusEl);
+      if (p.legend) p.legendEl = el('g', {}, p.els.at(-1).g), el('text', { 'text-anchor': 'middle', style: 'font-size:5px', text: 'K' }, p.legendEl);
+    });
+    r.labels = PARTS.map(p => label(svg, p.name, p.sub));
+    const pickAt = e => {                                       // hit-test the REST pose: where the spring is heading
+      const [x, y] = pointer(svg, e); if (x > 340) return;
+      let best = 0, bd = 1e9;
+      PARTS.forEach((p, i) => { const z = (p.pieces.at(-1)[2] + p.pieces.at(-1)[3]) / 2 + LIFT[i] * s.apart, d = Math.abs(proj(C, 0, 0, z)[1] - y); if (d < bd) { bd = d; best = i; } });
+      if (s.pick !== best || !s.touched) { s.pick = best; s.touched = true; this.redraw(); }
+    };
+    svg.addEventListener('pointermove', pickAt); svg.addEventListener('pointerdown', pickAt);
+    return r;
+  },
+  draw(r, s, out) {
+    const C = r.C, off = i => LIFT[i] * s.gap;
+    set(r.axis, { x1: proj(C, 0, 0, -3)[0], y1: proj(C, 0, 0, -3)[1], x2: proj(C, 0, 0, 18.2 + off(5) + 4)[0], y2: proj(C, 0, 0, 18.2 + off(5) + 4)[1] });
+    for (const it of r.items) {
+      const [kind, a, z0, z1, top] = it.q, dz = off(it.i);
+      if (kind === 'helix') set(it.path, { d: helix(C, a, z0, z1, dz) });
+      else { const P = slabPaths(C, a, z0 + dz, z1 + dz, top); set(it.sil, { d: P.sil }); set(it.hat, { d: P.sil, opacity: it.i === s.pick ? 1 : 0 }); set(it.top, { d: P.top }); }
+    }
+    // honest plates: the DOM follows the bottom of each piece, so a part that rises past another is painted after it
+    const order = r.items.slice().sort((a, b) => (a.q[2] + off(a.i)) - (b.q[2] + off(b.i)) || a.i - b.i);
+    if (order.some((it, k) => r.layer.children[k] !== it.g)) order.forEach(it => r.layer.appendChild(it.g));
+    PARTS.forEach((p, i) => {
+      p.els.forEach(it => it.g.classList.toggle('idle', i !== s.pick));
+      if (p.crease) set(p.creaseEl, { d: slabPaths(C, p.crease[0], p.crease[1] + off(i), p.crease[1] + off(i)).top });
+      if (p.plus) set(p.plusEl, { transform: faceMatrix(C, [0, 0, p.plus + off(i)], [1, 0, 0], [0, 1, 0]) });
+      if (p.legend) set(p.legendEl, { transform: faceMatrix(C, [0, 0.9, p.legend + off(i)], [1, 0, 0], [0, 1, 0]) });
+      const last = p.pieces.at(-1), ring = last[0] === 'helix' ? circleRing(0, 0, last[1], 24) : last[1];   // callout: the part's rightmost point
+      const z = (last[2] + last[3]) / 2 + off(i), q = ring.map(([x, y]) => proj(C, x, y, z)).sort((a, b) => b[0] - a[0])[0];
+      r.labels[i].at(q[0], q[1], 430, 64 + (5 - i) * 70);
+      r.labels[i].classList.toggle('idle', i !== s.pick);
+      if (i > 0 && i < 4) set(r.labels[i], { opacity: clamp(s.gap / 0.25) });   // inner parts: no callout once they are inside the housing
+    });
+    out('part', PARTS[s.pick].name); out('hint', PARTS[s.pick].tip);
+  },
+  tick(s, dt) {
+    s.t += dt;
+    if (!s.touched) { s.apart = s.t % 9.6 < 7 ? 0.9 : 0; s.pick = SEQ[(3 + Math.floor(s.t / 1.6)) % 6]; }   // together for 2.6 s: the payoff
+    spring(s, 'gap', s.apart, dt);
+  },
+});
+
+/* ===== FIG_002: a section on the left, the force line on the right, one travel slider drives both ===== */
+fig('f2', {
+  w: 720, h: 410, s: { t: 1.7, x: 2.05 },
+  build(svg, s, out) {
+    const m = 15, cx = 250, by = 345, X = v => cx + v * m, Y = v => by - v * m;   // section: mm -> px
+    const poly = (pts, cls, g = svg) => el('path', { d: pathD(pts.map(([a, b]) => [X(a), Y(b)])), class: cls }, g);
+    const r = { X, Y, poly };
+    r.status = el('text', { x: 20, y: 22, class: 'sub' }, svg);
+    el('rect', { x: X(-10), y: Y(0), width: 20 * m, height: 1.6 * m, class: 'hatch' }, svg); el('rect', { x: X(-10), y: Y(0), width: 20 * m, height: 1.6 * m }, svg);
+    el('text', { x: X(10), y: Y(-1.6) + 16, 'text-anchor': 'end', class: 'sub', text: 'circuit board' }, svg);
+    r.spring = el('path', {}, svg);
+    poly([[-7.8, 5], [-7.8, 0], [7.8, 0], [7.8, 5], [6.4, 5], [6.4, 1.2], [2.9, 1.2], [2.9, 0.6], [-2.9, 0.6], [-2.9, 1.2], [-6.4, 1.2], [-6.4, 5]], 'hatch');
+    poly([[-7.8, 5], [-7.8, 0], [7.8, 0], [7.8, 5], [6.4, 5], [6.4, 1.2], [2.9, 1.2], [2.9, 0.6], [-2.9, 0.6], [-2.9, 1.2], [-6.4, 1.2], [-6.4, 5]], '');
+    for (const sx of [-1, 1]) { const p = [[-7.8, 5], [-6.6, 11.6], [-2.4, 11.6], [-2.4, 10.6], [-5.5, 10.6], [-6.7, 5]].map(([a, b]) => [a * sx, b]); poly(p, 'hatch'); poly(p, ''); }
+    el('line', { x1: X(-6.2), y1: Y(-3.3), x2: X(-6.2), y2: Y(5.8), style: 'stroke-width:2.5' }, svg);   // the fixed leaf, through the board
+    r.leaf = el('path', { style: 'stroke-width:2.5' }, svg);
+    r.ring = el('circle', { r: 13, class: 'dash' }, svg);
+    r.stem = el('g', {}, svg);
+    const stem = [[-4.6, 5.2], [-4.6, 10.6], [4.6, 10.6], [4.6, 5.2], [2.9, 5.2], [2.9, 9.6], [-2.9, 9.6], [-2.9, 5.2]];
+    const leg = [[-4.6, 5.2], [-5.0, 5.2], [-5.0, 7.15], [-4.75, 7.4], [-4.6, 7.4]], post = [[-2, 10.6], [-2, 15.2], [2, 15.2], [2, 10.6]];
+    for (const p of [stem, leg, post]) { poly(p, 'solid', r.stem); poly(p, 'hatch', r.stem); poly(p, '', r.stem); }
+    r.cap = el('g', {}, svg);
+    const shell = [[-9, 11.9], [-7.4, 18.2], [-3, 17.7], [3, 17.7], [7.4, 18.2], [9, 11.9], [8, 11.9], [6.8, 17.0], [-6.8, 17.0], [-8, 11.9]];
+    for (const p of [shell, [[-2.7, 11.8], [-2.7, 17], [-2, 17], [-2, 11.8]], [[2, 11.8], [2, 17], [2.7, 17], [2.7, 11.8]]]) { poly(p, 'solid', r.cap); poly(p, 'hatch', r.cap); poly(p, '', r.cap); }
+    el('line', { x1: X(0), y1: Y(20.6), x2: X(0), y2: Y(18.9), 'marker-end': 'url(#arrow)' }, r.cap);
+    r.lab = { cap: label(svg, 'keycap', 'moves with you'), stem: label(svg, 'stem'), spring: label(svg, 'spring'), leg: label(svg, 'leg', 'holds the leaf', 'end'), leaves: label(svg, 'leaves', null, 'end') };
+    // the chart: travel 0..4 mm across, push 0..100 cN up
+    const gx = v => 492 + v * 52, gy = v => 345 - v * 2.3; r.gx = gx; r.gy = gy;
+    r.area = el('path', { class: 'hatch' }, svg);
+    el('path', { d: `M${gx(0)} ${gy(100) - 6}V${gy(0)}H${gx(4) + 14}` }, svg);
+    for (const v of [0, 1, 2, 3, 4]) { el('line', { x1: gx(v), y1: gy(0), x2: gx(v), y2: gy(0) + 4 }, svg); el('text', { x: gx(v), y: gy(0) + 18, 'text-anchor': 'middle', class: 'sub', text: v }, svg); }
+    for (const v of [MX.initial, MX.actuation, MX.final]) { el('line', { x1: gx(0) - 4, y1: gy(v), x2: gx(0), y2: gy(v) }, svg); el('text', { x: gx(0) - 8, y: gy(v) + 4, 'text-anchor': 'end', class: 'sub', text: v }, svg); }
+    el('text', { x: gx(4) + 14, y: gy(0) + 34, 'text-anchor': 'end', class: 'sub', text: 'travel, mm' }, svg);
+    el('text', { x: gx(0), y: gy(100) - 14, class: 'sub', text: 'push, cN' }, svg);
+    el('path', { d: `M${gx(MX.pre)} ${gy(0)}V${gy(MX.actuation)}H${gx(0)}`, class: 'guide dash' }, svg);
+    el('path', { d: `M${gx(0)} ${gy(force(0))}L${gx(4)} ${gy(force(4))}V${gy(MX.final)}` }, svg);
+    label(svg, 'actuation', `${MX.pre} mm · ${MX.actuation} cN`, 'end').at(gx(MX.pre), gy(MX.actuation), gx(MX.pre) - 18, gy(MX.actuation) - 62);
+    label(svg, 'floor', `${MX.final} cN final`, 'end').at(gx(4), gy(MX.final), gx(4) - 18, gy(MX.final) + 22);
+    r.dot = el('circle', { r: 4, class: 'ink' }, svg);
+    return r;
+  },
+  draw(r, s, out) {
+    const { X, Y } = r, x = s.x, u = clamp((x - 1.9) / 0.1), closed = x >= MX.pre;
+    set(r.stem, { transform: `translate(0 ${x * 15})` }); set(r.cap, { transform: `translate(0 ${x * 15})` });
+    const top = 9.6 - x, n = 9, zig = [[X(0), Y(0.6)]];                       // spring: from the well floor to the bore roof
+    for (let i = 1; i < n * 2; i++) zig.push([X(i % 2 ? -2.6 : 2.6), Y(lerp(0.6, top, i / (n * 2)))]);
+    zig.push([X(0), Y(top)]); set(r.spring, { d: pathD(zig).slice(0, -1) });
+    const B = [lerp(-5.55, -6.05, u), 4.6], T = [lerp(-5.05, -5.55, u), 5.4];   // the moving leaf: root, bend, tab
+    set(r.leaf, { d: `M${X(-5.65)} ${Y(-3.3)}L${X(-5.65)} ${Y(1.2)}L${X(B[0])} ${Y(B[1])}L${X(T[0])} ${Y(T[1])}` });
+    set(r.ring, { cx: X(-6.15), cy: Y(4.6), opacity: closed ? 1 : 0 });
+    r.lab.cap.at(X(8.2), Y(15) + x * 15, 402, 62);
+    r.lab.stem.at(X(2), Y(13) + x * 15, 402, 132);
+    r.lab.spring.at(X(2.6), Y(lerp(0.6, top, 0.6)), 402, 200);
+    r.lab.leg.at(X(-5), Y(5.6) + x * 15, 100, 150);
+    r.lab.leaves.at(X(-6.2), Y(2.4), 100, 262);
+    set(r.area, { d: `M${r.gx(0)} ${r.gy(0)}V${r.gy(force(0))}L${r.gx(x)} ${r.gy(force(x))}V${r.gy(0)}Z` });
+    set(r.dot, { cx: r.gx(x), cy: r.gy(force(x)) });
+    set(r.status, { text: x < 0.02 ? 'resting: the spring holds the stem up with 30 cN' : x < 1.9 ? 'pressing the stem down; the leg holds the leaf open'
+      : !closed ? 'sliding the leaf off the end of the leg' : x < MX.travel - 0.03 ? 'contact closed at 2.0 mm: the key is pressed' : 'stem on the floor at 4.0 mm: the rest is plastic' });
+    out('travel', `${x.toFixed(2)} mm`); out('push', `${force(x).toFixed(0)} cN`); out('contact', closed ? 'closed' : 'open');
+  },
+  tick(s, dt) {
+    s.t += dt; if (s.touched) return;
+    const { i, p } = phase(s.t, [1.6, 1.6, 1.0, 1.0, 1.0, 0.8]);       // down to 2 mm, hold the payoff 1.6 s, on to the floor, hold, up, rest
+    s.x = [lerp(0, 2.05, ease(p)), 2.05, lerp(2.05, 4, ease(p)), 4, lerp(4, 0, ease(p)), 0][i];
+  },
+});
+
+/* ===== FIG_003: clock as spine. One time axis drives two presses; events drop onto it as they fire ===== */
+const V = MX.pre / 40;                                           // mm per ms on the way down: 2 mm at 40 ms
+const depthA = t => t <= 0 ? 0 : t <= 40 ? V * t : t <= 56 ? 2 + (A_TURN - 2) * Math.sin((t - 40) / 16 * Math.PI / 2) : t <= 116 ? A_TURN * (1 - ease((t - 56) / 60)) : 0;
+const depthB = t => t <= 0 ? 0 : t <= 80 ? V * t : t <= 125 ? 4 : t <= 185 ? 4 * (1 - ease((t - 125) / 60)) : 0;
+const upAt = (f, t0) => { let t = t0; while (f(t) >= MX.pre) t += 0.1; return t; };   // when a press lets go of the contact
+const CHATTER = [40, 41.1, 41.9, 43.0, 43.5, 45];               // the contact bouncing for its first 5 ms
+const circuit = (f, t) => { if (f(t) < MX.pre) return 0; let on = 0; for (const c of CHATTER) if (t >= c) on ^= 1; return t >= 45 ? 1 : on; };
+fig('f3', {
+  w: 720, h: 360, s: { t: 0, ms: 84, hold: 0 },
+  build(svg, s, out) {
+    const tx = v => 120 + v * 2.65, r = { tx, lanes: [] }, SP = 306;
+    r.status = el('text', { x: 20, y: 22, class: 'sub' }, svg);
+    [['A', 'eases off at 2.4 mm', depthA, 80], ['B', 'presses to the floor', depthB, 190]].forEach(([nm, sub, f, y0]) => {
+      const L = { f, y0, dy: v => y0 + v * 11 };
+      el('text', { x: 20, y: y0 - 18, text: `press ${nm}` }, svg); el('text', { x: 82, y: y0 - 18, class: 'sub', text: sub }, svg);
+      el('line', { x1: tx(0), y1: L.dy(0), x2: tx(200), y2: L.dy(0), class: 'guide' }, svg);
+      el('line', { x1: tx(0), y1: L.dy(MX.pre), x2: tx(200), y2: L.dy(MX.pre), class: 'guide dash' }, svg);
+      el('line', { x1: tx(0), y1: L.dy(MX.travel), x2: tx(200), y2: L.dy(MX.travel), class: 'guide' }, svg);
+      el('text', { x: tx(200) + 6, y: L.dy(MX.pre) + 4, class: 'sub', text: '2 mm' }, svg); el('text', { x: tx(200) + 6, y: L.dy(MX.travel) + 4, class: 'sub', text: '4 mm' }, svg);
+      const pts = []; for (let t = 0; t <= 200; t += 1) pts.push([tx(t), L.dy(f(t))]);
+      el('path', { d: pathD(pts).slice(0, -1), class: 'guide' }, svg);
+      L.trace = el('path', {}, svg); L.wire = el('path', {}, svg);
+      el('text', { x: tx(200) + 6, y: L.dy(MX.travel) + 24, class: 'sub', text: 'circuit' }, svg);
+      L.cap = el('path', { class: 'solid' }, svg);                                // a little keycap in profile, left of the lane
+      el('path', { d: `M36 ${L.dy(MX.travel) + 14}H104`, class: 'guide' }, svg);
+      L.mark = el('circle', { r: 3.5, class: 'ink' }, svg);
+      r.lanes.push(L);
+    });
+    el('line', { x1: tx(0), y1: SP, x2: tx(200), y2: SP }, svg);
+    for (let v = 0; v <= 200; v += 20) { el('line', { x1: tx(v), y1: SP, x2: tx(v), y2: SP + (v % 40 ? 3 : 6) }, svg); if (v % 40 === 0) el('text', { x: tx(v), y: SP - 8, 'text-anchor': 'middle', class: 'sub', text: v }, svg); }
+    el('text', { x: tx(0) - 8, y: SP + 4, 'text-anchor': 'end', class: 'sub', text: 'ms' }, svg);
+    const reg = el('g', { class: 'fade' }, svg); el('line', { x1: tx(40), y1: SP - 4, x2: tx(40), y2: SP + 8 }, reg);
+    el('text', { x: tx(45) + 8, y: SP + 22, text: 'registered, both presses' }, reg);
+    r.events = [{ t: 40, g: reg }];
+    [[0, 40, MX.pre, ''], [0, upAt(depthA, 56), MX.pre, 'lets go'], [1, 40, MX.pre, ''], [1, 80, MX.travel, 'hits the floor'], [1, upAt(depthB, 125), MX.pre, 'lets go']].forEach(([li, t, d, txt]) => {
+      const L = r.lanes[li], g = el('g', { class: 'fade' }, svg); el('circle', { cx: tx(t), cy: L.dy(d), r: 2.5 }, g);   // events on the trace itself
+      if (txt) el('text', { x: tx(t) + 7, y: L.dy(d) + (d === MX.travel ? -7 : 14), class: 'sub', text: txt }, g);
+      r.events.push({ t, g }); });
+    const bg = el('g', { class: 'fade' }, svg); el('rect', { x: tx(40), y: SP - 6, width: tx(45) - tx(40), height: 12, class: 'hatch' }, bg);
+    el('text', { x: tx(40) - 8, y: SP + 22, 'text-anchor': 'end', class: 'sub', text: `bounce ≤ ${MX.bounce} ms` }, bg); r.events.push({ t: 45, g: bg });
+    r.head = el('line', { y1: 40, y2: SP + 6, class: 'dash' }, svg);
+    r.knob = el('path', {}, svg);
+    return r;
+  },
+  draw(r, s, out) {
+    const t = s.ms, X = r.tx(t);
+    r.lanes.forEach(L => {
+      const pts = []; for (let v = 0; v <= t; v += 1) pts.push([r.tx(v), L.dy(L.f(v))]); pts.push([X, L.dy(L.f(t))]);
+      set(L.trace, { d: pts.length > 1 ? pathD(pts).slice(0, -1) : '' });
+      const w = []; for (let v = 0; v <= t; v += 0.25) w.push([r.tx(v), L.dy(MX.travel) + 22 - 7 * circuit(L.f, v)]);
+      set(L.wire, { d: w.length > 1 ? pathD(w).slice(0, -1) : '' });
+      set(L.mark, { cx: X, cy: L.dy(L.f(t)) });
+      const d = L.f(t) * 11, y = L.y0 - 12 + d;                                  // keycap: 20 px tall, rides the depth
+      set(L.cap, { d: `M40 ${y + 20}L46 ${y}H94L100 ${y + 20}Z` });
+    });
+    r.events.forEach(e => set(e.g, { opacity: t >= e.t ? 1 : 0 }));
+    set(r.head, { x1: X, x2: X }); set(r.knob, { d: `M${X - 6} ${314}L${X} ${306}L${X + 6} ${314}Z`, class: 'ink' });
+    const a = depthA(t), b = depthB(t);
+    set(r.status, { text: t < 40 ? 'pushing both keys down at the same speed' : t < 45 ? 'closing both contacts at 2.0 mm; waiting out the bounce'
+      : t < 56 ? 'both keys registered; A easing off' : t < 80 ? 'A heading back up; B still pushing'
+      : t < 125 ? 'B on the floor at 4.0 mm, pushing on plastic' : t < 200 ? 'both springs pushing back' : 'same moment registered; B did twice the work' });
+    let ma = 0, mb = 0; for (let v = 0; v <= t; v += 1) { ma = Math.max(ma, depthA(v)); mb = Math.max(mb, depthB(v)); }
+    out('clock', `${Math.round(t)} ms`); out('wa', mJ(ma)); out('wb', mJ(mb));
+  },
+  tick(s, dt) {
+    s.t += dt; if (s.touched) return;
+    if (s.ms >= 200) { s.hold += dt; if (s.hold > 1.8) { s.ms = 0; s.hold = 0; } return; }   // hold the payoff, then loop
+    s.ms = Math.min(200, s.ms + dt * 100);                                          // ten times slower than real time
+  },
+});
+
+/* ===== FIG_004: data -> world. A flat table of letter shares lifts into columns; every key keeps its coordinates ===== */
+const ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'], OFFS = [0, 0.25, 0.75], HU = 0.3;   // HU: key heights per percent
+const KEYS = ROWS.flatMap((row, j) => [...row].map((ch, i) => ({ ch, x: i + OFFS[j] + 0.5, y: j + 0.5, h: FREQ[ch] * HU })));
+const TO = { az: 24, el: 36 };
+fig('f4', {
+  w: 720, h: 440, s: { t: 0, mode: 'world', p: 1, key: 'e' },
+  build(svg, s, out) {
+    const r = { keys: [] };
+    r.status = el('text', { x: 20, y: 28, class: 'sub' }, svg);
+    r.board = el('g', {}, svg); r.boardSil = el('path', { class: 'solid' }, r.board); r.boardTop = el('path', { class: 'solid' }, r.board);
+    r.layer = el('g', {}, svg);
+    KEYS.forEach(k => {
+      k.ring = rrectRing(k.x - 0.42, k.y - 0.42, k.x + 0.42, k.y + 0.42, 0.08, 3);
+      k.g = el('g', { class: 'pick' }, r.layer); k.sil = el('path', { class: 'solid' }, k.g); k.hat = el('path', { class: 'hatch pick' }, k.g); k.top = el('path', { class: 'solid' }, k.g);
+      k.face = el('g', {}, k.g); el('text', { 'text-anchor': 'middle', y: 0.02, style: 'font-size:0.36px', text: k.ch }, k.face);
+      el('text', { 'text-anchor': 'middle', y: 0.3, class: 'sub', style: 'font-size:0.19px', text: FREQ[k.ch] }, k.face);
+      r.keys.push(k);
+    });
+    r.call = label(svg, 'e', ' ');
+    r.cam = p => { const C = lift(p, { az: 0, el: 90 }, TO, lerp(56, 50, p)), q = proj(C, 5.25, 1.5, 0); C.ox = lerp(330, 320, p) - q[0]; C.oy = lerp(220, 300, p) - q[1]; return C; };
+    const pickAt = e => {                                       // nearest key top, tested on the camera at rest
+      const [x, y] = pointer(svg, e), C = r.cam(s.mode === 'world' ? 1 : 0);
+      let best = null, bd = 40;
+      for (const k of KEYS) { const q = proj(C, k.x, k.y, s.mode === 'world' ? k.h : 0), d = Math.hypot(q[0] - x, q[1] - y); if (d < bd) { bd = d; best = k.ch; } }
+      if (best && best !== s.key) { s.key = best; s.touched = true; this.redraw(); }
+    };
+    svg.addEventListener('pointermove', pickAt); svg.addEventListener('pointerdown', pickAt);
+    return r;
+  },
+  draw(r, s, out) {
+    const p = s.p, C = r.cam(p);
+    const B = slabPaths(C, rrectRing(-0.1, -0.1, 10.6, 3.1, 0.25), -0.25, 0); set(r.boardSil, { d: B.sil }); set(r.boardTop, { d: B.top });
+    for (const k of r.keys) {
+      const P = slabPaths(C, k.ring, 0, k.h * clamp(p)), on = k.ch === s.key;
+      set(k.sil, { d: P.sil }); set(k.hat, { d: P.sil, opacity: on ? 1 : 0 }); set(k.top, { d: P.top });
+      set(k.face, { transform: faceMatrix(C, [k.x, k.y, k.h * clamp(p)], [1, 0, 0], [0, 1, 0]) || '' });
+      k.g.classList.toggle('idle', !on);
+    }
+    const order = r.keys.slice().sort((a, b) => depth(C, a.x, a.y) - depth(C, b.x, b.y));
+    if (order.some((k, i) => r.layer.children[i] !== k.g)) order.forEach(k => r.layer.appendChild(k.g));
+    const k = KEYS.find(k => k.ch === s.key), q = proj(C, k.x + 0.42, k.y - 0.42, k.h * clamp(p));
+    r.call.querySelector('text').textContent = `${k.ch} · ${FREQ[k.ch]}%`; r.call.querySelectorAll('text')[1].textContent = `about ${fmt(sig(years(k.ch)))} years to 100 M`;
+    r.call.at(q[0], q[1], 520, 70);
+    const moving = Math.abs(p - (s.mode === 'world' ? 1 : 0)) > 0.02;
+    set(r.status, { text: moving ? (s.mode === 'world' ? 'lifting the plan into the room; every key keeps its place' : 'flattening the keyboard back into a table')
+      : s.mode === 'world' ? `holding: the e switch works ${N.ratio} times harder than z` : 'reading letter shares off a flat keyboard' });
+    out('key', `${k.ch.toUpperCase()} · ${FREQ[k.ch]}%`); out('day', fmt(day(k.ch))); out('years', `about ${fmt(sig(years(k.ch)))} years`);
+  },
+  tick(s, dt) {
+    s.t += dt;
+    if (!s.touched) s.mode = Math.floor(s.t / 4.2) % 2 ? 'plan' : 'world';   // the lift takes about 1.2 s; each view then holds ~3 s
+    spring(s, 'p', s.mode === 'world' ? 1 : 0, dt, 40, 12);
+  },
+});
+</script>
+</body>
+</html>

@@ -1,8 +1,11 @@
 # Kinetic-typography title cards: one card per spoken phrase. Edit SCRIPT (and ASSETS, FONTS), then ./run.sh
 import json
+import math
 import re
+import shutil
 import subprocess
 import wave
+from functools import cache
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
@@ -33,6 +36,12 @@ VOICE = "Samantha"
 RATE = 235  # words per minute; say's default 175 drags
 PAD = 0.05  # lines run into each other like a real read, not a pause after each
 SAY = {"end": "Brand dot com."}  # what to speak when it differs from the card text
+# Cuts: these styles hard-cut in (make_audio.py lands a hit on each); every other card crossfades in over XFADE frames
+HARD = {"photo", "why", "white", "end"}
+XFADE = 2  # 0 = hard cuts everywhere
+ZOOM = (1.12, 0.4)  # photo cards settle in: zoom = 1 + (z0 - 1) * e^(-t / tau). None = a still photo
+GAP = {"end": 0.45}  # seconds of silence held before these cards (the end card, or the payoff line)
+TAIL = 1.0  # the end card holds this long past its floor, so the echo rings out over picture
 # Photo per card: fetch_assets.py searches openly licensed images for these and saves assets/<slug>.jpg.
 # Any assets/<slug>.jpg|png you drop in yourself wins; photo cards without one get a grey placeholder.
 ASSETS = {
@@ -101,7 +110,15 @@ def centered(draw, text, f, fill, box=(0, 0, W, H), max_w=None):
         y += lh
 
 
-def card(slug, style, text):
+@cache
+def photo(slug):  # darkened once, at full resolution, so the caption reads over any photo
+    path = asset(slug)
+    if path:
+        im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+        return Image.blend(im, Image.new("RGB", im.size, BLACK), 0.4)
+
+
+def card(slug, style, text, z=1.0):
     bg = {"white": WHITE, "why": (150, 150, 150)}.get(style, BLACK)
     img = Image.new("RGB", (W, H), bg)
     d = ImageDraw.Draw(img)
@@ -115,11 +132,12 @@ def card(slug, style, text):
         centered(d, text, font("sans", 230, {"Weight": 800}), WHITE)
     elif style == "photo":
         box = tuple(int(v) for v in (W * 0.18, H * 0.12, W * 0.82, H * 0.88))
-        photo = asset(slug)
-        if photo:
-            # cover-crop into the frame, darkened so the caption reads over any photo
-            im = ImageOps.fit(ImageOps.exif_transpose(Image.open(photo)).convert("RGB"), (box[2] - box[0], box[3] - box[1]))
-            img.paste(Image.blend(im, Image.new("RGB", im.size, BLACK), 0.4), box[:2])
+        im, bw, bh = photo(slug), box[2] - box[0], box[3] - box[1]
+        if im is not None:
+            # cover-crop into the frame, zoomed z about the centre. The crop box is in floats, so the settle is smooth
+            s = max(bw / im.width, bh / im.height) * z
+            x0, y0 = max(0, (im.width - bw / s) / 2), max(0, (im.height - bh / s) / 2)  # max(): float error at z = 1
+            img.paste(im.resize((bw, bh), Image.BICUBIC, box=(x0, y0, im.width - x0, im.height - y0)), box[:2])
         else:
             d.rectangle(box, fill=GREY)
             d.text((W / 2, H * 0.2), "PHOTO / CLIP", font=font("sans", 70, {"Weight": 500}), fill=(110, 110, 115), anchor="mm")
@@ -134,11 +152,10 @@ def card(slug, style, text):
 
 
 if __name__ == "__main__":
-    OUT.mkdir(exist_ok=True)
-    manifest = []
+    shutil.rmtree(OUT, ignore_errors=True)  # stale cards from an older SCRIPT would land in the preview glob
+    OUT.mkdir()
+    rows = []
     for i, (slug, style, text, secs) in enumerate(SCRIPT):
-        png = OUT / f"{i:02d}-{slug}-card.png"
-        card(slug, style, text).save(png)
         voice = Path(__file__).parent / "voices" / f"{slug}.wav"  # Chatterbox take from narrate.py
         if not voice.exists() and VOICE:
             # The film makes room for the voice: a card lasts at least as long as its line takes to say
@@ -150,11 +167,31 @@ if __name__ == "__main__":
             with wave.open(str(voice)) as w:
                 # the voice sets the cut, not the script's guess; only the end card keeps its hold
                 secs = max(secs if style == "end" else 0.5, w.getnframes() / w.getframerate() + PAD)
-        # bake each card into an exact-length clip; run.sh joins them losslessly with ffmpeg concat
-        mp4 = png.with_suffix(".mp4")
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-loop", "1", "-framerate", FPS, "-i", str(png),
-                        "-frames:v", str(round(secs * 30000 / 1001)), "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                        "-tune", "stillimage", str(mp4)], check=True)
-        manifest.append({"path": str(mp4), "seconds": secs, "voice": str(voice) if voice.exists() else None})
+        rows.append([slug, style, text, secs, voice if voice.exists() else None])
+    for prev, row in zip(rows, rows[1:]):
+        prev[3] += GAP.get(row[0], 0)  # the card before a gap holds on in silence
+    rows[-1][3] += TAIL
+
+    manifest, last = [], None
+    for i, (slug, style, text, secs, voice) in enumerate(rows):
+        png = OUT / f"{i:02d}-{slug}-card.png"
+        still = card(slug, style, text)
+        still.save(png)
+        # Each card becomes an exact-length clip, every frame piped from PIL; run.sh joins them losslessly with concat
+        mp4, frames, raw = png.with_suffix(".mp4"), round(secs * 30000 / 1001), still.tobytes()
+        ff = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+                               "-framerate", FPS, "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-tune", "stillimage",
+                               str(mp4)], stdin=subprocess.PIPE)
+        moving = style == "photo" and ZOOM and photo(slug) is not None
+        for k in range(frames):
+            img = card(slug, style, text, 1 + (ZOOM[0] - 1) * math.exp(-k / (30000 / 1001) / ZOOM[1])) if moving else still
+            if last is not None and style not in HARD and k < XFADE:
+                img = Image.blend(last, img, (k + 1) / (XFADE + 1))
+            ff.stdin.write(raw if img is still else img.tobytes())
+        last = img
+        ff.stdin.close()
+        if ff.wait():
+            raise SystemExit(f"ffmpeg failed on {mp4.name}")
+        manifest.append({"path": str(mp4), "frames": frames, "voice": str(voice) if voice else None})
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=1))
-    print(len(manifest), "cards,", sum(m["seconds"] for m in manifest), "s")
+    print(len(manifest), "cards,", round(sum(m["frames"] for m in manifest) * 1001 / 30000, 2), "s")

@@ -7,6 +7,8 @@ description: Build an interactive "explorable explanation" page that teaches how
 
 The reference is https://claude.ai/artifact/Ez6BXp1sGc4fCEGihotM61 ("How do bike gears work?"). It is a calm essay that stops every few paragraphs for a figure, and each figure lets the reader move one thing and see what changes. **Take its techniques, not its figures.** Every new topic gets figures invented from its own parts, its own numbers and its own motion. A lock explainer that ends up looking like the bike one with gears swapped for pins has failed.
 
+The iso line style below (silhouette plus crease, honest plates, one highlight, two motion clocks) pairs well with hairline-create (github.com/lucasmarkes/hairline, MIT, by Lucas Marques). This skill has its own implementation; link to it, never copy it. A worked example built with this skill is `demos/explorable-explainer.html` in the claude-s repo (a keyboard switch).
+
 ## Setup
 ```bash
 D=~/PersonalFiles/explainers/<slug>; mkdir -p "$D" && cp ~/.claude/skills/explorable-explainer/template/index.html "$D/"
@@ -46,7 +48,7 @@ Write one line per figure:
 
 Each figure gets one claim, one control (or none) and up to three readouts. Two controls means two figures.
 
-| Pattern | What it shows | How it's driven | Used in the reference for |
+| Pattern | What it shows | How it's driven | Example |
 |---|---|---|---|
 | Exploded ↔ assembled | Anatomy, what fits where | A slider from 0 to 1, plus hover labels that fill a hint line | The drivetrain |
 | Relay with spotlight | A causal chain, step by step | Auto-advance plus a clickable numbered step list. The active part has a dashed ring, the rest fade, and a readout says "now at X" | The push travelling from pedal to road |
@@ -58,6 +60,11 @@ Each figure gets one claim, one control (or none) and up to three readouts. Two 
 | Assemble → move loop | How one part is built | Runs on its own in a loop: apart, together, flexing | Chain links |
 | Zoom inset | A hidden internal part | A dashed callout from the detail out to a section view, with a together / pulled-apart toggle | The freehub inside the hub |
 | Unroll, then re-roll | A circular mechanism | A mode toggle plus state readouts ("pawl lifted · clicks 3"). Show it straight first, then bent back into the ring | The ratchet |
+| Scrub and pick (iso stack) | Anatomy of a layered object, one part at a time | A slider opens the gap on a spring; hovering a layer or a `.seg` picks one. The picked part is ink with a hatched side, the rest `.idle`, each with a callout on its own lane | The demo's switch, keycap to base |
+| Source → evidence | Where each claim in a document comes from | Click a line of the source (a datasheet, a quote); the figure shows the place it is true, and the rest of the source dims | A spec line lighting up its part |
+| Data → world lift | That a chart and a place are the same data | A plan ↔ world toggle. The plan is a flat chart; `lift(p)` tilts the camera and heights grow, and every mark keeps its coordinates | Letter frequencies rising off a keyboard |
+| Clock as spine | Events that happen at different moments in one action | One time axis with a playhead drives every lane above it; marks drop as events fire, and the slider scrubs the clock | Two keystrokes, light and bottomed out |
+| Object-attached callouts | Facts about parts that move | A screen-space label whose leader ends on a projected point of the part, so it follows the part but never lies under another one | Any iso figure |
 
 Invent at least one figure that is not in this table and that only this topic could have.
 
@@ -72,9 +79,15 @@ Invent at least one figure that is not in this table and that only this topic co
   - Give parts the `.solid` fill so near parts hide far ones.
   - `.hatch` and `.dots` are for shaded faces and cut sections.
   - `.dash` / `.guide` are for alignment lines, motion paths and travel arcs.
-  - Use `iso()` for 3D objects and flat side or end views for mechanism detail. One drawing never switches projection mid-figure. Two linked panels side by side are fine (a globe and its sky plot), with the main one on the left.
+  - Use the iso camera (below) for 3D objects and flat side or end views for mechanism detail. One drawing never switches projection mid-figure, except a deliberate `lift()`. Two linked panels side by side are fine (a globe and its sky plot), with the main one on the left.
   - Mirror a view when the natural layout puts the action on the right (a key entering from the right), so phones see it without scrolling.
   - For a cut section with holes (a housing with drilled chambers), draw the hatch as one `path` with `fill-rule="evenodd"`: the outer outline plus each hole as a subpath. Stroke the outlines separately. `.solid` only hides fills, never strokes.
+- **Isometric solids:**
+  - Make a camera with `cam({ az, el })` (el 30 is the 2:1 view) and draw each part with `slabPaths`: the silhouette, which is the hull of its bottom and top rings, plus the top face plus one crease. Never draw vertical corner lines.
+  - Plates are honest: each gets `.solid`, so near hides far, and they go into the DOM back to front (a stack bottom to top). Each dashed guide goes in just before its plate.
+  - One highlight: the picked part in ink with hatch on its side, the rest `.idle`. Nothing else changes colour.
+  - Hit-test against the rest pose, where the spring is heading (or `unproj` the pointer onto the ground), never against the moving drawing, or the plate slides out from under the pointer and the pick flickers.
+  - Text on a surface goes through `faceMatrix`; labels stay in screen space as object-attached callouts. A label laid on the ground gets covered by the first part in front of it.
 - **Labels:** lowercase mono on a leader line that ends in a dot on the part (`label()`). An optional dim second line carries a fact ("34 teeth"). Bold the same word in the prose where it first appears, so the text and the drawing use the same name.
 - **Chrome:**
   - The header has `FIG_00n` on the left and `[ lowercase caption ]` on the right.
@@ -84,6 +97,9 @@ Invent at least one figure that is not in this table and that only this topic co
   - Slow enough to follow, and the caption says so if it's slowed down.
   - Ease in and out, hold about 1 s on key states, and loop without a jump.
   - Every figure shows a meaningful still frame at load, which is also what `prefers-reduced-motion` readers see.
+  - **Two clocks.** Where a thing is (a gap, a camera, a scrub) moves on `spring()`: about 0.7 s to settle, and no jump when the target moves again. Which thing is chosen (a picked part, a mode) changes on a 700 ms tween on `ease.lift`; for colour and opacity the `.pick` class does it in CSS. Parts that start together stagger by distance, about 45 ms per unit from where the action begins.
+  - **Hold the payoff ≥1.5 s.** An autoplay loop rests on its payoff (the contact closed, the final number) for at least 1.5 s before it resets.
+  - **Agent-voice step captions.** A figure that runs a sequence narrates it in a mono status line, lowercase present participle, naming the part: "closing the contact at 2.0 mm". It changes when the step changes, never mid-step.
 - Use colours only through the tokens and classes. Never put a hex value in JS or SVG, or the light theme breaks.
 
 ## 5. Voice
@@ -109,7 +125,9 @@ fig('f3', { w: 720, h: 360, s: { t: 2.4, gear: 34 },   // s = state; its startin
 - **Helpers:**
   - `el`, `set`: create and update SVG elements.
   - `lerp`, `clamp`, `ease`: interpolation.
-  - `iso(x,y,z)`: isometric projection.
+  - **Iso:** `cam({az, el, S, ox, oy})`, `proj(C, x, y, z)` and `unproj(C, sx, sy, z)`, `depth(C, x, y, z)` for paint order, `lift(p, from, to, S)` for the plan → oblique move. Footprints: `rrectRing`, `circleRing`. Path data: `slabPaths(C, ring, z0, z1, top?)` → `{ sil, top }`, `faceMatrix(C, o, U, V)` → a transform or null when the face is turned away, `grid(C, …)`. `iso(x,y,z)` is the old fixed projection, kept as an alias.
+  - **Clocks:** `spring(s, 'gap', target, dt)` and `tween(s, 'pick', dt)` → `{from, to, p}`, both called from `tick`; `ease.lift`. Under reduced motion both snap, and a control change calls `tick(s, 0)` so they still land.
+  - `pointer(svg, e)`: an event in viewBox units, for hit-testing.
   - `rot(x,y,cx,cy,deg)`: rotate a point.
   - `phase(t, [beats])`: which beat of a loop t is in, for scripted sequences.
   - `label(g, text, sub, anchor)`: build a label once in `build`, then place it in `draw` with `.at(px, py, tx, ty)` (a dot on the part, then the text). Its line meets the side of the text facing the part. Pick `anchor` by where the text sits: `'start'` right of the part, `'end'` left of it, `'middle'` above or below.
@@ -153,4 +171,6 @@ Keep the file. Republishing the same path in the same conversation updates the s
 - **Leader lines ran into their own text** and the dim second line. `label()` now ends the line at the side of the text block that faces the part; pick the anchor by where the text sits.
 - **Step lists and autoplay sliders couldn't follow the figure,** so runs kept shadow state and grabbed buttons by hand. Controls now follow `s` after every draw. Drive them from `tick` until `s.touched`.
 - **`.seg` values compared as strings** (`'3' !== 3`) and failed silently. They come through as numbers now when they look like one.
+- **A ground label hid under a block** in the first iso sketch. Labels go in screen space at a projected point, painted last.
+- **A six-button `.seg` overflowed** a phone's footer and pushed the readouts off the panel. The buttons tighten under 30rem now; keep their labels to one short word.
 - **Local preview runs in quirks mode** because the page has no doctype (the publish adds one). The template's layout doesn't depend on it. If something looks off only locally, check the published page before "fixing" it.

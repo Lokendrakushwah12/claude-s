@@ -38,6 +38,13 @@ def get(url, dest):
         dest.write_bytes(r.read())
 
 
+def thumb(url):
+    """Wikimedia's own 500 px thumbnail (a standard width; others return HTTP 400). Openverse's thumb proxy 424s on its big originals,
+    and falling back to the 5-15 MB original made a 3-slug preview take minutes."""
+    head, name = url.rsplit("/", 1)
+    return f"{head.replace('/commons/', '/commons/thumb/')}/{name}/500px-{name}" if "upload.wikimedia.org/wikipedia/commons/" in url else None
+
+
 def credit(slug, r):
     lic = r["license"].upper() if r["license"] in ("cc0", "pdm") else f"CC {r['license'].upper()} {r.get('license_version', '')}".strip()
     return f"- `{slug}`: \"{r.get('title') or 'untitled'}\" by {r.get('creator') or 'unknown'}, {lic}. {r.get('foreign_landing_url')}\n"
@@ -60,7 +67,7 @@ if __name__ == "__main__":
             d = ImageDraw.Draw(sheet)
             for i, r in enumerate(search(query)):
                 t = ASSETS_DIR / ".thumb"
-                for url in (r.get("thumbnail"), r["url"]):  # Openverse's thumbnail proxy 424s now and then
+                for url in (thumb(r["url"]), r.get("thumbnail"), r["url"]):  # Openverse's thumbnail proxy 424s now and then
                     try:
                         get(url, t)
                         sheet.paste(ImageOps.fit(Image.open(t).convert("RGB"), (400, 250)), (400 * i, 0))

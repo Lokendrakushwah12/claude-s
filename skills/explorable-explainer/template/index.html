@@ -55,6 +55,9 @@ em { font-style: italic; }
 .stage svg .guide { stroke: var(--faint); }
 .stage svg .muted { opacity: 0.22; }
 .stage svg .fade { transition: opacity 0.45s ease; }
+.stage svg .idle { color: var(--dim); }             /* an iso part that is not the picked one */
+.stage svg .pick { transition: color 0.7s cubic-bezier(.32,.72,0,1), opacity 0.7s cubic-bezier(.32,.72,0,1); }
+@media (prefers-reduced-motion: reduce) { .stage svg * { transition: none !important; } }
 .fig > footer { border-top: 1px solid var(--rule); background: var(--panel); padding: 0.95rem 1.1rem 1.05rem; display: grid; gap: 0.95rem; }
 .cap { margin: 0; max-width: 34rem; font-size: 1rem; line-height: 1.5; color: var(--dim); }
 
@@ -70,11 +73,12 @@ em { font-style: italic; }
 .seg button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--dim); padding: 0.5rem 0.75rem; cursor: pointer; }
 .seg button + button { border-left: 0; }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+@media (max-width: 30rem) { .seg button { padding-inline: 0.55rem; } }   /* six short options still fit a phone */
 .ctl :focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
 .out { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin: 0 0 0 auto; }
 .out div { display: flex; gap: 0.5rem; }
 .out dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
-.hint { margin-left: auto; }
+.hint { margin-left: auto; line-height: 1.4; }
 .stage svg .hot { cursor: help; }
 .defs { position: absolute; width: 0; height: 0; color: var(--ink); }
 </style>
@@ -138,7 +142,6 @@ function set(n, a) { for (const k in a) k === 'text' ? (n.textContent = a[k]) : 
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 const ease = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;        // in-out quad
-const iso = (x, y, z) => [(x - z) * 0.866, (x + z) * 0.5 - y];              // isometric: x and z on the floor, y up
 const rot = (x, y, cx, cy, deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
   return [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]; };
 function phase(t, beats) {                         // where t sits in a looping sequence: phase(t, [1, .5, 2]) -> {i, p}
@@ -161,6 +164,83 @@ function label(g, text, sub, anchor = 'start') {   // build once; place with .at
   };
   return G;
 }
+function pointer(svg, e) {                         // a mouse/touch event -> [x, y] in the svg's viewBox units
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse()); return [p.x, p.y];
+}
+
+/* ---- iso camera: the SVG twin of iso.js in type-film/template. World: x right and y down on the plan, z up.
+   el 30 = the 2:1 view, 35.26 = true isometric, 90 = the flat plan (lift() moves between them). Create each part's
+   paths once in build, then set their d in draw. Paint order is DOM order: far to near (depth), a stack bottom to top,
+   each guide line just before its plate. */
+function cam({ az = 45, el = 30, S = 1, ox = 0, oy = 0 } = {}) {
+  const a = az * Math.PI / 180, e = el * Math.PI / 180;
+  return { az, el, S, ox, oy, c: Math.cos(a), s: Math.sin(a), k: Math.sin(e), zf: Math.cos(e) };
+}
+const proj = (C, x, y, z = 0) => { const X = x * C.c - y * C.s, Y = x * C.s + y * C.c; return [C.ox + C.S * X, C.oy + C.S * (Y * C.k - z * C.zf)]; };
+const unproj = (C, sx, sy, z = 0) => { const X = (sx - C.ox) / C.S, Y = ((sy - C.oy) / C.S + z * C.zf) / C.k; return [X * C.c + Y * C.s, -X * C.s + Y * C.c]; };
+const depth = (C, x, y, z = 0) => (x * C.s + y * C.c) * C.zf + z * C.k;      // bigger = nearer = later in the DOM
+function lift(p, from = { az: 0, el: 90 }, to = { az: 45, el: 30 }, S = 1) {  // data -> world: p 0 = the plan, 1 = oblique
+  return cam({ az: lerp(from.az, to.az, p), el: lerp(from.el, to.el, p), S });
+}
+function rrectRing(x0, y0, x1, y1, r = 0, n = 4) {  // a rounded-rect footprint as ground points
+  r = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2)); const out = [];
+  for (const [cx, cy, a0] of [[x1 - r, y1 - r, 0], [x0 + r, y1 - r, 90], [x0 + r, y0 + r, 180], [x1 - r, y0 + r, 270]])
+    for (let i = 0; i <= n; i++) { const a = (a0 + 90 * i / n) * Math.PI / 180; out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  return out;
+}
+const circleRing = (cx, cy, R, n = 32) => Array.from({ length: n }, (_, i) => [cx + R * Math.cos(i / n * 2 * Math.PI), cy + R * Math.sin(i / n * 2 * Math.PI)]);
+function hull(pts) {                               // convex hull, monotone chain
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), x = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const q of p) { while (lo.length > 1 && x(lo.at(-2), lo.at(-1), q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length > 1 && x(up.at(-2), up.at(-1), q) <= 0) up.pop(); up.push(q); }
+  lo.pop(); up.pop(); return lo.concat(up);
+}
+const pathD = pts => 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
+// A solid from z0 to z1: { sil, top } path data. sil is the hull of the bottom and top rings, so no vertical corner
+// line is ever drawn; give sil and top the .solid fill and a stroke, add one crease (slabPaths(C, inner, z1, z1).top)
+// and stop. Pass a smaller `top` ring for a taper (a keycap, a frustum).
+function slabPaths(C, ring, z0, z1, top = ring) {
+  const T = top.map(([x, y]) => proj(C, x, y, z1)), B = ring.map(([x, y]) => proj(C, x, y, z0));
+  return { sil: pathD(hull(T.concat(B))), top: pathD(T) };
+}
+// Text or a decal flat on any world plane: set the returned string as the transform of a <g> drawn in plane units.
+// o = origin [x,y,z], U = reading direction, V = "down" on the plane. U x V must point at the camera, or the face is
+// turned away and this returns null (hide the group). Ground: U [1,0,0] V [0,1,0]. Wall facing +y: U [1,0,0] V [0,0,-1].
+// Strokes stay crisp (non-scaling-stroke); font sizes are in plane units, so divide px by C.S.
+function faceMatrix(C, o, U, V) {
+  const N = [U[1] * V[2] - U[2] * V[1], U[2] * V[0] - U[0] * V[2], U[0] * V[1] - U[1] * V[0]];
+  if (N[0] * C.s * C.zf + N[1] * C.c * C.zf + N[2] * C.k <= 1e-9) return null;
+  const p0 = proj(C, ...o), pu = proj(C, o[0] + U[0], o[1] + U[1], o[2] + U[2]), pv = proj(C, o[0] + V[0], o[1] + V[1], o[2] + V[2]);
+  return `matrix(${[pu[0] - p0[0], pu[1] - p0[1], pv[0] - p0[0], pv[1] - p0[1], p0[0], p0[1]].map(v => v.toFixed(4)).join(' ')})`;
+}
+function grid(C, x0, y0, x1, y1, step, z = 0) {    // a ground lattice as one path; give it .guide
+  let s = '';
+  for (let x = x0; x <= x1 + 1e-6; x += step) s += `M${proj(C, x, y0, z).map(v => v.toFixed(1))}L${proj(C, x, y1, z).map(v => v.toFixed(1))}`;
+  for (let y = y0; y <= y1 + 1e-6; y += step) s += `M${proj(C, x0, y, z).map(v => v.toFixed(1))}L${proj(C, x1, y, z).map(v => v.toFixed(1))}`;
+  return s;
+}
+const ISO_TRUE = cam({ el: Math.asin(1 / Math.sqrt(3)) * 180 / Math.PI, S: Math.sqrt(1.5) });
+const iso = (x, y, z) => proj(ISO_TRUE, x, z, y);   // the old helper (x and z on the floor, y up), kept for old figures
+
+/* ---- the two clocks. WHERE a thing is (a gap, a camera, a scrub) chases its target on a spring: it settles in about
+   0.7 s and never jumps when the target moves again. WHICH thing is chosen (a picked part, a mode) changes on a 700 ms
+   tween on ease.lift; colour and opacity changes get it free from the .pick class. Call both from tick. ---- */
+function bezier(x1, y1, x2, y2) {
+  const f = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+  return p => { if (p <= 0) return 0; if (p >= 1) return 1; let lo = 0, hi = 1, t = p; for (let i = 0; i < 32; i++) { t = (lo + hi) / 2; f(x1, x2, t) < p ? (lo = t) : (hi = t); } return f(y1, y2, t); };
+}
+ease.lift = bezier(0.32, 0.72, 0, 1);
+function spring(s, k, target, dt, K = 100, D = 18) {   // s[k] chases target; velocity lives in s[k + 'V']
+  if (STILL.matches) return (s[k] = target);
+  const n = Math.ceil(dt / 0.004), h = dt / (n || 1); let x = s[k] ?? target, v = s[k + 'V'] || 0;
+  for (let i = 0; i < n; i++) { v += (K * (target - x) - D * v) * h; x += v * h; }
+  s[k + 'V'] = v; return (s[k] = x);
+}
+function tween(s, k, dt, dur = 0.7) {              // a discrete s[k] -> { from, to, p }, p easing 0 -> 1 over dur
+  const m = s['_' + k] ||= { from: s[k], to: s[k], t: dur };
+  if (m.to !== s[k]) { m.from = m.to; m.to = s[k]; m.t = 0; }
+  m.t += dt; return { from: m.from, to: m.to, p: STILL.matches ? 1 : ease.lift(clamp(m.t / dur)) };
+}
 
 /* fig(id, { w, h, s, build(svg, s, out) -> refs, draw(refs, s, out), tick(s, dt) })
    - s holds the state. Put the opening still in it (e.g. s.t at a key moment); it beats the HTML control values.
@@ -169,6 +249,7 @@ function label(g, text, sub, anchor = 'start') {   // build once; place with .at
    - controls follow s after every draw, so tick may drive them (autoplay, a step list) until the reader
      takes over: any control the reader touches sets s.touched = true
    - out('name', text) fills every [data-o="name"] inside the figure
+   - a pointer handler attached in build sets s (and s.touched) and calls this.redraw()
    - tick runs only while the figure is on screen and the reader allows motion; STILL.matches is true for
      reduced-motion readers, so check it in draw before animating a one-off transition */
 const FIGS = [], STILL = matchMedia('(prefers-reduced-motion: reduce)');
@@ -179,14 +260,15 @@ function fig(id, o) {
   const svg = el('svg', { viewBox: `0 0 ${o.w} ${o.h}`, role: 'img', 'aria-label': root.querySelector('header span:last-child')?.textContent.replace(/[\[\]]/g, '').trim() || id }, root.querySelector('.stage'));
   const out = (k, v) => root.querySelectorAll(`[data-o="${k}"]`).forEach(n => n.textContent = v);
   const ins = [...root.querySelectorAll('input[data-k]')];
+  const settle = () => { if (STILL.matches && o.tick) o.tick(s, 0); };   // reduced motion: springs and tweens snap to their targets
   const segs = [...root.querySelectorAll('.seg[data-k]')].map(g => ({ k: g.dataset.k, bs: [...g.querySelectorAll('button')] }));
   ins.forEach(i => {
     const k = i.dataset.k; if (!(k in s)) s[k] = +i.value;
-    i.addEventListener('input', () => { s[k] = +i.value; s.touched = true; draw(); });
+    i.addEventListener('input', () => { s[k] = +i.value; s.touched = true; settle(); draw(); });
   });
   segs.forEach(({ k, bs }) => {
     if (!(k in s)) s[k] = num((bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]).value);
-    bs.forEach(b => b.addEventListener('click', () => { s[k] = num(b.value); s.touched = true; draw(); }));
+    bs.forEach(b => b.addEventListener('click', () => { s[k] = num(b.value); s.touched = true; settle(); draw(); }));
   });
   const sync = () => {
     for (const i of ins) if (i !== document.activeElement && +i.value !== s[i.dataset.k]) i.value = s[i.dataset.k];
@@ -194,6 +276,7 @@ function fig(id, o) {
   };
   const refs = o.build(svg, s, out);
   const draw = () => { o.draw(refs, s, out); sync(); };
+  o.redraw = draw;                                  // for pointer handlers made in build: this.redraw()
   draw();
   const f = { root, o, s, draw, on: false };
   if (o.tick) { FIGS.push(f); IO.observe(root); }
