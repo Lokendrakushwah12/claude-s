@@ -5,6 +5,9 @@
 //   node render.mjs --still 3,12.5,40   just those frames -> review/t<sec>.png (fast, for looking at)
 //   --fps 30  --out name.mp4  --preview (half-res, 15fps draft)  --size 1080x1920 (vertical; also 1080x1080)
 //   --cues   write cues.json ({ duration, sfx, music, bed } from VIDEO) for an audio step, then exit
+//   --query 'theme=dark&look=riso'   extra URL params for the page; stills get them as a file-name prefix
+// A page that synthesises its own soundtrack (explainer-lesson) defines mixdown(): before a video render its WAV is
+// pulled out in chunks and written to VIDEO.audio, so sound and picture come from one timeline.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { once } from 'node:events';
@@ -16,7 +19,7 @@ import { parseArgs } from 'node:util';
 const { values: o } = parseArgs({ options: {
   fps: { type: 'string', default: '30' }, from: { type: 'string', default: '0' }, to: { type: 'string' },
   out: { type: 'string', default: 'out.mp4' }, still: { type: 'string' }, preview: { type: 'boolean' },
-  size: { type: 'string', default: '1920x1080' }, cues: { type: 'boolean' } } });
+  size: { type: 'string', default: '1920x1080' }, cues: { type: 'boolean' }, query: { type: 'string' } } });
 const dir = dirname(fileURLToPath(import.meta.url));
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -53,7 +56,7 @@ const scale = o.preview ? 0.5 : 1, fps = o.preview ? 15 : +o.fps;
 const [SW, SH] = o.size.split('x').map(Number);
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: SW * scale, height: SH * scale, deviceScaleFactor: 1, mobile: false });
-await send('Page.navigate', { url: 'file://' + join(dir, 'index.html') + `?render&size=${o.size}` });
+await send('Page.navigate', { url: 'file://' + join(dir, 'index.html') + `?render&size=${o.size}${o.query ? '&' + o.query : ''}` });
 for (let i = 0; i < 300; i++) { if (await js('document.readyState === "complete" && !!window.ready').catch(() => false)) break; await sleep(100); }
 if (!(await js('!!window.ready').catch(() => false))) { console.error('page failed to boot:\n  ' + (logs.join('\n  ') || 'no error captured; open index.html in a browser')); process.exit(1); }
 const { duration, audio } = await js('window.ready.then(() => ({ duration: VIDEO.duration, audio: VIDEO.audio }))');
@@ -66,11 +69,16 @@ const shot = async (t, format = 'png') => { await js(`seek(${t})`); return Buffe
 
 if (o.still) {
   mkdirSync(join(dir, 'review'), { recursive: true });
-  for (const t of o.still.split(',').map(Number)) writeFileSync(join(dir, 'review', `${o.size === '1920x1080' ? '' : o.size + '-'}t${t.toFixed(1).padStart(5, '0')}.png`), await shot(t));
+  for (const t of o.still.split(',').map(Number)) writeFileSync(join(dir, 'review', `${o.size === '1920x1080' ? '' : o.size + '-'}${o.query ? o.query.replace(/[^\w=.-]+/g, '_') + '-' : ''}t${t.toFixed(1).padStart(5, '0')}.png`), await shot(t));
   console.log(`wrote ${o.still.split(',').length} stills to review/`);
   process.exit(logs.length ? 1 : 0);
 }
 
+if (audio && await js('typeof mixdown === "function"')) {
+  const bytes = await js('mixdown()'), parts = [];
+  for (let i = 0; i < bytes; i += 1 << 22) parts.push(Buffer.from(await js(`wavChunk(${i}, ${1 << 22})`), 'base64'));
+  writeFileSync(join(dir, audio), Buffer.concat(parts));
+}
 const from = +o.from, to = o.to ? +o.to : duration, n = Math.round((to - from) * fps);
 const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-',
   ...(audio ? ['-ss', String(from), '-t', String(to - from), '-i', join(dir, audio)] : []),

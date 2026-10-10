@@ -8,6 +8,7 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Each vide
 | [`promo-video`](skills/promo-video) | A SaaS launch promo built from a product's repo or site, with its real logo, colours, fonts and UI. Renders 16:9, 1:1 and 9:16 |
 | [`music-video`](skills/music-video) | A lyric-driven music video from a song file: kinetic lyrics, a mascot, beat-synced cuts and a papery hand-drawn look |
 | [`story-video`](skills/story-video) | A narrated kinetic-typography story (founder story, recap) as a finished MP4: a card per phrase, expressive Chatterbox voice, SFX and a music drop |
+| [`explainer-lesson`](skills/explainer-lesson) | A narrated, animated lesson on one hard concept: a signature diagram and to-scale graphs drawn on one clock with synthesised sound and a local AI voice |
 | [`x-video-frames`](skills/x-video-frames) | Frames and a contact sheet from an x.com video, for taking a reference apart |
 | [`explorable-explainer`](skills/explorable-explainer) | The odd one out: an interactive "how does X work" essay with animated line-art figures, published as a claude.ai Artifact |
 
@@ -18,14 +19,14 @@ git clone https://github.com/Lokendrakushwah12/claude-s.git
 cp -R claude-s/skills/* ~/.claude/skills/
 ```
 
-Install them together. `type-film` and `promo-video` copy helpers from the `music-video` and `promo-video` templates in `~/.claude/skills/`, and all three render through `music-video/template/render.mjs`.
+Install them together. `type-film` and `promo-video` copy helpers from the `music-video` and `promo-video` templates in `~/.claude/skills/`, and they and `explainer-lesson` all render through `music-video/template/render.mjs`.
 
 ## Requirements
 
 - macOS, with Google Chrome in `/Applications` (set `CHROME=` to use another path).
 - `node` 18+, `ffmpeg` and `uv`. `render.mjs` drives Chrome over raw CDP, so there's no `npm install`.
 - `yt-dlp` for `x-video-frames`.
-- `story-video` needs a one-time `sh ~/.claude/skills/story-video/setup.sh`, which installs Chatterbox (local TTS, a few GB on first use).
+- `story-video` needs a one-time `sh ~/.claude/skills/story-video/setup.sh`, which installs Chatterbox (local TTS, a few GB on first use). `explainer-lesson` narrates with the same install, or falls back to macOS `say`.
 - Optional, for `music-video`: `FAL_KEY` (image and video generation for character sheets and sets) and `ELEVENLABS_API_KEY` (SFX).
 
 ## Use it
@@ -39,6 +40,8 @@ Describe the video; the matching skill triggers on its own.
 > "make a music video for ~/Downloads/song.mp3, lyrics are in lyrics.txt"
 
 > "30 second founder story: ex-banker, quit to build a budgeting app, 40k users now. brand Pennywise"
+
+> "make an explainer video on why a heat pump moves more heat than the electricity it uses"
 
 > "make an interactive explainer on how a pin tumbler lock works"
 
