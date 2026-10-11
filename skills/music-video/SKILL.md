@@ -18,7 +18,7 @@ The approach comes from donald jewkes' "Claude Pop" remake prompt: a coherent st
 | `align.py` | `uv run align.py song.mp3 lyrics.txt` gives word timings (Whisper) and a beat grid (librosa); `--spoken` and `--check`, below |
 | `speak.py` `mix.py` | spoken word: Chatterbox performs `lyrics.txt`, a take per line; `mix.py` runs sfx.py balanced like a song |
 | `examples/lyric-essay.js` | a finished lyric essay, to show the API in use. Never copy its scenes. |
-| `render.mjs` | `node render.mjs` renders headless Chrome to `out.mp4` at about 15 fps render speed, with no npm deps. Also `--still 3,12,40` for review frames, `--from/--to` for a section, `--preview` for a fast draft, `--cues` for the sound step |
+| `render.mjs` | `node render.mjs` renders headless Chrome to `out.mp4` at about 15 fps render speed, with no npm deps. Also `--still 3,12,40` for review frames, `--from/--to` for a section, `--preview` for a fast draft, `--cues` for the sound step, `--smooth` for 60 fps with a real shutter (pages can add `VIDEO.blur` windows for fast moves), `--motioncheck` for held frames, hitches and a judder index |
 
 ## Inputs per video
 A folder containing:
@@ -34,6 +34,8 @@ When the user gives several songs or briefs, or points at a queue folder (defaul
 4. When they're done, make one contact sheet per video and report a table: slug | length | status | spend | weak spots.
 
 ## Per-video pipeline
+Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
+
 **0. Setup**
 ```bash
 cp -R ~/.claude/skills/music-video/template ~/Movies/music-videos/<slug> && cd $_

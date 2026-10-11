@@ -15,6 +15,8 @@ Cut rules applied here, so edit.json never holds a time:
   pauses over 0.35 s shrink to 0.12 s after the voice ends (a phrase's "hold" keeps more) + 0.08 s before the next word;
   fillers, dropped retakes (src.json) and words outside every phrase are cut; a laugh after a phrase is kept ("laugh": false cuts it)
   every boundary snaps to the 30 fps grid; a phrase whose pause was removed inside it becomes a jump cut (a new shot, re-punched)
+Photos named in a phrase (insert.images, ui.img, pops[].img) become frames/img/*.jpg (<= 1400 px); "clip.mov#2.5" takes the frame at
+2.5 s of a clip, tone-mapped first when it's HDR. A kept laugh's output-clock span goes on its phrase as laughAt (laugh: "type").
 """
 import difflib, json, re, subprocess, sys, wave
 from fractions import Fraction
@@ -93,7 +95,7 @@ def build():
         if lg: o1 = min(max(o1, lg[1] + TAIL), cap); print(f"  phrase {pi}: laugh kept ({lg[1] - lg[0]:.1f} s)")  # cut-video: laughs aren't silences
         if pieces and pieces[-1]["last"] + 1 == ws[0] and a["s"] - words[ws[0] - 1]["e"] <= MAXGAP:  # same take: one shared point
             pieces[-1]["o1"] = i0 = max(words[ws[0] - 1]["e"], a["s"] - LEAD); pieces[-1]["flow"] = True
-        pieces.append({"phrase": pi, "i0": i0, "o1": o1, "last": ws[-1], "words": ws, "flow": False})
+        pieces.append({"phrase": pi, "i0": i0, "o1": o1, "last": ws[-1], "words": ws, "flow": False, **({"laugh": lg} if lg else {})})
     t = 0
     for p in pieces:
         p["i0"], p["o1"] = q(p["i0"]), q(p["o1"]); p["n"] = max(1, round((p["o1"] - p["i0"]) * FPS)); p["out0"] = t; t = round(t + p["n"] / FPS, 6); p["out1"] = t
@@ -113,7 +115,8 @@ def build():
             hitk = [k for k, tk in enumerate(toks) if norm(tk["w"]) == norm(ph["kw"])]
             if not hitk: sys.exit(f"phrase {pi}: keyword {ph['kw']!r} is not in {ph['say']!r}")
             kw = {"w": re.sub(r"[^\w'?!]", "", ph["kw"]).lower(), "t": caption[hitk[0]]["t"], "k": hitk[0]}
-        P.append({**ph, "i": pi, "start": ps[0]["out0"], "end": ps[-1]["out1"], "words": caption, "kw": kw})
+        la = [[round(p["out0"] + p["laugh"][0] - p["i0"], 3), round(p["out0"] + p["laugh"][1] - p["i0"], 3)] for p in ps if p.get("laugh")]  # a kept laugh, output clock
+        P.append({**ph, "i": pi, "start": ps[0]["out0"], "end": ps[-1]["out1"], "words": caption, "kw": kw, **({"laughAt": la} if la else {})})
     for pi, ph in enumerate(P):  # a graphic phrase: the picture cuts at its keyword + 0.15 s (the words before it play over the
         if ph.get("graphic") and pi:  # previous shot) and the keyword slams in on that cut
             c = q((ph["kw"] or ph["words"][0])["t"] + GRAPHIC); P[pi - 1]["end"] = ph["start"] = c
@@ -132,6 +135,11 @@ def build():
     for a, b in zip(shots, shots[1:]): a["out1"] = b["out0"]
     dur = shots[-1]["out1"]
     if ed.get("end"): shots.append({"kind": "end", "insert": ed["end"], "out0": dur, "out1": round(dur + ed["end"].get("dur", 1.2), 6), "phrase": None, "phrases": []}); dur = shots[-1]["out1"]
+    for ph in P:  # photos for collections, cards and chips: files or "clip.mov#2.5" (a frame of a clip) -> frames/img/*.jpg
+        for o in [ph.get("insert"), ph.get("ui"), *(x for x in ph.get("pops") or [] if isinstance(x, dict))]:
+            if isinstance(o, dict):
+                if o.get("images"): o["images"] = [still(x) for x in o["images"]]
+                if o.get("img"): o["img"] = still(o["img"])
     # frames: footage at 1.5x the output (cover fit, never upscaled); mattes at half that, grey (white = subject)
     Path("frames").mkdir(exist_ok=True)
     for k, s in enumerate(shots):
@@ -158,7 +166,7 @@ def build():
     parts.append(np.zeros(round((dur - pieces[-1]["out1"]) * SR)))
     write("dialogue.raw.wav", np.concatenate(parts))
     sh("ffmpeg", "-loglevel", "error", "-y", "-i", "dialogue.raw.wav", "-af", "acompressor=threshold=0.1:ratio=3:attack=5:release=120", "dialogue.wav"); Path("dialogue.raw.wav").unlink()
-    tl = {"size": f"{Wd}x{Hd}", "fps": FPS, "duration": round(dur, 3), "preset": ed.get("preset", "creator"), "brand": ed.get("brand", {}), "bed": ed.get("bed"),
+    tl = {"size": f"{Wd}x{Hd}", "fps": FPS, "duration": round(dur, 3), "preset": ed.get("preset", "creator"), "brand": ed.get("brand", {}), "bed": ed.get("bed", "auto"), "captions": ed.get("captions"),
           "shots": shots, "phrases": P, "words": [{"w": words[i]["w"], "t": out_t[i]} for i in sorted(out_t)]}
     Path("timeline.json").write_text(json.dumps(tl, indent=1)); Path("timeline.js").write_text("window.EDIT = " + json.dumps(tl) + ";\n")
     export(tl, pieces, src, Path.cwd().name)
@@ -265,6 +273,20 @@ def extract(path, t0, n, d, w, h, prefix=""):  # n frames from t0, cached by a k
     key.write_text(k)
 
 
+def still(spec):  # a photo, or "clip.mov#2.5" = the frame at 2.5 s of a clip (HDR tone-mapped first, as ingest does) -> a JPEG <= 1400 px
+    import hashlib
+    from ingest import conform, probe
+    path, _, at = str(spec).partition("#"); out = Path("frames/img") / (hashlib.md5(str(spec).encode()).hexdigest()[:10] + ".jpg")
+    if not Path(path).exists(): sys.exit(f"image {spec!r}: no such file")
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        try: pr = probe(path)
+        except (KeyError, ValueError, StopIteration): pr = {"hdr": False}  # a still has no duration to probe
+        if pr["hdr"]: path = conform(path, pr, Path("src") / f"{Path(path).stem}.sdr.mov")
+        sh("ffmpeg", "-loglevel", "error", "-y", *(["-ss", at] if at else []), "-i", path, "-frames:v", 1, "-vf", "scale=1400:1400:force_original_aspect_ratio=decrease", "-q:v", 3, out)
+    return str(out)
+
+
 def matte(s):  # real footage: MediaPipe on the shot's frames (matte.py runs in its own env); False if it can't
     ok = subprocess.run(["uv", "run", "matte.py", s["frames"]]).returncode == 0 and any(Path(s["frames"]).glob("m0001.jpg"))
     if not ok: print(f"  shot {s['i']}: no matte, its keyword goes in front of the subject")
@@ -277,6 +299,24 @@ def load(path):
 
 def write(path, x):
     with wave.open(path, "wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((np.clip(x, -1, 1) * 32767).astype("<i2").tobytes())
+
+
+UNITS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split())}
+TENS, SCALE = {w: 10 * i for i, w in enumerate("_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()) if i > 1}, {"thousand": 1000, "million": 10 ** 6}
+
+
+def numerals(ws):  # Whisper writes numbers as digits ("forty" -> "40", "twelve thousand" -> "12", "000"): compare numbers as numbers
+    out, tot, cur, num = [], 0, 0, False
+    for w in ws + [""]:
+        if w in UNITS or w in TENS or num and (w == "hundred" or w in SCALE):
+            if w == "hundred": cur *= 100
+            elif w in SCALE: tot += cur * SCALE[w]; cur = 0
+            else: cur += UNITS.get(w, TENS.get(w, 0))
+            num = True; continue
+        if num: out.append(str(tot + cur)); tot, cur, num = 0, 0, False
+        if w.isdigit() and out and out[-1].isdigit() and len(w) == 3: out[-1] += w  # "12" "000" -> "12000"
+        elif w: out.append(w)
+    return out
 
 
 def review():
@@ -304,7 +344,7 @@ def review():
     print(f"masked: {len(quiet)} cues add under 1 dB to the voice and bed" + (f": {', '.join(quiet)}" if quiet else ""))
     Path("review/times.txt").write_text(",".join(f"{max(0, t + k / FPS):.3f}" for t in cuts for k in (-2, -1, 0, 1, 2)))
     mix = sfx.load("audio.wav").mean(0); sfx.plot(mix, [(t, "|") for t in cuts] + [(r[0], r[1]) for r in rows if r[1] not in ("key_tap",)], "review/spectrogram.png")
-    said = [norm(w) for p in tl["phrases"] for w in p["say"].split()]; heard = [norm(w["w"]) for w in transcribe("audio.wav")]
+    said = numerals([norm(w) for p in tl["phrases"] for w in p["say"].split()]); heard = numerals([norm(w["w"]) for w in transcribe("audio.wav")])
     ops = [o for o in difflib.SequenceMatcher(None, said, heard, autojunk=False).get_opcodes() if o[0] != "equal"]
     err = sum(max(o[2] - o[1], o[4] - o[3]) for o in ops)
     for o in ops: print(f"  voice: {o[0]} {' '.join(said[o[1]:o[2]])!r} -> {' '.join(heard[o[3]:o[4]])!r}")
@@ -333,4 +373,8 @@ def pov():
 
 
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:  # the number matching review uses
+        assert numerals("it got twelve thousand views".split()) == "it got 12000 views".split() == numerals("it got 12 000 views".split())
+        assert numerals("rule one".split()) == ["rule", "1"] and numerals("forty two projects".split()) == ["42", "projects"] and numerals(["one", "hundred"]) == ["100"]
+        sys.exit(print("ok"))
     {"build": build, "review": review, "hooks": hooks, "pov": pov}.get(sys.argv[1] if len(sys.argv) > 1 else "", lambda: sys.exit(__doc__))()

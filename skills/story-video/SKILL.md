@@ -17,6 +17,8 @@ sh <this skill's dir>/setup.sh
 It needs `uv` and `ffmpeg`. `STORY_VIDEO_TTS` overrides the venv location.
 
 ## 1. New video
+Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
+
 1. Copy the template:
    ```bash
    cp -R <this skill's dir>/template ~/Movies/<slug>

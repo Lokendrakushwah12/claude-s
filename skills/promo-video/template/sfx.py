@@ -73,6 +73,7 @@ HIT = a swell runs into the cue and the hit lands on it. Every SFX takes **param
   reverse_riser   END   dur 1                                       reversed crash, under a rewind / replay
   burn_whoomp     HIT                                               film burn: noise swell, then a 40-80 Hz boom
   record_scratch  .     dur .45 strokes 2                           meme freeze-frame (pair with gap or tape_stop)
+  deflate         .     dur .55 f0 900 f1 55                        a "less / lost / flop" word: pitch falls to the floor
   micro
   tick            .     f 7000                                      one tick (typing, flips)
   tick_ramp       .     n 20 gap0 .1 gap1 .033 f 7000               ticks speeding up (flip-book)
@@ -94,6 +95,9 @@ HIT = a swell runs into the cue and the hit lands on it. Every SFX takes **param
   chime           .     notes (84, 88, 91, 96)                      logo
   sparkle         .     notes (96, 100, 103, 108)                   burst of tiles
   sting           .     notes (81, 88) dur .6                       "done", the logo (root + fifth)
+  bloop           .     f0 520 f1 1150                              an icon or logo chip pops in (rising, round)
+  shutter         .     gap .045                                    a photo or polaroid lands (two clicks + a whir)
+  shine           .     dur .4                                      a glint sweeps a keyword or a card
   foley
   riffle          .     dur .8 rate 18                              a book riffles (cue it when the object MOVES)
   page_turn       .     dur .24                                     a page turns
@@ -103,6 +107,7 @@ HIT = a swell runs into the cue and the hit lands on it. Every SFX takes **param
   squeak          .     dur .12 f 2100                              highlighter / marker
   clink           .     f 2600                                      keys snapping into order
   ratchet         .     n 8 rate 24 f 2400                          a counter ratcheting
+  stamp           .     f 180                                       a stamp or cut-out lands on paper (thunk + slap)
   bed and utilities (no family, never re-levelled)
   tape_stop       .     dur .35 hold                                music bus slows to a stop, then silence until the
                                                                     next section (or for hold s)
@@ -119,9 +124,19 @@ autocue(events) -> cue rows for cut-driven edits. Event = {t, kind, ...}; t = th
   flash        flash_hit      glitch  glitch          pill          blip_pop
   build        sub_swell ending on t ({dur: .8})      type          key_tap per character ({text} or {n}, {cps: 12})
   montage_in   flash_hit (music comes back up by itself in the VO gap)    montage_out   sub_drop
+  portal       reverse_riser ending on t + sub_boom (a circle wipe out of the footage into a screen)
+  glint        shine                                  flip          flick + paper tap (a poster in a flipped series)
+  land         stamp      photo   shutter     tile  tick at 5.2 kHz      icon          bloop
   Density, among the event rows: at most one air sound per 0.4 s (the earlier one wins, except that a cut's sound
-  (cut, cut_insert, flash, montage_out) beats a keyword's (keyword, keyword_stat, pill): a cut is never left silent);
-  a suck_in is dropped if any other sound is within 0.25 s of it.
+  (cut, cut_insert, flash, montage_out, portal) beats a keyword's (keyword, keyword_stat, pill): a cut is never left
+  silent); a suck_in is dropped if any other sound is within 0.25 s of it. Bursts (land, photo, tile, icon, flip: a
+  pile of stamps, a logo cloud): one sound per 0.07 s, and each one in a run (gaps under 0.3 s) is 0.9x the one before,
+  down to 0.5x, so a 12-item pile lands without getting louder.
+
+levels   {"music": -9, "duck": 0, ...} in cues.json (top level or bed) overrides LEVEL for this render. A bed with a beat
+         under a podcast sits ~9 dB under the voice and isn't ducked (ducking a beat pumps it); the default pad is -12/8.
+
+    uv run sfx.py --check                       # assert-based checks of the newer recipes and autocue rules
 """
 import json, subprocess, sys, wave
 from pathlib import Path
@@ -364,6 +379,13 @@ def record_scratch(at, g=1.0, dur=0.45, strokes=2, **_):
     put(at, x * s ** 0.7 * np.linspace(1, 0.6, n), g, send=0.1)
 
 
+@reg("air")
+def deflate(at, g=1.0, dur=0.55, f0=900, f1=55, **_):  # a falling sweep on a negative word ("paid less"): tone + air, both drop
+    n = int(dur * SR); u = np.arange(n) / n; f = f1 + (f0 - f1) * np.exp(-u * 4.5); e = np.minimum(1, u * 12) * (1 - u) ** 1.2  # ~45 ms in, then it sinks with the pitch
+    x = filt(osc(f, n, "saw") * 0.35 + osc(f, n, "sine"), "low", 2500) * 0.5 + bandnoise(f * 5.5, 0.9) * 0.35
+    put(at, fin(x * e) * 0.6, g, send=0.15)
+
+
 # ---------- micro ----------
 def tick_sig(f=7000):
     n = int(0.03 * SR); return filt(noise(n), "band", [f * 0.7, min(f * 1.4, 20000)]) * env(n, 0.0004, 0.006)
@@ -504,6 +526,28 @@ def sparkle(at, g=1.0, notes=(96, 100, 103, 108), **_): bells(at, g, notes, 0.02
 def sting(at, g=1.0, notes=(81, 88), dur=0.6, **_): bells(at, g, notes, 0, 0.35, 0.18, 0.4, 0, dur)
 
 
+@reg("micro")
+def bloop(at, g=1.0, f0=520, f1=1150, **_):  # an icon chip pops in: a round tone gliding UP in ~45 ms, ~250 ms ring (ref #27's icon pops)
+    n = int(0.3 * SR); t = np.arange(n) / SR; f = f1 - (f1 - f0) * np.exp(-t / 0.015)
+    x = (osc(f, n, "sine") + 0.18 * osc(2 * f, n, "sine")) * env(n, 0.004, 0.085) + filt(noise(n), "band", [2000, 7000]) * env(n, 0.0003, 0.003) * 0.3
+    put(at, fin(x, 15) * 0.32, g, pan=rng.uniform(-0.35, 0.35), send=0.2)
+
+
+@reg("micro")
+def shutter(at, g=1.0, gap=0.045, **_):  # a camera shutter: open click, a short whir, close click
+    n = int(0.03 * SR)
+    for k, (f, a) in enumerate(((950, 1.0), (780, 0.8))):
+        put(at + k * gap, (filt(noise(n), "band", [1800, 9000]) * env(n, 0.0002, 0.0035) + osc(f, n, "sine") * env(n, 0.0005, 0.006) * 0.6) * 0.4 * a, g)
+    m = int(gap * SR); put(at + 0.006, filt(osc(140, m, "saw"), "band", [300, 2400]) * np.sin(np.pi * np.arange(m) / m) * 0.06, g)
+
+
+@reg("micro")
+def shine(at, g=1.0, dur=0.4, **_):  # a glint sweeping a keyword: three high partials rising, fluttering, fading
+    n = int(dur * SR); u = np.arange(n) / n; flutter = 0.6 + 0.4 * np.abs(filt(noise(n), "low", 30)) / 0.08
+    x = sum(a * osc(lo * (hi / lo) ** u, n, "sine") for lo, hi, a in ((2800, 6000, 1), (4200, 9000, 0.6), (7000, 12000, 0.35)))
+    put(at, stereo(fin(x * np.minimum(1, u / 0.05) * (1 - u) ** 1.5 * np.minimum(flutter, 1.4), 20) * 0.08, 360), g, send=0.4)
+
+
 # ---------- paper and foley ----------
 @reg("foley")
 def riffle(at, g=1.0, dur=0.8, rate=18, **_):
@@ -561,6 +605,14 @@ def ratchet(at, g=1.0, n=8, rate=24, f=2400, **_):
     for k in range(n):
         x = filt(noise(m), "band", [1500, 6000]) * env(m, 0.0002, 0.003) + osc(f * rng.uniform(0.97, 1.03), m, "sine") * env(m, 0.0005, 0.008) * 0.4
         put(at + k / rate, x * 0.25 * rng.uniform(0.75, 1), g, pan=0.1)
+
+
+@reg("foley")
+def stamp(at, g=1.0, f=180, **_):  # a stamp or cut-out lands on paper: a short pitched thunk under a paper slap and an edge tick
+    n = int(0.22 * SR); t = np.arange(n) / SR
+    body = osc(f * 0.6 + f * 0.4 * np.exp(-t / 0.02), n, "sine") * env(n, 0.001, 0.04)
+    slap = filt(noise(n), "band", [600, 3500]) * env(n, 0.0004, 0.01) * 0.55 + filt(noise(n), "high", 6000) * env(n, 0.0002, 0.002) * 0.25
+    put(at, fin(body * 0.7 + slap, 20) * 0.6, g, pan=rng.uniform(-0.25, 0.25), send=0.08)
 
 
 # ---------- bed and utility cues (no family) ----------
@@ -789,7 +841,13 @@ def limit(x, ceil=10 ** (-1.55 / 20)):  # look-ahead true-peak limiter: 40 ms ho
     return x if need.min() >= 1 else x * uniform_filter1d(minimum_filter1d(need, int(0.04 * SR) | 1), int(0.005 * SR))
 
 
-def render(cues, out="audio.wav", audition=False):
+def render(cues, out="audio.wav", audition=False):  # "levels" (top level or in bed) overrides LEVEL for this render only
+    keep = dict(LEVEL); LEVEL.update(cues.get("levels") or (cues.get("bed") or {}).get("levels") or {})
+    try: return _render(cues, out, audition)
+    finally: LEVEL.clear(); LEVEL.update(keep)
+
+
+def _render(cues, out, audition):
     global BED
     bed = cues.get("bed") or {}
     opt = lambda k, d=None: cues[k] if cues.get(k) is not None else bed.get(k, d)
@@ -833,10 +891,14 @@ def render(cues, out="audio.wav", audition=False):
 AUTO = {"cut": [(-0.05, "passby", 0.8)], "cut_insert": [(0, "sub_boom", 1), (-0.05, "passby", 0.7)], "keyword": [(0, "suck_in", 1)],
         "keyword_stat": [(-0.46, "thump", 0.7), (-0.25, "thump", 0.8), (0, "sub_boom", 1)], "flash": [(0, "flash_hit", 1)],
         "glitch": [(0, "glitch", 1)], "pill": [(0, "blip_pop", 1)], "build": [(0, "sub_swell", 1)], "type": [],
-        "montage_in": [(0, "flash_hit", 1)], "montage_out": [(0, "sub_drop", 1)]}
+        "montage_in": [(0, "flash_hit", 1)], "montage_out": [(0, "sub_drop", 1)],
+        "portal": [(0, "reverse_riser", 1, {"dur": 0.35}), (0, "sub_boom", 1)], "glint": [(0, "shine", 1)],
+        "flip": [(0, "flick", 1), (0, "paper", 0.6, {"kind": "tap"})], "land": [(0, "stamp", 1)], "photo": [(0, "shutter", 1)],
+        "tile": [(0, "tick", 0.8, {"f": 5200})], "icon": [(0, "bloop", 1)]}  # entries: (dt, name, gain[, params])
 
 
-CUT_KINDS, KEY_KINDS = {"cut", "cut_insert", "flash", "montage_out"}, {"keyword", "keyword_stat", "pill"}
+CUT_KINDS, KEY_KINDS = {"cut", "cut_insert", "flash", "montage_out", "portal"}, {"keyword", "keyword_stat", "pill"}
+BURST = {"land", "photo", "tile", "icon", "flip"}  # many items landing in a row: thinned and tapered, never a wall of clicks
 
 
 def autocue(events):
@@ -848,10 +910,15 @@ def autocue(events):
         if kind == "type":
             text = e.get("text") or "x" * e.get("n", 8); r = np.random.default_rng(int(t * 1000))
             rows += [([t + i / e.get("cps", 12) + r.uniform(-0.02, 0.02), "key_tap", 1.0], kind) for i, ch in enumerate(text) if ch != " "]
-        rows += [([t + dt, name, gain] + ([{"dur": e["dur"]}] if "dur" in e and kind == "build" else []), kind) for dt, name, gain in AUTO[kind]]
-    rows.sort(key=lambda r: r[0][0]); out, air = [], None  # air = the last air row kept, and the event kind it came from
+        for dt, name, gain, *pr in AUTO[kind]:
+            p = {**(pr[0] if pr else {}), **({"dur": e["dur"]} if "dur" in e and kind == "build" else {})}
+            rows.append(([t + dt, name, gain * e.get("gain", 1)] + ([p] if p else []), kind))
+    rows.sort(key=lambda r: r[0][0]); out, air, last, run = [], None, {}, {}  # air = the last air row kept and its event kind
     for r, kind in rows:
         if r[1] == "suck_in" and any(o is not r and o[1] != "suck_in" and abs(o[0] - r[0]) < 0.25 for o, _ in rows): continue
+        if kind in BURST:  # per sound: one per 0.07 s; within a run (gaps < 0.3 s) each is 0.9x the last, floor 0.5x
+            if r[0] - last.get(r[1], -9) < 0.07: continue
+            run[r[1]] = run.get(r[1], -1) + 1 if r[0] - last.get(r[1], -9) < 0.3 else 0; last[r[1]] = r[0]; r[2] = round(r[2] * max(0.5, 0.9 ** run[r[1]]), 3)
         if FAMILY[r[1]] == "air":
             if air and r[0] - air[0][0] < 0.4:
                 if kind in CUT_KINDS and air[1] in KEY_KINDS: out.remove(air[0])  # the keyword's sound goes, the cut's stays
@@ -897,7 +964,7 @@ def plot(m, marks, path, row=20.0):
     rows = int(np.ceil((len(m) / SR - 0.05) / row)); fig, axs = plt.subplots(rows, 1, figsize=(24, 3.4 * rows), squeeze=False)
     for r, ax in enumerate(axs[:, 0]):
         sel = (ts >= r * row) & (ts < (r + 1) * row); tt = ts[sel]
-        ax.imshow(L[:, sel], origin="lower", aspect="auto", cmap="magma", vmin=top - 90, vmax=top, extent=[tt[0], tt[-1], 0, len(fl)]); ax.set_xlim(r * row, (r + 1) * row)
+        ax.imshow(L[:, sel], origin="lower", aspect="auto", cmap="magma", vmin=top - 90, vmax=top, extent=[tt[0], tt[-1], 0, len(fl)]); ax.set_xlim(r * row, min((r + 1) * row, len(m) / SR))
         hz = [30, 60, 90, 150, 300, 1000, 3000, 6000, 12000]; ax.set_yticks([np.searchsorted(fl, h) for h in hz], [f"{h // 1000}k" if h >= 1000 else h for h in hz])
         for t0, name in marks:
             if r * row <= t0 < (r + 1) * row: ax.axvline(t0, color="w", lw=0.6, alpha=0.6); ax.text(t0 + 0.05, len(fl) - 4, name, color="w", fontsize=8, rotation=90, va="top")
@@ -925,6 +992,43 @@ def report(cues):
         print(f"{at:6.2f} {name:14} {db(level(d)):6.1f} " + (f"{b:6.1f} {db(level(d)) - b:+6.1f}" if BED else "     -      -"))
 
 
+def grab(name, **kw):  # one sound, alone, as mono samples from its first non-silent sample
+    global CAP
+    reset(4); CAP = []; SFX[name](1.0, 1.0, **kw); evs, CAP = CAP, None
+    i0 = min(e[1] for e in evs); d = np.zeros(max(e[1] + e[2].shape[1] for e in evs) - i0)
+    for e in evs: d[e[1] - i0: e[1] - i0 + e[2].shape[1]] += e[2].mean(0)
+    on = np.argmax(np.abs(d) > np.abs(d).max() * 1e-3); return d[on:], (i0 + on) / SR - 1.0
+
+
+def check():
+    """Assert-based checks for the newer recipes and cue rules (ugc-edit's batch-2026-10-11 additions)."""
+    pk = lambda x, a, b: np.fft.rfftfreq(len(x[int(a * SR): int(b * SR)]), 1 / SR)[np.argmax(np.abs(np.fft.rfft(x[int(a * SR): int(b * SR)])))]
+    e2 = lambda x: np.sqrt(np.convolve(x ** 2, np.ones(96) / 96, "same"))  # 2 ms envelope
+    for name in [n for n, f in FAMILY.items() if f]: assert len(grab(name)[0]) > 100, f"{name} renders nothing"
+    x, _ = grab("stamp"); X = np.abs(np.fft.rfft(x)) ** 2; f = np.fft.rfftfreq(len(x), 1 / SR)
+    assert len(x) < 0.25 * SR and X[f < 300].sum() / X.sum() > 0.2 and np.argmax(e2(x)) < 0.01 * SR, "stamp: short, a low body, a fast attack"
+    x, _ = grab("shutter"); e = e2(x); hit = np.flatnonzero((e[1:-1] > e[:-2]) & (e[1:-1] >= e[2:]) & (e[1:-1] > e.max() * 0.4)) + 1
+    assert len(hit) >= 2 and 0.035 < (hit[-1] - hit[0]) / SR < 0.055, f"shutter: two clicks ~45 ms apart, got {np.diff(hit) / SR}"
+    x, _ = grab("bloop"); assert pk(x, 0, 0.012) < pk(x, 0.06, 0.16) and 1000 < pk(x, 0.06, 0.16) < 1300, "bloop: glides up to ~1150 Hz"
+    x, _ = grab("deflate"); rms = lambda a, b: np.sqrt((x[int(a * SR): int(b * SR)] ** 2).mean())
+    assert pk(x, 0, 0.06) > 450 and pk(x, 0.3, 0.45) < 160 and rms(0.3, 0.45) > 0.1 * rms(0.02, 0.1), "deflate: falls to the floor, still sounding"
+    x, _ = grab("shine"); X = np.abs(np.fft.rfft(x)) ** 2; f = np.fft.rfftfreq(len(x), 1 / SR); assert (f * X).sum() / X.sum() > 4000, "shine: bright"
+    x, start = grab("reverse_riser", dur=0.35); assert abs(start + len(x) / SR) < 0.02 and abs(start + 0.35) < 0.02, "reverse_riser: ENDS on the cue"
+    rows = autocue([{"t": 2.0, "kind": "portal"}])
+    assert [r[1] for r in rows] == ["reverse_riser", "sub_boom"] and rows[0][3] == {"dur": 0.35}, rows
+    pile = autocue([{"t": 1 + k * 0.05, "kind": "land"} for k in range(12)]); ts = [r[0] for r in pile]
+    assert min(np.diff(ts)) >= 0.07 - 1e-9 and len(pile) == 6 and pile[-1][2] < pile[0][2] and min(r[2] for r in pile) >= 0.5, pile
+    spaced = autocue([{"t": 1 + k * 0.12, "kind": "land"} for k in range(8)]); assert len(spaced) == 8 and spaced[1][2] == 0.9 and spaced[-1][2] == 0.5, spaced
+    again = autocue([{"t": 1, "kind": "land"}, {"t": 2, "kind": "land"}]); assert again[1][2] == 1, "a new run starts back at full gain"
+    assert autocue([{"t": 1, "kind": "build", "dur": 0.6}]) == [[1, "sub_swell", 1, {"dur": 0.6}]], "build still carries its dur"
+    kc = autocue([{"t": 1.0, "kind": "keyword"}, {"t": 1.2, "kind": "cut"}]); assert [r[1] for r in kc] == ["passby"], kc
+    assert autocue([{"t": 1, "kind": "icon", "gain": 0.5}]) == [[1, "bloop", 0.5]], "an event's gain scales its rows"
+    import tempfile
+    with tempfile.TemporaryDirectory() as d: render({"duration": 1, "sfx": [[0.2, "stamp"]], "levels": {"duck": 0, "music": -9}}, f"{d}/a.wav")
+    assert LEVEL == {"sub": 6, "air": -14, "micro": -14, "foley": -18, "music": -12, "duck": 8}, "levels must not leak past one render"
+    print("sfx.py --check: ok")
+
+
 if __name__ == "__main__":
     q = lambda: json.loads(Path("cues.json").read_text())
-    audition() if "--audition" in sys.argv else report(q()) if "--plot" in sys.argv else render(q())
+    check() if "--check" in sys.argv else audition() if "--audition" in sys.argv else report(q()) if "--plot" in sys.argv else render(q())

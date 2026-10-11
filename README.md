@@ -4,9 +4,11 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 
 | Skill | What it makes | Demo |
 |---|---|---|
-| [`ugc-edit`](skills/ugc-edit) | A creator-style edit of your own footage. It takes a talking head, podcast or screen recording and cuts it on the words with an always-moving camera, hot-keyword captions that keep off the face (optionally behind the speaker), inserts, and a sound on every cut. It drops false starts and retakes, keeps laughs, renders hook variants and exports the cut as FCPXML and EDL | [ugc-edit.html](demos/ugc-edit.html) |
+| [`ugc-edit`](skills/ugc-edit) | A creator-style edit of your own footage. It takes a talking head, podcast or screen recording and cuts it on the words with an always-moving camera, hot-keyword captions that keep off the face (optionally behind the speaker), inserts, and a sound on every cut. It drops false starts and retakes, keeps laughs, renders hook variants, mixes in product demos, chapter cards, riso posters and collections (stamps, polaroids, grids), and exports the cut as FCPXML and EDL | [ugc-edit.html](demos/ugc-edit.html) |
+| [`aura-edit`](skills/aura-edit) | A music-led "aura farming" hype edit of footage or stills, locked to one beat grid: frame-exact speed ramps, punches, shake, impact frames, a stills strobe, slammed and masked type, a crushed glowing grade and a synthesised bed with a real drop | coming soon |
+| [`faceless-video`](skills/faceless-video) | A faceless video from a script or a theme: narrated with a human-sounding local voice and word captions, or voiceless with a fully synthesised natural soundscape and foley on what's in shot. B-roll from public-domain archive film, your clips or canvas scenes | [faceless-video.html](demos/faceless-video.html) |
 | [`type-film`](skills/type-film) | An original 10–30 s brand motion film from reference videos plus the brand's own site. Styles include Swiss type, cinematic, screen HUD, 80s vector CRT, single-take morph, line catalogue and isometric product | [type-film.html](demos/type-film.html) |
-| [`promo-video`](skills/promo-video) | A SaaS launch promo built from a product's repo or site, using its real logo, colours, fonts, UI and numbers. Renders 16:9, 1:1 and 9:16 | [promo-video.html](demos/promo-video.html) |
+| [`promo-video`](skills/promo-video) | A SaaS launch promo built from a product's repo or site, using its real logo, colours, fonts, UI and numbers, with a cursor that moves like a hand and silky 60 fps motion. Renders 16:9, 1:1 and 9:16 | [promo-video.html](demos/promo-video.html) |
 | [`explainer-lesson`](skills/explainer-lesson) | A narrated, animated lesson on one hard concept, with picture, sound and voice on one clock. Looks include blueprint, chalkboard, gouache, riso, graphite stop-motion and hairline | [explainer-lesson.html](demos/explainer-lesson.html) |
 | [`music-video`](skills/music-video) | A lyric-driven music video from a song file, or a spoken-word lyric essay over a synthesised bed: karaoke words, live counters, beat-cut scenes | [music-video.html](demos/music-video.html) |
 | [`story-video`](skills/story-video) | A narrated kinetic-typography story (founder story, recap): a card per phrase, an expressive Chatterbox voice, ducked music, a sub on every hard cut | [story-video.html](demos/story-video.html) |
@@ -27,16 +29,16 @@ Install them together. The skills share three toolkits, which they copy from eac
 
 | Template | Shared files | What they do |
 |---|---|---|
-| `music-video/template` | `render.mjs`, `lib.js` | the frame-exact renderer (`--still`, `--subframes` motion blur, `--loopcheck`) and the timing helpers |
-| `promo-video/template` | `sfx.py`, `promo.js` | 55 synthesised sounds, beds, voice ducking, sound levels by family, and `autocue` for edits |
-| `type-film/template` | `type.js`, `look.js`, `iso.js`, `filmlook.sh` | about 50 type and motion devices, film and screen looks, isometric solids, and an ffmpeg film-look pass |
+| `music-video/template` | `render.mjs`, `lib.js` | the frame-exact renderer (`--still`, `--subframes` motion blur, `--smooth` 60 fps with a real shutter and `VIDEO.blur` windows, `--motioncheck` judder test, `--loopcheck`), the easing and timing helpers, and `smoothText` for slow-moving type |
+| `promo-video/template` | `sfx.py`, `promo.js` | 57 synthesised sounds, beds, voice ducking, sound levels by family, and `autocue` for edits |
+| `type-film/template` | `type.js`, `look.js`, `iso.js`, `filmlook.sh` | about 55 type and motion devices (including aura hits: speed ramps, punches, impact frames), film and screen looks, isometric solids, an ffmpeg film-look pass, and `creative.md`, the method the skills follow to get past derivative ideas |
 
 ## Requirements
 
 - macOS, with Google Chrome in `/Applications` (set `CHROME=` to use another path).
 - `node` 18+, `ffmpeg` and `uv`. `render.mjs` drives Chrome over raw CDP, so there's no `npm install`; Python steps pull their own packages through `uv`.
 - `yt-dlp` for `x-video-frames`.
-- Voice: `story-video`, `explainer-lesson`, `music-video` and `ugc-edit` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`.
+- Voice: `story-video`, `explainer-lesson`, `music-video`, `ugc-edit` and `faceless-video` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`.
 - Optional:
   - `FAL_KEY` and `ELEVENLABS_API_KEY` for `music-video`.
   - MediaPipe, which `ugc-edit` pulls in itself for type behind the speaker and captions that keep off the face.
@@ -61,11 +63,15 @@ Describe the video; the matching skill triggers on its own.
 
 > "find some old film countdown footage I can use"
 
+> "make an aura edit of this clip, phonk drop, speed ramps" (`~/Downloads/drive.mov`)
+
+> "a faceless reel about the sea with no voice, just natural sound and old film"
+
 Each video skill keeps its projects in their own folder under `~/Movies/`, with the source next to the rendered MP4, so you can ask for changes later.
 
 ## How these were made
 
-The skills learn from real references; they don't copy them. Each reference was taken apart for its techniques: edit rhythm, type behaviour, camera, film look, and sound measured from spectrograms. The techniques went into the toolkits. What's recognisably the original creator's (shots, copy, palettes, brands) is listed as "LEAVE" in [`type-film/references.md`](skills/type-film/references.md) and never reused.
+The skills learn from real references; they don't copy them. Each reference was taken apart for its techniques: edit rhythm, type behaviour, camera, film look, and sound measured from spectrograms. The techniques went into the toolkits. What's recognisably the original creator's (shots, copy, palettes, brands) is listed as "LEAVE" in [`type-film/references.md`](skills/type-film/references.md) and never reused. Every reference, with what each skill took from it, is on the [references page](index.html).
 
 ## Pairs well with
 

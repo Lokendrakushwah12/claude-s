@@ -1,6 +1,6 @@
 ---
 name: ugc-edit
-description: Edit talking-head, podcast or screen-recording footage into a creator-style cut for Reels, Shorts or TikTok, or into a screen tutorial. Cuts land on the words, the camera never sits still, there's a small lead-in caption plus one hot keyword per phrase (optionally behind the speaker), an insert for each abstract idea, and a three-family SFX grammar (sub, air, micro) over a ducked bed at -14 LUFS. It drops false starts and repeated takes (the last take wins), keeps laughs, keeps captions off the face, renders A/B hook variants and exports the cut as FCPXML and EDL. Two presets share one engine, `creator` (UGC, podcast clips) and `tutorial` (screen recording plus voice). With no footage, it voices a script with Chatterbox and draws placeholder cams. Use when the user says UGC, talking head, podcast clip, reels/shorts/TikTok edit, "edit this video", "cut this like a creator", "screen recording to tutorial", "remove the false starts / ums", "hook variants", "export to Premiere/Resolve/Final Cut", or shares a UGC reference and wants that editing style.
+description: Edit talking-head, podcast or screen-recording footage into a creator-style cut for Reels, Shorts or TikTok, or a screen tutorial. Cuts land on the words, the camera never sits still, captions are a lead-in plus one hot keyword per phrase (off the face), every cut and keyword gets a sound over a ducked bed, and the cut exports as FCPXML and EDL. It drops false starts and retakes, keeps laughs and renders A/B hooks. It mixes in product demos (a proof card that takes over as the app), reel hooks, chapter cards, riso posters and collections (stamps, polaroids, grids, mosaics) from photos or drawn. With no footage, it voices a script with Chatterbox and draws placeholder cams. Use when the user says UGC, talking head, podcast clip, reel or TikTok edit, "edit this video", "screen recording to tutorial", "remove the false starts", "hook variants", "export to Premiere/Resolve", "product demo in the UGC", "collection images", or shares a UGC or reel reference.
 ---
 
 # UGC edit: footage + its words → a creator cut
@@ -32,6 +32,8 @@ uv run ingest.py --placeholder tutorial --script vo.txt       # no footage: voic
 - **Footage resolution:** it should be at least 1.5× the output; ingest warns when it isn't, because punch-ins will soften.
 
 ## 2. Write `edit.json`, then `uv run edit.py build`
+Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
+
 The template `edit.json` shows every field once. A phrase is one caption line and, by default, one shot:
 - **Words:** `say` is the words as spoken, matched to the transcript in order. Words in no phrase are cut. Fillers and false starts inside a phrase are cut, and the cut becomes a re-punched jump cut. `"retakes": false` (top level) keeps every take, for a line repeated on purpose. `laugh: false` cuts a laugh after the phrase.
 - **Shot:** `cam` (A/B/W…) or `insert: {kind: card|screen|montage|rec|<project kind>}`. `cut: false` continues the previous shot.
@@ -40,6 +42,9 @@ The template `edit.json` shows every field once. A phrase is one caption line an
 - **Word sounds:** `sfx: {"ship": "pop", "done": ["sting", 0.7]}` puts any sfx.py sound on that word. Onomatopoeia (boom, click, pop, ding, whoosh…) get one automatically in `creator`; `sfx: false` turns that off.
 - **Moments:** `flash` (an exposure flash on the cut), `build` (a sub swell that stops dead on the cut), `hush` (the bed drops out under this phrase), `hold: 0.4` (keep more pause after it, for a punchline).
 - **End card:** `end: {kind: end, text, sub, dur}`.
+- **Product mix (UGC + demo):** `ui: {name, handle, img, stat, label, text, rows, button}` puts a proof card under the chin (beside the speaker in 16:9). Its lead-in sits above it, and the card replaces the hot keyword. `takeover: true` grows the card into the next phrase's `insert: {kind: "app", clickOn, toast}`, which is the same card full frame: the rows tick, the pointer clicks, a toast lands. `pops: ["DM", {text, img}]` pops chips round the head. `out: "portal"` grows a circle of the next shot's ground out of the chest (or `at`) into the cut.
+- **Reel grammar:** `focus` (the shot opens from a blur) and `rack` (it blurs out). `lockup` stacks the words before the keyword small above it and the rest under it, then a glint sweeps it. `caption: "word"` (or top-level `"captions": "word"`) shows one word at a time. `window` shrinks the footage into a window over giant spoken words. `laugh: "type"` types a kept laugh huge.
+- **More inserts:** `stat {value, label, bar}` counts a number up and lands it with an echo. `chapter {n, over, word, sub}` is a list card, and the bed changes on it. `posters {items: [{title, sub, big}], hold}` flips a riso poster series 0.4 s apart. `collection {style: stamps|polaroids|grid|mosaic, images, items, step, title}` lands items one by one: `images` are photos or `"clip.mov#2.5"` (a frame of a clip, tone-mapped when HDR), `items` are drawn as riso art when there are no photos, and `step: "words"` lands one item on each word. These inserts carry their own type, so they get no captions unless `caption: true`.
 
 What `build` does for you:
 - **Cut points:** `cut = next word − 0.08 s`; into a `graphic` phrase, the picture cuts at its keyword + 0.15 s.
@@ -52,6 +57,8 @@ Edit rules:
 - **Pace:** ASL 1.2–2.2 s. Cut A/B/W on phrase boundaries and never hold one framing for more than ~2.5 s.
 - **Keywords:** one per phrase, the word that carries the meaning (an object or a verdict, not "the").
 - **Inserts:** one for each abstract noun (question → a card, "one button" → a screen insert, "six months" → a montage), at most one montage, and 2–4 inserts in 30 s. An insert cuts in ahead of its word.
+- **A reel's shape:** a hook in the first 3 s (focus-in, a lockup or a statement word, a proof card or counter within 0.3 s, the face on screen); a calm body (word or two-tier captions, a gentle camera); a `chapter` card per list item.
+- **A product moment:** speaker → card under the chin → takeover → `app` → back to the speaker.
 - **Project inserts:** add them at the bottom of video.js as `INSERTS.<kind>(c, t, s, o)`, plus `SOUNDS.<kind>(s, o, ev, sfx)` for its UI sounds. Draw them as concepts from the brand's own world. Never reuse a reference's metaphor (no iceberg).
 
 ## 3. Camera, captions, look
@@ -70,9 +77,11 @@ Edit rules:
 - **Flash:** flash_hit. **Build:** sub_swell ending on the cut.
 - **Montage:** flash_hit in, sub_drop out.
 - **Screen insert:** a key tap per character, a click, then a click_cluster when the results land.
-- **Word sounds:** on the word's onset; a ratchet runs under a counting keyword.
+- **Word sounds:** on the word's onset; a ratchet runs under a counting keyword. On a negative word, use `sfx: {"less": "deflate"}`.
+- **Portal and items:** `portal` → a reverse_riser ending on the cut + a sub_boom. A collection item → a stamp, shutter or tick as it lands; bursts are thinned to one per 70 ms and taper to 0.5x, so a pile never gets louder. Pops → a bloop each; posters → a flick + paper tap per flip.
+- **UI and chapters:** a `ui` card → blip_pop and a shine on its sweep, a tick per row; a lockup → a shine on its glint. The `app` click and toast play at gain 2 (about −8 dB), because the product is the focus. A chapter → the bed gaps 0.35 s, then switches section.
 - **Levels:** sub +6 dB over the voice (below 150 Hz only), air and micro −14, music −12 with 8 dB of ducking. The master is −14 LUFS at −1 dBTP.
-- **Bed:** a slow pad with a chord every ~3.6 s, the end card on a bar line and a riser into it. Override it with `"bed"` in edit.json, or `null` for none.
+- **Bed:** a slow pad with a chord every ~3.6 s, the end card on a bar line and a riser into it. Override it with `"bed"` in edit.json, or `null` for none. A podcast with a beat bed sits ~9 dB under the voice, unducked: `"bed": {…, "levels": {"music": -9, "duck": 0}}`.
 
 ## Tutorial preset
 - **Recording:** each phrase is a `rec` insert on the recording. `src: [a, b]` maps the phrase onto recording seconds; `[[u, sec], ...]` with u running 0..1 gives speed-ups and holds (typing at 6–8×, waits sped up).
@@ -122,22 +131,23 @@ uv run edit.py pov pov.json     # segments = [source in, length in 8ths]; trim +
 - **Captions:** only as accurate as the `say` text. The voice check catches what TTS or the transcript gets wrong. Chatterbox said the made-up brand "Slipway" so that it was heard as "Flipway".
 
 ## Problems seen so far
-- **Whisper looped one line:** with the whole script as `initial_prompt`, the transcript was one line repeated three times. Transcribe with no prompt; it still catches "um".
 - **The edit clipped words:** Whisper ends the last word before a pause early, so cutting 0.12 s after it turned "silence" into "silen-" (the final mix was heard as "not silent"). Tails now follow the voice's energy.
 - **Cuts went silent:** autocue keeps one air sound per 0.4 s and the earlier wins, so a keyword just before a cut silenced the cut's passby (3 of 20 cuts). video.js now drops a keyword's suck_in within 0.45 s before a cut.
 - **The brand name was cut:** a misheard edge word ("Flipway") fell outside its phrase and was cut. Unmatched first and last words now claim the unclaimed word beside them.
 - **A phrase can swallow a take:** a `say` that matches words far apart swallows everything between them. build warns when a phrase spans more than twice its written words.
 - **Behind-type at torso height:** the body hid the whole word. Put it at jaw height.
 - **A results list that never landed:** the screen insert's results blur in over 0.75 s, so a click on the phrase's last word meant they never resolved before the cut. Click on an earlier word, or `hold`.
-- **Stacked subs:** a montage exit and a graphic keyword stacked two subs on one cut. The graphic keyword now owns that cut.
-- **Slow slams:** graphic keywords slid in over 0.8 s and never slammed; they now land in 0.18 s.
-- **A crash on frame 1 of the end card:** `ease.back(0)` returns −3e−15, and `arc()` throws on a negative radius. Clamp radii.
-- **A missing last frame:** a shot can ask for frames past the clip's end. build counts what ffmpeg wrote, and the last frame holds.
+- **Graphic keywords:** they slid in over 0.8 s and never slammed (now 0.18 s), and a montage exit stacked a second sub on their cut (the keyword now owns it).
+- **Edge frames:** `ease.back(0)` returns −3e−15 and `arc()` throws on a negative radius (clamp radii); a shot can ask for frames past the clip's end (build counts what ffmpeg wrote, and the last frame holds).
 - **Pale, yellow-green iPhone footage:** iPhone HDR (HLG, Dolby Vision) extracted without tone mapping looks pale and yellow-green. ingest (and `edit.py pov`) now tone-maps HDR clips to BT.709 (avconvert on macOS) before any frame is pulled.
 - **A full-white strobe:** a B&W montage alternating white and black grounds at 10+ Hz strobes. The montage keeps dark grounds.
-- **Whisper smoothed the disfluencies:** with no prompt, `small.en` heard "So the— so the thing is" as "So the thing is", dropped both "um" and "uh", and stretched "in" to 0.96 s over the "um". A short disfluent prompt brings them back. faster-whisper drops the prompt after the first 30 s window, so ingest transcribes in windows of up to 28 s.
+- **Whisper and its prompt:** the whole script as `initial_prompt` made it loop one line three times. With no prompt, `small.en` heard "So the— so the thing is" as "So the thing is", dropped both "um" and "uh", and stretched "in" to 0.96 s over the "um". A short disfluent prompt brings them back. faster-whisper drops the prompt after the first 30 s window, so ingest transcribes in windows of up to 28 s.
 - **A laugh read as speech:** re-heard with the disfluent prompt, a laugh came back as "Like,". The re-listen uses no prompt, keeps only confident segments and ignores "T-t-t-t" gibberish.
-- **Faces missed:** BlazeFace short-range missed a face 15 % of the frame wide in 15 of 48 samples. Full-range found all 48.
-- **Captions on the face:** at the fixed 0.43 H, the lead-in crossed a real speaker's eyes and the keyword her chin, and on placeholders the lead-in sat on the chin. Captions are now placed per phrase. A `behind` lead-in on her glasses now goes above the head.
+- **Captions on the face:** BlazeFace short-range missed a face 15 % of the frame wide in 15 of 48 samples (full-range found all 48). At the fixed 0.43 H, the lead-in crossed a real speaker's eyes and the keyword her chin, and on placeholders the lead-in sat on the chin. Captions are now placed per phrase. A `behind` lead-in on her glasses now goes above the head.
 - **Masked keyword sounds:** a keyword's suck_in under unbroken speech measured +0.0–0.4 dB: there but unheard. `masked:` lists them; give the keyword a pause (`hold` on the phrase before) or a `graphic` cut if it must be heard.
 - **Export timecode:** avconvert drops the timecode track, so an HDR clip's SDR conform starts at 0. Relink to the original in the editor to grade the HDR. The export is checked structurally (xmllint, a DTD of the subset, read back with OpenTimelineIO) but not yet opened in Premiere, Resolve or Final Cut.
+- **Toolkit names clash:** lib.js already defines `cover()` and `PAPER`, and a second `PAPER` stopped the page booting. Check new globals against lib.js, type.js and promo.js.
+- **The riso ghost was a cloud:** a canvas `filter` blur works in the layer's own pixels, so on the half-resolution ink layer it came out twice as wide. It's 0.7 % of the poster now. With `step: "words"`, a collection's title had no time on screen; it now comes in at least 1.05 s before the cut.
+- **The portal:** drawn over the captions, it hid the keyword 0.1 s after it landed, and a dark disc growing out of the face read as a censor blob. It now draws under the captions, grows from the chest and has an accent rim.
+- **Numbers counted as word errors:** Whisper writes "forty" as "40" and "twelve thousand" as "12 000", so a clean mix scored 5.2 %. review now compares numbers as numbers (0 %). An accent keyword in one-word captions vanished on dark clothes, so it's white at 1.25x now.
+- **The takeover popped:** the proof card and the app card differ in height, so the card now cross-fades into the app over the first 30 % of the move. The lockup glint's shine measured +0.4 dB (masked), so it plays at 1.8x.

@@ -1,0 +1,35 @@
+{
+ "bpm": 150, "fps": 30, "size": [1080, 1920], "scale": 1.5, "beats": 16,
+ "brand": { "ink": "#FFFFFF", "ground": "#050505", "font": "Inter Tight", "mono": "JetBrains Mono" },
+ "fonts": ["Inter Tight:wght@500;800;900", "JetBrains Mono:wght@500;700"],
+ "look": "aura",
+ "clips": { "A": "clip.mov" },
+ "shots": [
+  { "at": 0, "beats": 4, "clip": "A", "src": 0.5, "ramp": 0.35, "zoom": [1.2, 1], "focus": [0.5, 0.4] },
+  { "at": 4, "beats": 3, "clip": "A", "src": 1.2, "ramp": 0.8, "strobe": { "hold": 3, "fps": 24, "zooms": [1, 1.2, 1.4, 1.6] } },
+  { "at": 7, "beats": 1, "clip": "A", "src": 2.0, "ramp": 0 },
+  { "at": 8, "beats": 2, "clip": "A", "hit": [0, 2.4], "ramp": "hit" },
+  { "at": 10, "beats": 2, "clip": "A", "hit": [0, 1.6], "ramp": "hit", "zoom": 1.8, "focus": [0.5, 0.35] },
+  { "at": 12, "beats": 2, "clip": "A", "src": 0.8, "ramp": "brake" },
+  { "at": 14, "beats": 2, "clip": "A", "src": 1.0, "ramp": 0.3 }
+ ],
+ "hits": [
+  [8, "drop"],
+  [[9.5, 13.5, 4], "punch"], [[10.5, 14.5, 4], "punch"], [12, "punch"],
+  [[9, 15, 2], "shake"],
+  [10, "blur"], [12, "flash"], [12, "split"],
+  [13, "sweep", { "dur": 1.5, "angle": 0.5 }],
+  [11.375, "stop", { "dur": 0.625 }]
+ ],
+ "type": [
+  { "at": 12, "beats": 2, "text": "NAME", "kind": "mask", "y": 0.45 },
+  { "at": 14, "beats": 2, "text": "word", "kind": "slam", "y": 0.5, "fonts": ["Inter Tight", "JetBrains Mono"], "hold": 2 }
+ ],
+ "sound": {
+  "bed": { "chords": [[48, 52, 55, 60], [50, 54, 57, 62], [47, 51, 54, 59], [52, 55, 59, 64]], "sections": [[0, "arp"], [8, "stop"]] },
+  "lufs": -12,
+  "mutes": [],
+  "sfx": [[7, "riser", 0.8, { "dur": 1.2 }], [8, "gap", 1, { "dur": 0.4 }], [8, "drop_kit", 1, { "bars": 2, "bpm": 150 }]],
+  "bass808": [[8, 28, 1.4, 2.5], [9.5, 28, 0.9, 0], [10.5, 28, 1.4, 0], [12, 24, 1.4, 2.5], [13.5, 24, 0.9, 0], [14.5, 24, 1.4, 0]]
+ }
+}

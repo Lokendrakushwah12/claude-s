@@ -27,6 +27,7 @@ Fill in a TAKE / LEAVE table per reference:
 - **LEAVE (recognisably theirs):** the shot order, compositions, set pieces, script and copy, metaphors, logo moments, and their colourway as a whole.
 
 ## 2. Find the brand's world → `docs/concept.md`
+Run **[`creative.md`](creative.md)** first, into `docs/concepts.md`: inventory 25+ things from the brand's world, write 20 concepts, kill the first five, set two constraints, and find one "only this could exist here" invention. References give techniques; the idea has to come from the subject.
 - **Objects:** list 10+ objects, rituals and artefacts native to the brand's domain (Keychain: barcodes, lot codes, spec sheets, pouches, a chain of links).
 - **Metaphor, logline** in the brand's voice, and a **story arc** (hook → tension → product → proof → logo), not a tour of techniques.
 - **Copy:** real copy and real numbers only; read numbers from the source at render time where you can. Never invent stats or customers.
@@ -52,14 +53,16 @@ Mix freely. Details and credits are in `references.md`.
 | Monochrome single-take morph | one shape becomes the next (`morphMatch smear`), lowercase full-stop headlines, construction lines | a chord change per visual beat, whoosh-then-impact per morph | 12 |
 | Line catalogue | `ISO.LINE` tiers, one `pen` threading every figure, mono state labels, an index ruler, echo-smear swaps | sparse foley or none | 20 |
 | Isometric product | `ISO.slab` hull solids, one highlight, `ISO.lift` from the flat plan, springs for *where*, tweens for *which* | foley for objects, `swell` under the lift, silence before the payoff | 01, 13 |
+| Maker's-tool collision | the tool's own furniture (a selection box with handles, a cursor with a halftone trail, a pen) acting on an organic world; a push *through* the type into the next world; texture from a visible process (slices, budding, `blockSwap` refresh) | soft pad, a sub on the push-through, a whoosh on the burst, ticks only on the tool's clicks | 35, 31 |
 
 ## 4. Build
-- **Motion:** `spr track cam shotCam`, `ISO.spring`/`ISO.tween`. lib.js's `spring` loses to promo.js's `const spring` here, so use `track()` for summed closed-form springs. Stop-motion: `boil(t, 12, 3)` gives 3 drawings looping 4 times a second; lib.js also has `stepT jitter flickerGain sketch`.
+- **Motion:** `spr track cam shotCam`, `ISO.spring`/`ISO.tween`. lib.js's `spring` takes both forms (`spring(p)` and `spring(p, 8)`); use `track()` for summed closed-form springs. Stop-motion: `boil(t, 12, 3)` gives 3 drawings looping 4 times a second; lib.js also has `stepT jitter flickerGain sketch`.
 - **Type:** `word ui rise riseChars scramble typed words hotWord glowIn inlineWord shimmer selectHL textOnPath`; captions `leadIn karaoke`.
 - **HUD and fields:** `glyphHud trackers cornerTicks pixelField slotList counterRoll tumbleTiles asciiImage ecg waveBars expCount`.
 - **Line, paper, containers:** `drawOn pen smear onion slip tape callout pins player slitReveal morphMatch shutterButton sparkHop skeletonFlash screenInsert`.
 - **Surfaces and objects:** `grid hl glass keylight dust marks grain arrow check marquee ring3d orbit tunnel guides barcode flap chain bend pointer`; from promo.js `pill counter rrect glow`.
 - **Timing:** `flash softcut whip dof glitchBox cutIndex flipFrames pasted rewind drawAt bpmPulse`. `drawAt(c, t, self)` draws the film at another time, inside a cell or a rewind.
+- **Hits (beat-led edits, shared with aura-edit):** `retime` (a speed curve's exact integral), `punch shake deck maskWord`, `ecg(..., {beats})`; look.js `impactFrame zoomBlur lightSweep blockSwap crush` and the `aura` preset.
 - **Sound from the picture:** build cues from the constants the scenes read: `typeCues(t0, str, gap, f0, df)`, `scrambleCues(t0, str, g, {per, settle})`, one array of times shared by a scene and its cues. `VIDEO.drone`, `lufs`, `lp`, `bed.mutes` pass through `render.mjs --cues` to sfx.py (its docstring lists every sound and its params).
 
 When you invent a reusable device, add it to `type.js` with a one-line comment and record it in `references.md`.
@@ -82,7 +85,7 @@ for s in <transition times>; do ffmpeg -loglevel error -y -ss $s -t 0.7 -i <slug
 ```
    Plus a spectrogram with the cuts marked (`sfx.plot(mono, [(t, label)], 'spec.png')`) to check every sound against its picture event.
 4. **Score each 1–10:** hook in the first 2 s, readability at phone size, motion, variety, brand accuracy, sound sync, **originality**. For originality, put your contact sheet beside each reference's sheet: any shot that reads as "their shot" scores 4 or less and gets redesigned.
-5. **Fresh critic:** spawn one subagent that didn't make the film. Give it concept.md with the banned list, the sheet, strips, spectrogram, stills and the reference sheets, and ask for scores and the 5 worst problems. It sees what you've stopped seeing.
+5. **Fresh critic:** spawn one subagent that didn't make the film. Give it concept.md with the banned list, the sheet, strips, spectrogram, stills and the reference sheets, and ask for scores, the 5 worst problems, and "which shot could you have predicted from the brief alone?". It sees what you've stopped seeing.
 
 Fix the 3 worst problems; do at least 2 rounds, until every score is 8+.
 

@@ -20,7 +20,23 @@ const ease = {
   back: p => p <= 0 ? 0 : 1 + 2.7 * (p - 1) ** 3 + 1.7 * (p - 1) ** 2,   // exact 0 at p=0 (float residue made arc() radii negative)
   elastic: p => (p <= 0 || p >= 1 ? p : 2 ** (-10 * p) * Math.sin((p * 10 - 0.75) * (2 * Math.PI / 3)) + 1),
   lift: bezier(0.32, 0.72, 0, 1), // the 700 ms "discrete choice" ease from hairline-style motion: fast out, long soft landing
+  // Premium presets (silky at 60 fps): no ease here ever stops dead or starts with a jerk.
+  expoOut: p => (p >= 1 ? 1 : 1 - 2 ** (-10 * p)),      // fast arrival, long glide in (cursor arrivals, settles)
+  expoIn: p => (p <= 0 ? 0 : 2 ** (10 * p - 10)),        // the speed ramp INTO a velocity-matched cut
+  expoInOut: p => (p <= 0 ? 0 : p >= 1 ? 1 : p < 0.5 ? 2 ** (20 * p - 10) / 2 : (2 - 2 ** (-20 * p + 10)) / 2),
+  quintOut: p => 1 - (1 - p) ** 5,                       // between out (cubic) and expoOut
+  emphasized: bezier(0.2, 0, 0, 1),                      // Material 3 "emphasized": a quick launch and a very soft landing
+  smooth: bezier(0.65, 0, 0.35, 1),                      // symmetric camera move between two rests
+  cursor: bezier(0.45, 0, 0.1, 1),                       // a hand on a mouse: eases off the start, decays into the target (measured, 2026-10-11 #42)
+  // 0..1 spring by bounce (0 = critically damped, 0.2 ≈ 1.5 % overshoot, 0.5 ≈ 16 %), settled by p = 1.
+  spring: (p, bounce = 0.2) => { if (p <= 0) return 0; if (p >= 1) return 1; const z = Math.max(0.05, 1 - bounce), w = 6.2 / z;
+    if (z >= 1) return 1 - (1 + w * p) * Math.exp(-w * p); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * p) * (Math.cos(wd * p) + (z * w / wd) * Math.sin(wd * p)); },
 };
+// The render's output frame rate (render.mjs passes ?fps=); 30 in a browser preview.
+// window properties, not declarations, so a page that declares the same name still boots (its declaration shadows these).
+window.OUTFPS = +new URLSearchParams(location.search).get('fps') || 30;
+// The time of the frame t falls in: read clocks, counters and anything that must stay sharp through it, so subframe blur can't smear them.
+window.onFrame = (fps => t => Math.floor(t * fps + 1e-6) / fps)(window.OUTFPS);
 // CSS cubic-bezier(x1, y1, x2, y2) as an easing p -> value (bisection on x, exact to ~1e-7).
 function bezier(x1, y1, x2, y2) {
   const f = (u, a, b) => 3 * a * u * (1 - u) ** 2 + 3 * b * u * u * (1 - u) + u ** 3;
@@ -113,6 +129,23 @@ function text(c, str, x, y, o = {}) {
   c.fillStyle = color; c.fillText(str, 0, 0);
   c.restore();
 }
+// Chrome snaps canvas text to whole pixels vertically, so type that drifts or settles slowly up/down steps (render.mjs
+// --motioncheck reports it as stalls). smoothText draws the string once into a cached sprite (res x oversampled, for zooms)
+// and moves it as an image, which resamples at any sub-pixel offset. Same options as text(); align left/center/right.
+function smoothText(c, str, x, y, o = {}) {
+  const SPRITES = (smoothText.cache ||= new Map());
+  const { size = 120, font = 'Anton', color = '#111', align = 'left', base = 'alphabetic', weight = '', spacing = 0, alpha = 1, res = 2 } = o;
+  const f = `${weight} ${size}px "${font}"`, key = [f, color, spacing, base, res, str].join('|');
+  let s = SPRITES.get(key);
+  if (!s) {
+    const m = new OffscreenCanvas(1, 1).getContext('2d'); m.font = f; m.letterSpacing = spacing + 'px'; m.textBaseline = base;
+    const q = m.measureText(str), pad = Math.ceil(size * 0.2), up = Math.ceil(q.actualBoundingBoxAscent) + pad, w = Math.ceil(q.width) + pad * 2, h = up + Math.ceil(q.actualBoundingBoxDescent) + pad;
+    const cv = new OffscreenCanvas(w * res, h * res), x2 = cv.getContext('2d'); x2.scale(res, res); x2.font = f; x2.letterSpacing = spacing + 'px'; x2.textBaseline = base; x2.fillStyle = color; x2.fillText(str, pad, up);
+    s = { cv, w, h, pad, up, tw: q.width }; SPRITES.set(key, s);
+  }
+  const ax = align === 'center' ? s.tw / 2 : align === 'right' ? s.tw : 0;
+  c.save(); c.globalAlpha *= alpha; c.imageSmoothingQuality = 'high'; c.drawImage(s.cv, x - ax - s.pad, y - s.up, s.w, s.h); c.restore(); return s.tw;
+}
 // Word-by-word kinetic lyric: each word pops in at its sung time (falls back to even spacing).
 function kinetic(c, line, t, o = {}) {
   if (!line) return;
@@ -132,22 +165,24 @@ function kinetic(c, line, t, o = {}) {
     }
   });
 }
-// Draw an image to cover a box (like CSS object-fit: cover).
-function cover(c, im, x = 0, y = 0, w = W, h = H) {
+// Draw an image to cover a box (like CSS object-fit: cover). Call it as cover(): libCover is the declared name and
+// window.cover an alias, so a page or toolkit that declares its own `cover` (even `const cover`) still boots.
+window.cover = libCover;
+function libCover(c, im, x = 0, y = 0, w = W, h = H) {
   if (!im) return; const s = Math.max(w / im.width, h / im.height);
   c.drawImage(im, x + (w - im.width * s) / 2, y + (h - im.height * s) / 2, im.width * s, im.height * s);
 }
 // Paper grain + fibres, generated once, multiplied over every frame.
-let PAPER;
+let LIB_PAPER; // not PAPER: a page declaring its own PAPER failed to boot
 function paper(c, strength = 0.5, seed = 1) {
-  if (!PAPER) {
-    PAPER = document.createElement('canvas'); PAPER.width = W; PAPER.height = H;
-    const p = PAPER.getContext('2d'), r = rng(seed), d = p.createImageData(W, H);
+  if (!LIB_PAPER) {
+    LIB_PAPER = document.createElement('canvas'); LIB_PAPER.width = W; LIB_PAPER.height = H;
+    const p = LIB_PAPER.getContext('2d'), r = rng(seed), d = p.createImageData(W, H);
     for (let i = 0; i < d.data.length; i += 4) { const v = 225 + r() * 30; d.data[i] = v; d.data[i + 1] = v - 2; d.data[i + 2] = v - 8; d.data[i + 3] = 255; }
     p.putImageData(d, 0, 0); p.strokeStyle = 'rgba(120,100,80,0.08)';
     for (let i = 0; i < 900; i++) { p.lineWidth = r() * 1.5; p.beginPath(); const x = r() * W, y = r() * H, a = r() * 6.28, l = 10 + r() * 50; p.moveTo(x, y); p.quadraticCurveTo(x + r() * 20, y + r() * 20, x + Math.cos(a) * l, y + Math.sin(a) * l); p.stroke(); }
   }
-  c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = strength; c.drawImage(PAPER, 0, 0); c.restore();
+  c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = strength; c.drawImage(LIB_PAPER, 0, 0); c.restore();
 }
 
 // ---- engine ----

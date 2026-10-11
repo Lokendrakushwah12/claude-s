@@ -428,7 +428,8 @@ def cmd_credits(a):
         sys.exit(f"No clips in {OUT}.")
     ps = [p | {"credit": credit_line(p)} for p in ps]
     Path("credits.json").write_text(json.dumps([{k: p.get(k) for k in ("file", "title", "year", "creator", "upstream", "licence", "credit", "warnings")} for p in ps], indent=1))
-    Path("credits.txt").write_text("".join(f"{p['title']} ({when(p) or 'n.d.'}) · {where(p)} · {lic_text(p)}\n" for p in ps))
+    lines = [f"{p['title']} ({when(p) or 'n.d.'}) · {where(p)} · {lic_text(p)}" for p in ps]
+    Path("credits.txt").write_text("".join(f"{ln}\n" for ln in dict.fromkeys(lines)))  # two clips from one film: one line
     block = ("<!-- archive-footage -->\n## Archival footage\n\n" + "".join(f"- `{p['file']}`: {p['credit']}\n" for p in ps)
              + "\nFound with movingimagearchive.com; licences checked at the original archives listed.\n<!-- /archive-footage -->\n")
     md = Path("CREDITS.md")

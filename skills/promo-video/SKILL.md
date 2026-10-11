@@ -1,6 +1,6 @@
 ---
 name: promo-video
-description: Make a short, polished SaaS or product launch promo video (10–30 s motion graphics, like the one-shot Dub.co launch video) from a product's own repo or website. It uses the real logo, colours, fonts, copy, numbers and UI, recreated as JS canvas animation (a one-primitive visual vocabulary, the real screens in a player frame with a cursor walk-through, slot-list feature rolls, rolling counters, a logo end card with a CTA), scored with synthesised SFX and a music bed (or sonified UI). Renders frame-exact MP4 in 16:9, 1:1 and 9:16. Handles one product, an event promo, or a batch. Use when the user asks for a promo, launch video, product teaser, event or webinar promo, showreel-style ad, social video for their app or site, or several of them.
+description: Make a short, polished SaaS or product launch promo video (10–30 s motion graphics, like the one-shot Dub.co launch video) from a product's own repo or website. It uses the real logo, colours, fonts, copy, numbers and UI, recreated as JS canvas animation (a one-primitive visual vocabulary, the real screens in a player frame with a cursor walk-through, slot-list feature rolls, rolling counters, a logo end card with a CTA), scored with synthesised SFX and a music bed (or sonified UI). Renders frame-exact MP4 at 60 fps with real motion blur in 16:9, 1:1 and 9:16, with a choreographed cursor (eased arrivals, presses the UI reacts to, drags and flings). Handles one product, an event promo, or a batch. Use when the user asks for a promo, launch video, product teaser, event or webinar promo, showreel-style ad, social video for their app or site, or several of them.
 ---
 
 # Promo video: product → 15 s launch MP4
@@ -14,9 +14,9 @@ It reuses the **music-video engine** (`lib.js`, `render.mjs`) and the **type-fil
 D=~/Movies/promos/<slug>; cp -R ~/.claude/skills/promo-video/template "$D" \
   && cp ~/.claude/skills/music-video/template/{lib.js,render.mjs} ~/.claude/skills/type-film/template/{type.js,look.js,iso.js} "$D"
 ```
-Read `lib.js`, `promo.js` and the section headers of `type.js` once before writing scenes.
-- **`lib.js`:** `bg text kinetic cover prog ease rng spring sketch`, `W`, `H`. `spring(p)` is the 0..1 UI entrance; `spring(t, [[t0, v0], [t1, v1], ...])` is a closed-form spring in seconds through targets (cameras, anything that changes target). Pure functions of t, never state carried between frames.
-- **`promo.js`:** `stagger card pill typewriter counter series lineChart glow mesh wipe withBlur rrect`.
+Read `lib.js`, `promo.js` and the section headers of `type.js` once before writing scenes. `examples/claude-s-silk.js` (a 9 s, 60 fps piece) shows the cursor, a drag and fling, velocity-matched cuts and `smoothText` in use; it shows the API, so never re-skin it.
+- **`lib.js`:** `bg text smoothText kinetic cover prog ease rng spring sketch onFrame`, `W`, `H`. `spring(p)` is the 0..1 UI entrance; `spring(t, [[t0, v0], [t1, v1], ...])` is a closed-form spring in seconds through targets (cameras, anything that changes target). Premium eases: `ease.expoOut expoIn expoInOut quintOut emphasized smooth cursor spring(p, bounce)`, and `bezier(x1, y1, x2, y2)` for your own. Pure functions of t, never state carried between frames.
+- **`promo.js`:** `stagger card pill typewriter counter series lineChart glow mesh wipe withBlur rrect`, the cursor (`cursorPath aimAt magnet drawCursor clickRing`) and silky motion (`fling velCut cutLadder pushInto depthLayer`).
 - **`type.js`:** `S` (= min(W, H) / 1080; don't redeclare it), `TYPE` (set the brand's fonts), `word ui rise scramble` and the devices below. `look.js` is off unless asked. `iso.js` draws isometric solids and the flat → oblique lift.
 - **Brand fonts not on Google Fonts:** copy the files to `assets/`, add `@font-face` rules in `index.html`, and after `boot()` chain them on: `window.ready = Promise.all([window.ready, document.fonts.load('700 40px "Brand"')])`.
 
@@ -30,6 +30,7 @@ Work from the product's repo if there is one; otherwise from its live site. Coll
 - **Numbers:** only real ones, from the repo's data, stats files or public site, checked by running a script over the data. Note each number's source in `brand.md`. **Never invent a stat**; with no real numbers, show the UI working and make no claims.
 
 ## 2. Brief and beat grid (`treatment.md`)
+Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
 Write the brief first: one idea, the brand's **one primitive** (see 3), the real screens and the one task the cursor will do. Add a **banned list**: what this brand would never do (glass cards, mesh gradients, bouncy type, crossfades between shots, holds over 0.6 s, invented numbers, click sounds, a stinger, UI that isn't in the repo...). Then the **beat grid**: pick a BPM, put every shot, cue and section on it, and cut on the kicks. 15 s is about 8–12 shots:
 
 | t | beat | example |
@@ -39,6 +40,8 @@ Write the brief first: one idea, the brand's **one primitive** (see 3), the real
 | 6–9 | **the second capability** | a slot-list roll of the real features with their real counts |
 | 9–12 | **proof** | real numbers rolling, or the data itself drawn as the primitive |
 | 12–15 | **end card**: a gap, then the logo, tagline, CTA, domain | the CTA collapses into the logo's origin |
+
+Longer demos keep the same shape (measured off two annotated launch videos): **24 s** ≈ hook 19 %, demo 39 %, result 25 %, CTA 16 %; **60 s** with a voice ≈ intro 11 %, demo 22 %, features 14 %, build 32 %, outro 19 %. With a voice-over, cut on the voice, not the beat.
 
 Craft rules (the "showreel" bar):
 - Every shot moves. Nothing holds still for more than about 0.6 s, except a deliberate held gap.
@@ -52,6 +55,17 @@ Craft rules (the "showreel" bar):
 - **Slot-list feature roll:** `slotList(c, items, x, y, slotStep(t))`: centre in ink, ±1 at 45 %, ±2 at 15 % and blurred, a step every 0.27 s; `counterRoll` for numbers.
 - **Container continuity** (Claude Motion): one `player` frame on a desk hosts all the product UI, and moves of the frame (shrink to 0.6×, pan, push in) replace cuts. `skeletonFlash` as the UI loads (outline → block → content), `slitReveal`, `shutterButton` (bars close, the block morphs into the CTA), `sparkHop` (an agent visiting sources), `rewind` + `drawAt` (scrub-rewind of earlier shots), a tile burst with `sparkle` for exports, `pointer` + `clickDisc` for clicks.
 - **Hero reveal** (Trenchers): words pop on hard ~0.17 s apart, a 0.33 s held gap where everything freezes, then the hero word, with the whole mix low-passed until it lands (`lp: [[0, 1800], [t - 0.02, 1800], [t, 20000]], lp_master: true`; at 4.5 kHz a dark arp barely changes, so nobody hears the reveal). Build with something dark (`sub_swell` + `glide_riser`) that stops where the picture freezes; a noise `riser` is brighter than the low-pass and gives the reveal away. **Screen as portal:** ease into an element, match its size across the cut, and grow the next world out of it on the same ground (no flash to white; bring a light surface in later, as a hard-edged shape from the element). Ending option: `crtCollapse` + `crt_off`, then silence.
+
+## 3b. Cursor, camera and transitions (measured, 2026-10-11 batch)
+- **The cursor is an actor with a hand behind it.** `cursorPath([{ t, x, y, click, grab, drop, out }])` → `pose` per frame; `drawCursor(c, pose)`. It arrives on `ease.cursor` (eases off the start, decays in at ≈ 0.82 per 25 fps frame, τ ≈ 0.2 s, no overshoot), on a slight arc, tip at `aimAt(rect)` (just inside the control's lower right, so the label stays readable). Dwell 0.2–0.3 s, press, then it backs off or fades (`out`) instead of hanging around. Size ≈ 5.5 % of H, up to 11 % in a push-in; draw it in the world it lives in, so it moves with camera moves.
+- **The control reacts, not a ring:** dip 4–5 % with `pose.press`, change colour, flip a toggle or a label ("Copy" → "Copied"); `magnet(pose, rect)` gives the hover amount. `clickRing` only for touch (a tap ring an object rises through) or a CTA with no state of its own.
+- **Drag and scroll:** the dragged thing leads and the cursor rides it (`grab` … `drop`, with `ease: p => p * p` so the drag ends at the fling's speed), then `fling(t, t0, dist, τ 0.28–0.32)` carries it on momentum; the hand runs on a little and fades. A file can drag itself in with no cursor at all.
+- **Velocity-matched cuts** are where the "120 fps" feel comes from: `velCut(t, tCut, v)` accelerates the outgoing shot (expo, τ 0.12 s) and starts the incoming one at the same speed and direction, decaying (τ 0.22 s); the eye never loses the motion. The cursor can cross the cut the same way.
+- **Click as portal:** the pressed control becomes the next scene (a button grows into the next world; a tap ring opens and the next object rises through it). **Push through the bezel:** `pushInto(c, p, screenRect)` zooms in log space until the screen is the frame. **Depth:** float UI on `depthLayer(c, cam, z, fn)` (parallax, blur by depth) for an immersive camera.
+- **Rhythm devices:** an accelerando cut ladder (`cutLadder(t0, n, 0.5, 0.75)`, each cut 0.75× the last) into a hard cut and silence; a 2×2 or 4-up bento of live cells, each a mini-scene swapping on its own beat; a hand-drawn mark layer held on twos (`stepT(t, 12)`) over type moving on ones.
+
+## 3c. Adapting a reference without copying it
+A strong launch film is a skeleton plus nouns. Keep the skeleton: section proportions, pacing (voice wpm, cut density), the container rule, how state is shown (an agent's checklist, one approve click), where the silence sits. Replace every noun with the brand's own: its mark's geometry for the open and close (two bars that become brackets, a hub that blooms), its ground pattern, its palette roles, what the bursts show (its users, its data). The test is type-film's same-sentence test: if one sentence describes your shot and theirs (composition and motion), redesign it. List the reference's devices in `treatment.md` with what replaced each.
 
 ## 4. Sound (`sfx.py`; the palette, cue params, sections, `lp`, `mutes`, `gap`, `echo`, `drone` and VO ducking are in its docstring)
 - **Foley for objects, silence for clicks:** sound what moves (a sheet sliding: a `passby` peaking ~0.2 s after the click, since a sharp sound on the click reads as a click; a list rolling: `slot_roll`; dots landing: `dot_ticks`), never the click itself.
@@ -68,12 +82,16 @@ For a launch event, webinar or drop: footage or a brand field under a pixel-bloc
 cd "$D"
 node render.mjs --still 1,1.5,2,...          # the stills gate: a still on every beat, all passing, before any full render
 node render.mjs --cues && uv run sfx.py && uv run sfx.py --plot
-node render.mjs --subframes 16 --out final.mp4         # motion blur; 4 strobes on fast camera moves (16x the render time)
-node render.mjs --size 1080x1920 --out final-9x16.mp4  # only as a real re-layout; check its stills too
+node render.mjs --motioncheck --fps 60                 # stalls, hitches, cuts and a judder index per 6x4 tile, before the long render
+node render.mjs --smooth --out final.mp4               # 60 fps, 4 subframes (240 samples/s), 180° shutter, linear-light blur
+node render.mjs --size 1080x1920 --smooth --out final-9x16.mp4  # only as a real re-layout; check its stills too
 ```
+- **Silky motion** is 60 fps plus a real shutter plus eases that never stop dead. `--smooth` is the default delivery for promos (X, Instagram, TikTok and YouTube play 60 at most; `--fps 120 --subframes 2 --linear` only for a file played on a 120 Hz screen). At speed, 4 subframes show as 4 stamps (a fast title reads doubled): keep stamps under ~3 px apart by giving those windows more, `VIDEO.blur = [[t0, t1, 32], ...]` (only frames inside take the extra shots), or a 270° shutter (`--shutter 270`); past about 130 px a frame make the move a cut (`velCut`).
+- `--motioncheck` reads the page at the output fps: a stall is a held or dropped frame, a hitch a step far bigger than its neighbours (a state jump, an ease that snaps), and both exit 1. Run it with looks off; its judder index compares versions of the same page (lower is evener).
+- **Chrome snaps canvas text to whole pixels vertically**, so type that settles or drifts slowly up or down steps (the check reports stalls). Move such text with `smoothText` (a cached sprite that resamples smoothly). Read live clocks and digits through `onFrame(t)` so the blur can't smear them; let the cursor and everything else blur.
 - Lay out with `W`, `H` and `S` so other sizes work; vertical usually needs the screen cropped to its task and the text smaller.
-- Draw the cursor at whole-frame times (`Math.floor(t * 30) / 30`) so subframes leave it sharp, and size it by 1 / zoom. Push in until the text that matters is about 35–40 px on screen.
-- A whip or a big zoom still strobes at 16: re-render just that window (`--from 8.5 --to 9.1 --subframes 48 --out seg.mp4`) and splice it in with ffmpeg `trim=start_frame/end_frame` + `concat`, keeping the full render's audio. Feather hard-edged wipes; their edge bands under blur.
+- Push in until the text that matters is about 35–40 px on screen.
+- Feather hard-edged wipes; their edge bands under blur.
 - **At least 2 review rounds.** Each round: a contact sheet (`ffmpeg -i final.mp4 -vf fps=2,scale=320:-1,tile=6x6 sheet.jpg`), the spectrogram, and a **fresh critic** subagent that hasn't seen the build (give it the MP4, `treatment.md` and `brand.md`; ask for ranked problems with timestamps and fixes). Fix, re-render, repeat.
 - Loops: `node render.mjs --loopcheck` must say "closes".
 - Music: `VIDEO.music = 'music.mp3'` only for a track the user supplied or has licensed; otherwise the synthesised bed or SFX alone.

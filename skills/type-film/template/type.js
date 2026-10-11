@@ -458,17 +458,20 @@ function starburst(c, x, y, r, o = {}) {
   const g = c.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, color); g.addColorStop(0.2, color + 'CC'); g.addColorStop(1, color + '00'); c.fillStyle = g; c.fill(); c.restore();
 }
 // Heart monitor: a P-QRS-T beat at bpm, swept left to right with a bright head and a fading trail. (x, y) = left end of the baseline.
+// o.beats = [t, ...] puts an R peak at each of those times instead: a pulse that speeds up, or stops (no beats = a flat line).
+// Each complex then lasts o.len s (0.4) whatever the gap, the way a real QRS doesn't stretch when the heart slows.
 const ecgAt = u => 0.12 * Math.exp(-(((u - 0.18) / 0.03) ** 2)) - 0.12 * Math.exp(-(((u - 0.3) / 0.008) ** 2)) + Math.exp(-(((u - 0.33) / 0.011) ** 2)) - 0.28 * Math.exp(-(((u - 0.36) / 0.01) ** 2)) + 0.24 * Math.exp(-(((u - 0.55) / 0.05) ** 2));
 function ecg(c, x, y, w, h, t, o = {}) {
-  const { bpm = 72, color = '#ffffff', lw = 3 * S, span = 3, n = 240 } = o, head = ((t / span) % 1) * w, beat = 60 / bpm;
+  const { bpm = 72, color = '#ffffff', lw = 3 * S, span = 3, n = 240, beats, len = 0.4 } = o, head = ((t / span) % 1) * w, beat = 60 / bpm;
+  const val = beats ? u => beats.reduce((v, b) => { const q = 0.33 + (u - b) / len; return q > 0 && q < 1 ? v + ecgAt(q) : v; }, 0) : u => ecgAt(((u % beat) + beat) % beat / beat);
   c.save(); c.strokeStyle = color; c.lineWidth = lw; c.lineJoin = 'round'; c.lineCap = 'round'; const A = c.globalAlpha;
   let prev = null;
   for (let i = 0; i <= n; i++) {
-    const xx = (i / n) * w, age = (((head - xx) % w) + w) % w / w * span, tt = t - age, v = tt < 0 ? 0 : ecgAt(((tt % beat) + beat) % beat / beat), pt = [x + xx, y - v * h];
+    const xx = (i / n) * w, age = (((head - xx) % w) + w) % w / w * span, tt = t - age, v = tt < 0 ? 0 : val(tt), pt = [x + xx, y - v * h];
     if (prev && age < span * 0.92) { c.globalAlpha = A * (1 - age / span); c.beginPath(); c.moveTo(...prev); c.lineTo(...pt); c.stroke(); }
     prev = pt;
   }
-  const at = u => ecgAt(((u % beat) + beat) % beat / beat), k = Math.floor((head / w) * n), hp = [x + head, y - at(t) * h], kt = t - ((head - (k / n) * w) / w) * span;
+  const at = val, k = Math.floor((head / w) * n), hp = [x + head, y - at(t) * h], kt = t - ((head - (k / n) * w) / w) * span;
   c.globalAlpha = A; c.fillStyle = color; c.beginPath(); c.moveTo(x + (k / n) * w, y - (kt < 0 ? 0 : at(kt)) * h); c.lineTo(...hp); c.stroke(); // join the last sample to the head
   c.beginPath(); c.arc(...hp, lw * 1.6, 0, 7); c.fill();
   c.restore();
@@ -772,3 +775,39 @@ const pasted = (t, t0, n, o = {}) => { const { step = 3.5, fps = 30, tilt = 0.14
 const rewind = (t, ts, dur = 1, span = 3, fps = 30) => ts - (Math.floor(clamp((t - ts) / dur) * dur * fps) / (dur * fps)) * span;
 // Draw every scene live at time tt (rewinds, flip-books of earlier shots). skip = the calling scene, so it doesn't recurse.
 const drawAt = (c, tt, skip) => VIDEO.scenes.forEach(s => s !== skip && tt >= s.start && tt < s.end && (c.save(), s.draw(c, prog(tt, s.start, s.end), tt, s), c.restore()));
+
+// ---- aura: beat-led hype edits (added for aura-edit; measured on @danielinverted and @ingi_erlingsson's edits) ----
+// Speed ramp (a velocity edit): keys [[u, speed], ...] over a shot's output seconds u, speed 1 = real time, 0 = a freeze,
+// cosine-eased between keys (holding before the first key and after the last). Returns the SOURCE seconds elapsed since
+// u = 0, as the exact integral of that curve, so any frame (or subframe) is computed without history and never jitters.
+function retime(u, keys) {
+  const seg = (a, b, va, vb, x) => { const L = b - a, d = x - a; return va * d + ((vb - va) / 2) * (d - (L / Math.PI) * Math.sin((Math.PI * d) / L)); };
+  const G = u => { // the antiderivative; keys may start before u = 0 (a hit ramp that began in the previous shot)
+    if (u <= keys[0][0]) return u * keys[0][1];
+    let s = keys[0][0] * keys[0][1];
+    for (let i = 1; i < keys.length; i++) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; if (u <= b) return s + seg(a, b, va, vb, u); s += ((b - a) * (va + vb)) / 2; }
+    const [a, v] = keys[keys.length - 1]; return s + (u - a) * v;
+  };
+  return G(u) - G(0);
+}
+// Zoom punch: a scale of 1 + amt on each hit time, rising over atk s into the hit and decaying with tau. Multiply cam() by it.
+function punch(t, hits, amt = 0.08, tau = 0.12, atk = 0.03) {
+  let z = 1; for (const h of hits) { const u = t - h; if (u > -atk && u < 8 * tau) z *= 1 + amt * (u < 0 ? 1 + u / atk : Math.exp(-u / tau)); } return z;
+}
+// Camera shake after hits: ±amp px and ±rot rad on two incommensurate sines per axis, decaying with tau from the latest hit.
+// A pure function of t, so --subframes blur it like a real shutter. Call before drawing the shot, like cam(). Returns the envelope.
+function shake(c, t, hits, o = {}) {
+  const { amp = 26 * S, rot = 0.012, tau = 0.18, hz = 15, seed = 3 } = o; let e = 0;
+  for (const h of hits) if (t >= h) e = Math.max(e, Math.exp(-(t - h) / tau)); if (e < 0.003) return 0;
+  const r = rng(seed), ph = [r(), r(), r(), r(), r(), r()].map(v => v * 2 * Math.PI), n = (k, f) => 0.6 * Math.sin(2 * Math.PI * f * t + ph[k]) + 0.4 * Math.sin(2 * Math.PI * f * 1.73 * t + ph[k + 3]);
+  c.translate(W / 2 + amp * e * n(0, hz), H / 2 + amp * e * n(1, hz * 1.13)); c.rotate(rot * e * n(2, hz * 0.7)); c.translate(-W / 2, -H / 2); return e;
+}
+// A deck of n cards cycling every `hold` frames from t0 (wraps, unlike cutIndex): the stills strobe, one card per 2-3 frames at 24 fps.
+const deck = (t, t0, n, hold = 3, fps = 24) => ((Math.floor(((t - t0) * fps) / hold + 1e-6) % n) + n) % n;
+// Masked type: the word as a window onto fill(ctx) (footage, another scene), drawn through the glyphs. o is word()'s options;
+// o.knock: true inverts it (the picture with the word cut out). fill draws in the same transform as c.
+function maskWord(c, str, x, y, fill, o = {}) {
+  const [cv, s] = scratch('maskWord'), m = c.getTransform(); s.setTransform(m); word(s, str, x, y, { ...o, color: '#000', alpha: 1 });
+  s.globalCompositeOperation = o.knock ? 'source-out' : 'source-in'; s.setTransform(m); fill(s);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha *= o.alpha ?? 1; c.drawImage(cv, 0, 0); c.restore();
+}

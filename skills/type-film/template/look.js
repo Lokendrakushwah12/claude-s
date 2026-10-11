@@ -9,8 +9,9 @@
 //   lutStab(c, 'thermal')                                                  event passes: call them on the frames that need them
 //
 // Preset passes run in this order (weave moves the finished frame, so it can run after the scene):
-//   weave → scene → soft dofBand rgbSplit bloom halftone → grade → halation → screenDoor crtMask vhs → flicker → vignette → grain → dust
+//   weave → scene → soft dofBand rgbSplit bloom halftone → grade → halation → crush glow → screenDoor crtMask vhs → flicker → vignette → grain → dust
 // Event passes: lutStab asciiRender crtCollapse vhsTear filmBurn blueTear stutterRepeat defocusExit mosh
+// Hit passes (aura-edit): impactFrame zoomBlur lightSweep blockSwap, crush as a standalone grade, lensBand as a framing
 //
 // Cost per frame at 1920x1080, render.mjs wall time over 360 frames on an M4 Pro (a plain frame ≈ 62 ms, Chrome-bound):
 //   the draws themselves hide in the screenshot's slack (weave grade halation flicker vignette dust soft dofBand rgbSplit
@@ -53,10 +54,12 @@ function grade(c, k = 1, mono = 0) {
   c.restore();
 }
 // Halation: highlights (> ~200) at quarter res, tinted red-orange, blurred and screened back: the glow film puts round bright edges.
-function halation(c, k = 0.4) {
-  if (!k) return; const [w, h, s] = begin(c), [a, x] = buf('halA', w >> 2, h >> 2), [b, y] = buf('halB', w >> 2, h >> 2);
-  x.filter = 'brightness(0.55) contrast(7)'; x.drawImage(c.canvas, 0, 0, a.width, a.height); x.filter = 'none'; fill(x, 'multiply', '#ff6a3a', 1);
-  y.filter = `blur(${3.5 * s}px)`; y.drawImage(a, 0, 0);
+// o.color / o.blur (px at 1080p, at quarter res) / o.cut (lower = more of the frame glows): halation(c, 0.6, { color: '#ffffff', blur: 10 })
+// is the white bloom hype edits put on a white coat or a chrome edge (LOOK.aura's glow).
+function halation(c, k = 0.4, o = {}) {
+  if (!k) return; const { color = '#ff6a3a', blur = 3.5, cut = 0.55 } = o, [w, h, s] = begin(c), [a, x] = buf('halA', w >> 2, h >> 2), [b, y] = buf('halB', w >> 2, h >> 2);
+  x.filter = `brightness(${cut}) contrast(7)`; x.drawImage(c.canvas, 0, 0, a.width, a.height); x.filter = 'none'; fill(x, 'multiply', color, 1);
+  y.filter = `blur(${blur * s}px)`; y.drawImage(a, 0, 0);
   c.globalCompositeOperation = 'screen'; c.globalAlpha = clamp(k); c.drawImage(b, 0, 0, w, h); c.restore();
 }
 // Exposure flicker: ±2 % × k, a new value every film frame.
@@ -221,6 +224,65 @@ function mosh(c, t, k = 1, o = {}) {
   c.restore();
 }
 
+// ---- aura: hit passes for beat-led hype edits (aura-edit). Each is a pure function of what you pass; call on the frames that need it.
+// Punch grade: contrast up and blacks crushed, saturation down a touch. o.mono 1 = black and white; o.tint = a soft-light colour cast.
+function crush(c, k = 1, o = {}) {
+  if (!k) return; const { mono = 0, tint } = o, [w, h] = begin(c), src = snap(c);
+  c.filter = `contrast(${1 + 0.35 * k}) saturate(${(1 - 0.15 * k) * (1 - clamp(mono))}) brightness(${1 - 0.04 * k})`; c.drawImage(src, 0, 0); c.filter = 'none';
+  if (tint) fill(c, 'soft-light', tint, 0.3 * k); c.restore();
+}
+// Impact frame: the picture as stark black and white, inverted by default: 1-2 frames on the biggest hit (a drop, a shock).
+// k = how much it replaces the frame; o.invert false keeps it positive; o.tint multiplies a colour into the whites.
+function impactFrame(c, k = 1, o = {}) {
+  if (!k) return; const { invert = true, tint, contrast = 9 } = o, [w, h] = begin(c), src = snap(c);
+  c.globalAlpha = clamp(k); c.filter = `grayscale(1) contrast(${contrast})${invert ? ' invert(1)' : ''}`; c.drawImage(src, 0, 0); c.filter = 'none';
+  if (tint) fill(c, 'multiply', tint, clamp(k)); c.restore();
+}
+// Radial zoom blur toward (cx, cy) in 0..1: n copies scaled up to 1 + 0.12 k, averaged. Peaks on a zoom punch or a dive.
+function zoomBlur(c, k = 0.5, cx = 0.5, cy = 0.5, n = 8) {
+  if (!k) return; const [w, h] = begin(c), src = snap(c), X = cx * w, Y = cy * h;
+  for (let i = 1; i < n; i++) { const z = 1 + (0.12 * k * i) / (n - 1); c.globalAlpha = 1 / (i + 1); c.setTransform(z, 0, 0, z, X - X * z, Y - Y * z); c.drawImage(src, 0, 0); }
+  c.restore();
+}
+// Light sweep: a soft band of light crossing the frame as p goes 0 -> 1, screened. o: angle (rad from vertical), width (of W),
+// color (#rrggbb), k. To sweep only a word or a coat, call it inside your own c.clip() (the clip survives begin()).
+function lightSweep(c, p, o = {}) {
+  if (p <= 0 || p >= 1) return; const { angle = 0.35, width = 0.16, color = '#ffffff', k = 0.8 } = o, [w, h] = begin(c), d = Math.hypot(w, h), bw = width * w;
+  c.translate(w / 2, h / 2); c.rotate(angle); const x = lerp(-d / 2 - bw, d / 2 + bw, p), g = c.createLinearGradient(x - bw, 0, x + bw, 0);
+  g.addColorStop(0, color + '00'); g.addColorStop(0.5, color); g.addColorStop(1, color + '00');
+  c.globalCompositeOperation = 'screen'; c.globalAlpha = clamp(k); c.fillStyle = g; c.fillRect(-d, -d, 2 * d, 2 * d); c.restore();
+}
+// Block swap: the new picture (already on c) replaces `from` block by block as p goes 0 -> 1, the way a codec refreshes
+// macroblocks; a block still waiting shows `from` dragged along (vx, vy) px, so the old picture smears before it goes.
+// o: block (px at 1080p), order(i, j, cols, rows) -> the p at which that block switches (default: outward from (ox, oy)
+// plus seeded noise), seed, line (a colour: outline blocks about to switch).
+function blockSwap(c, from, p, o = {}) {
+  if (p >= 1) return; const { block = 64, ox = 0.5, oy = 0.5, vx = 0, vy = 0, seed = 1, line } = o, [w, h, s] = begin(c), B = Math.max(4, Math.round(block * s)), cols = Math.ceil(w / B), rows = Math.ceil(h / B);
+  const far = Math.hypot(Math.max(ox, 1 - ox) * w, Math.max(oy, 1 - oy) * h);
+  const order = o.order || ((i, j) => 0.75 * (Math.hypot((i + 0.5) * B - ox * w, (j + 0.5) * B - oy * h) / far) + 0.25 * hash(i * 7919 + j * 104729 + seed));
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const th = order(i, j, cols, rows); if (p >= th) continue; const q = clamp(p / Math.max(th, 1e-6));
+    c.drawImage(from, i * B - Math.round(vx * q * s), j * B - Math.round(vy * q * s), B, B, i * B, j * B, B, B);
+    if (line && th - p < 0.06) { c.strokeStyle = line; c.lineWidth = s; c.strokeRect(i * B + 0.5, j * B + 0.5, B - 1, B - 1); }
+  }
+  c.restore();
+}
+// Lens band: the picture through a horizontal band whose top and bottom edges bow (thinner in the middle, like a wide lens's
+// pincushion), feathered, on `ground`; the band's sides soften into a blur. A 9:16 "cinema" frame for interview-led edits.
+// o: y (centre, 0..1 of H), h (band height, of H), bow (of H), feather (px at 1080p), edge (side blur, 0 = none), ground.
+function lensBand(c, k = 1, o = {}) {
+  if (!k) return; const { y = 0.5, h = 0.5, bow = 0.03, feather = 14, edge = 1, ground = '#000000' } = o, [w, H, s] = begin(c), src = snap(c);
+  const [m, x] = buf('lensM', w, H), [b, z] = buf('lensB', w, H), top = (y - h / 2) * H, bot = (y + h / 2) * H, d = bow * H;
+  x.filter = `blur(${feather * s}px)`; x.fillStyle = '#fff'; x.beginPath(); x.moveTo(-w * 0.1, top - d); x.quadraticCurveTo(w / 2, top + d, w * 1.1, top - d);
+  x.lineTo(w * 1.1, bot + d); x.quadraticCurveTo(w / 2, bot - d, -w * 0.1, bot + d); x.closePath(); x.fill();
+  if (edge) { z.filter = `blur(${10 * s * edge}px)`; z.drawImage(src, 0, 0); z.filter = 'none'; // the sides out of focus, the middle sharp
+    const [cv, q] = buf('lensS', w, H), g = q.createLinearGradient(0, 0, w, 0); q.drawImage(src, 0, 0); q.globalCompositeOperation = 'destination-in';
+    g.addColorStop(0, '#0000'); g.addColorStop(0.22, '#000'); g.addColorStop(0.78, '#000'); g.addColorStop(1, '#0000'); q.fillStyle = g; q.fillRect(0, 0, w, H); z.drawImage(cv, 0, 0);
+  } else z.drawImage(src, 0, 0);
+  z.globalCompositeOperation = 'destination-in'; z.drawImage(m, 0, 0);
+  c.globalAlpha = clamp(k); fill(c, 'source-over', ground, 1); c.drawImage(b, 0, 0); c.restore();
+}
+
 // ---- presets ----
 // Strengths per pass; k scales them all. Off unless asked for: LOOK.none is the default for every skill.
 const LOOK = {
@@ -230,6 +292,7 @@ const LOOK = {
   crt: { rgbSplit: 0.3, bloom: 0.5, crtMask: 0.55, flicker: 0.012, vignette: 0.5 },                                          // a tube monitor
   lcd: { dofBand: 1, rgbSplit: 0.2, bloom: 0.35, screenDoor: 0.45, vignette: 0.45 },                                         // an LCD through a macro lens
   vhs: { soft: 0.6, rgbSplit: 0.5, bloom: 0.2, grade: 0.3, crtMask: 0.25, vhs: 1, grain: 0.1, vignette: 0.3 },               // tape, with a tear every 2.5 s
+  aura: { crush: 0.9, glow: 0.45, vignette: 0.45, grain: 0.07 },                                                            // a hype edit: crushed, white bloom
 };
 // One call per frame, after the scene. src: a canvas holding the scene (default: c's own canvas). L: a preset, its name, or
 // { ...LOOK.x, k, focus (dofBand y), grainFn (c, t, k) to swap the grain, e.g. type.js grain or lib.js paper }.
@@ -239,12 +302,12 @@ function applyLook(c, t, src, L = {}) {
   if (src && src !== c.canvas) { begin(c); c.drawImage(src, 0, 0); c.restore(); }
   weave(c, t, g('weave'));
   soft(c, g('soft')); dofBand(c, g('dofBand'), L.focus ?? 0.5); rgbSplit(c, g('rgbSplit')); bloom(c, g('bloom')); halftone(c, g('halftone'));
-  grade(c, g('grade'), g('mono')); halation(c, g('halation'));
+  grade(c, g('grade'), g('mono')); halation(c, g('halation')); crush(c, g('crush'), { mono: g('mono'), tint: L.tint }); halation(c, g('glow'), { color: '#ffffff', blur: 10, cut: 0.62 });
   screenDoor(c, g('screenDoor')); crtMask(c, g('crtMask')); if (g('vhs') && fr(t, 30) % 75 < 3) vhsTear(c, t, g('vhs'));
   flicker(c, t, g('flicker')); vignette(c, g('vignette')); if (g('grain')) (L.grainFn || filmGrain)(c, t, g('grain')); filmDust(c, t, g('dust'));
 }
 // Assigned, not declared, so a page's own names win. applyLook only where free: explainer-lesson's kit.js has its own.
 Object.assign(window, { weave, grade, halation, flicker, vignette, filmGrain, filmDust, soft, dofBand, rgbSplit, bloom, halftone, screenDoor, crtMask,
-  LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, LOOK });
+  LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, crush, impactFrame, zoomBlur, lightSweep, blockSwap, lensBand, LOOK });
 LOOK.apply = applyLook; if (typeof window.applyLook !== 'function') window.applyLook = applyLook;
 })();

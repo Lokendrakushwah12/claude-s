@@ -1,0 +1,18 @@
+{
+  "mode": "narrated",
+  "size": "1080x1920",
+  "fps": 30,
+  "voice": "room",
+  "captions": "line",
+  "look": { "preset": "archival", "k": 0.45, "dust": 0.6 },
+  "palette": { "accent": "#e9b85c" },
+  "lines": [
+    { "id": "l1", "say": "Replace this with the first line of the script.",
+      "shots": [ { "scene": "sea", "move": "push" } ],
+      "amb": { "surf": 0.8, "wind": 0.4, "gulls": { "gain": 0.5, "dist": 0.7 } } },
+    { "id": "l2", "say": "One idea per line, and one picture per idea.",
+      "shots": [ { "scene": "sky", "move": "drift" }, { "scene": "intertitle", "title": "one picture", "on": 6 } ],
+      "amb": { "wind": 0.6, "birds": 0.5 } }
+  ],
+  "end": { "title": "Title", "sub": "a line under it", "dur": 2.5 }
+}

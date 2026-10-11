@@ -39,6 +39,8 @@ Narration uses story-video's Chatterbox. If `~/.local/share/story-video/tts-venv
 - Keep curves and values to scale: write the real equation (the example's ceiling is `(TH + 273.15) / (TH - tc)`), not a curve that merely looks right. A wrong number in a lesson does harm.
 
 ## 2. Storyboard before code
+Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
+
 **Length follows depth; there is no cap.** A single idea with one graph runs 60 to 120 s. A cycle or a process with several stages runs 3 to 6 minutes, and a whole system can run 10 minutes or more. Budget 20 to 40 s per idea, and put a chapter every 30 to 90 s (`defineLesson` complains about a chapter longer than 3 minutes).
 
 One line per beat, with times. The shape of a short lesson; longer ones repeat the middle for each stage:

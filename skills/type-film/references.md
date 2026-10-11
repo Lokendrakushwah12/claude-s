@@ -12,6 +12,7 @@ prompt, script or copy here. **Lives in** names the helpers that implement the t
 Contents: the first three films (Whop, portfolio reel, Nexus), then the 2026-10-10 batch by style: screen HUD (19, 09,
 17), 80s vector CRT (08), monochrome morph (12), line catalogue (20), isometric product (01, 13), UGC and screen edits
 (02, 07, 16), paper and collage (14, 06), lyric and promo motion (10, 15, 18), and process (prompt-motion, stop-motion).
+Then the 2026-10-11 batch's aura edits and motion craft (24, 31 + systms.ai, 47, 48, 49, 34, 35): the aura grammar lives in aura-edit.
 
 ---
 
@@ -324,3 +325,111 @@ Full measurements (frames, sheets, spectrograms, stems) are in `~/Movies/refs/ba
 **Lives in:** lib.js `boil(t, 12, 3) stepT jitter flickerGain sketch`.
 
 Not here: @eliana_jordan's POV jump cuts (`x.com/eliana_jordan/status/2108867254255505792`) belong to ugc-edit.
+
+---
+
+# Batch 2026-10-11: aura edits and motion craft
+
+Full measurements are in `~/Movies/refs/batch-2026-10-11/<NN>-<handle>/dc/`, summarised in `NOTES-G3.md` there. Sound notes come
+from spectrograms and band energy; nobody listened.
+
+## "Aura farming" type strobe, @danielinverted (#24)
+`x.com/danielinverted/status/2108908655555105278` · 13.3 s, 1080x1060, 60 fps, −9.8 LUFS
+
+**TAKE**
+- A stills strobe: ~22 black-and-white cards on one word, each held 3 frames at 24 fps (0.125 s, occasionally 2), cycled as a deck the eye learns. The cards don't move; the rhythm is the motion.
+- One word in many voices (serif, script, grotesk, mono, handwriting, a diagram). Light and dark grounds alternate, so every cut also flashes.
+- Sound: the sub leaves 0.38 s before the drop while the vocal carries on, then an 808 slides ~2.5 semitones down into the drop, 16 dB up below 90 Hz. Inside the drop, 0.25 s dead stops of the whole mix; a hard end.
+- The picture ignores the drop: the strobe runs at its own rate and the music supplies the arc.
+
+**LEAVE**
+- The quotes and the word, the film still of a famous actor, every card's typography as set, the song.
+
+**Lives in:** type.js `deck`; aura-edit `strobe` shots; aura_sfx.py `bass808 drop_kit`; `stop` hits.
+
+## "[p-frames]", @ingi_erlingsson (#31), and systms.ai (E4)
+`x.com/ingi_erlingsson/status/2109099689404662081` · 11.7 s, 1280x1280, 141 BPM, one take, a loop
+
+**TAKE**
+- The transition is a process made visible. Portraits turn into each other the way a codec refreshes macroblocks: the new subject arrives block by block, and the old one smears in the blocks that haven't refreshed.
+- One take: the subject changes and the camera never cuts. The big swaps land on the bars and on each drop.
+- Measurement overlays as texture: block labels, motion needles all leaning with the camera, tracker boxes holding false-colour crops.
+- Sound: a 0.35 s sub-out before each of two drops (+20 dB below 90 Hz).
+- systms.ai (Ingi Erlingsson and Armand Weeresinghe's applied-AI studio in London): custom models and tools (INFL8, FLW transitions, ACTION, the TIMESLICE slit-scan node, the FLDS platform, PRISM for Doodles). Its lab's house look draws the machine's perception (feature-match lines, normal-map and thermal crops, cursors) over photographs. The lesson: custom tools are what stop output from looking generic.
+
+**LEAVE**
+- The subjects and their brands, the HUD's wording and layout, the pink/garden palette, AI fashion portraits as content, the studio's models and clips.
+
+**Lives in:** look.js `blockSwap` (and `mosh` for stale-frame datamosh); the "Maker's-tool collision" style.
+
+## "another one", @danielinverted (#47)
+`x.com/danielinverted/status/2109152815377694936` · 8.3 s, 30 fps, −11.3 LUFS
+
+**TAKE** (what it adds to #24)
+- A voice-led build: a spoken line over a talking head, the music ducked ~20 dB under it.
+- One word per caption, cut on at each onset, in wide-tracked bold caps, sitting behind the speaker so his hand crosses the letters.
+- The drop lands 0.1 s after the last word (sub +27 dB). The edit turns from claim to proof: a shot on every 808 note (~0.63 s), each drifting 10–13 % of the frame per second.
+- An end stutter: 1–3-frame jump cuts within the last shot, then a hard end. All black and white.
+
+**LEAVE**
+- The line, the speaker, the luxury montage (cars, cash, watches, chains), the silver caption fill.
+
+**Lives in:** aura-edit "voice-led variant" (`sound.vo`, `slam` with `from: 1` and `track`, `behind`, `strobe` for the stutter).
+
+## "lock in", @discipline_club (#48)
+`x.com/discipline_club/status/2109005659085627445` · 12.6 s, 30 fps, −18.6 LUFS with an LRA of 10.8
+
+**TAKE**
+- Atmosphere is the edit: crushed black-and-white night footage, all motion blur (streetlights, the moon, trees through a car window).
+- A fixed cadence: cards of 3 frames, with every seventh held for 6. It doesn't change at the drop.
+- One small static line for the whole film.
+- Sound: a quiet drone, then 0.5 s with no sub, then a drop 19 dB up, with sub-outs of 0.2 s and full stops of 0.15 s.
+
+**LEAVE**
+- The line, the footage, the account's framing.
+
+**Lives in:** aura-edit `strobe.hold` cadences, `slam` with `from: 1`, `LOOK.aura` with `mono: 1`.
+
+## Interview and evidence, @neuronpowers (#49)
+`x.com/neuronpowers/status/2108909915863756923` · 30.5 s, 720x1280, voice throughout, −14.2 LUFS
+
+**TAKE**
+- A longer voice-led form: a press-conference answer intercut with the action it describes, one cut per phrase.
+- One serif word at a time, centred in the picture.
+- A 9:16 frame as a horizontal band whose top and bottom edges bow, feathered, with soft sides.
+- A teal and warm-red grade. The bed sits only ~4 dB under the voice and lifts (sub +20 dB) at the emotional peak.
+
+**LEAVE**
+- The athlete, her words, the event's branding, the channel's badge.
+
+**Lives in:** look.js `lensBand`; aura-edit `frame`, `sound.vo`, `slam` with serif `fonts`.
+
+## "2026 so far", @shapelayer (Leon Fucak) (#34)
+`x.com/shapelayer/status/2108547527821930540` · 5.9 s, 1920x1080, no audio: a 4x4 wall of the studio's launch films
+
+**TAKE**
+- One idea per piece, and the product's own UI is the hero.
+- Type and UI share one line: a word docks into a key that sprouts icon tiles; icon chips sit inline in a sentence; a word half-hides behind the card it names.
+- A typo typed and corrected live, the one human imperfection.
+- A counter climbing while app icons orbit an arc; a slot list of verbs with a connector pulling a partner's pill that re-brands each row; words out of blur with the last words in a lighter tint; a sparkle that wipes through a line; a blob that morphs into a terminal icon; multiplayer cursors with name tags.
+
+**LEAVE**
+- Every client brand, UI and line of copy, the palettes, the wall as a format for someone else's work.
+
+**Lives in:** type.js `inlineWord selectHL slotList counterRoll typed glowIn pointer morphMatch`; promo-video for SaaS launches.
+
+## "What is creativity", @shapelayer (#35)
+`x.com/shapelayer/status/2108909309077922211` · 7.6 s, 3840x2160, 24 fps, a loop
+
+**TAKE**
+- The title's question is answered by a collision, not an illustration. The tools of making (a bounding box with handles, a giant cursor with a halftone motion trail, a pen) meet growth (lime forms built from visible slices, bubbles budding like cells, each holding a tiny flower) and a machine hand.
+- The camera slams *through* the words into the next world (a sub on the push, a whoosh on the burst).
+- The middle letters of the word are tinted.
+- The end is the start: the hand that wipes the frame open wipes it shut.
+- The user's note: creativity should come from inside the subject. That became `creative.md`.
+
+**LEAVE**
+- The robot hand, lime on white, the bubbles and flowers, the cursor and pen props, the title.
+
+**Lives in:** `creative.md`; the "Maker's-tool collision" style row; `maskWord`, `smear`, `pointer`.
+

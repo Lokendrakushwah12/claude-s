@@ -3,18 +3,28 @@
  "size": "1080x1920",
  "brand": {"name": "acme", "accent": "#3B6CFF", "font": "Inter Tight", "ui": "Inter", "mono": "JetBrains Mono"},
  "phrases": [
-  {"say": "Every launch I did", "cam": "A", "kw": "launch", "z0": 1.5, "ay": 0.36},
-  {"say": "flopped.", "cam": "B", "kw": "flopped", "hold": 0.3},
+  {"say": "Every launch I did", "cam": "A", "kw": "launch", "z0": 1.5, "ay": 0.36, "focus": true},
+  {"say": "flopped.", "cam": "B", "kw": "flopped", "hold": 0.3, "sfx": {"flopped": "deflate"}},
   {"say": "Six months of building,", "kw": "building", "insert": {"kind": "montage", "items": ["01", "09", "17", "26"]}},
   {"say": "one giant release,", "cam": "W", "kw": "giant", "graphic": true, "pull": true},
-  {"say": "and then, silence.", "cam": "A", "kw": "silence", "hush": true},
+  {"say": "and then, silence.", "cam": "A", "kw": "silence", "hush": true, "laugh": "type"},
   {"say": "So now we ship small.", "cam": "A", "kw": "small", "behind": true, "flash": true, "build": true},
   {"say": "One feature a week.", "kw": "week", "insert": {"kind": "screen", "query": "Dark mode toggle", "button": "Ship", "clickOn": "week",
      "results": ["v1.43  Dark mode toggle", "v1.42  Undo on delete"]}},
   {"say": "Ship it, and learn.", "cam": "B", "kw": "learn", "push": 0, "sfx": {"ship": "pop"}},
-  {"say": "That's the whole idea.", "caption": false, "insert": {"kind": "card", "title": "ship small", "sub": "learn fast"}}
+  {"say": "The reason most teams stall is the backlog.", "cam": "A", "kw": "backlog", "lockup": true, "rack": true},
+  {"say": "So we built acme.", "cam": "B", "ui": {"name": "acme", "handle": "@acme", "stat": "43", "label": "releases", "takeover": true}},
+  {"say": "Pick the change and ship it.", "insert": {"kind": "app", "rows": ["Dark mode", "Undo on delete"], "button": "Ship", "done": "Shipped", "clickOn": "ship", "toast": "v1.43 is live"}},
+  {"say": "Forty three releases this year.", "insert": {"kind": "stat", "value": "43", "label": "releases this year"}},
+  {"say": "Here's every one of them.", "insert": {"kind": "collection", "style": "stamps", "step": "words", "images": ["photos/launch.jpg", "src/A.mp4#3.5"], "items": ["v1", "v12", "v30"], "title": "every release"}},
+  {"say": "Teams found us everywhere.", "cam": "W", "kw": "everywhere", "pops": ["DM", "@", {"text": "Mail", "img": "photos/mail.png"}], "caption": "word"},
+  {"say": "Rule one: ship weekly.", "insert": {"kind": "chapter", "n": 1, "over": "ship", "word": "weekly", "sub": "not someday"}},
+  {"say": "Make it a series.", "insert": {"kind": "posters", "hold": 0.4, "items": [{"title": "SHIP\nSMALL", "sub": "acme / 01"}, {"title": "43", "big": "43", "sub": "releases"}, {"title": "LEARN\nFAST", "sub": "acme / 03"}]}},
+  {"say": "Your users are waiting.", "cam": "A", "window": true},
+  {"say": "That's the whole idea.", "caption": false, "out": "portal", "insert": {"kind": "card", "title": "ship small", "sub": "learn fast"}}
  ],
  "end": {"kind": "end", "text": "acme", "sub": "ship small.", "dur": 1.4},
  "hooks": ["So now we ship small.", "Ship it, and learn."],
- "hookBody": 3
+ "hookBody": 3,
+ "bed": "auto"
 }

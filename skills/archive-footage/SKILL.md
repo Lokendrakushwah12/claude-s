@@ -1,6 +1,6 @@
 ---
 name: archive-footage
-description: Find and cut short segments of old film (b-roll, archival texture, film countdown leaders, grain plates, "objects on black", old maps) from movingimagearchive.com, the Internet Archive or Wikimedia Commons. Each clip's licence is checked at the archive it came from, not the aggregator, and the credits are written for the end card. Use when a video needs real archival film, when the user mentions movingimagearchive.com, Prelinger, public-domain footage or old film b-roll, or when type-film, story-video, explainer-lesson or ugc-edit need an archival shot.
+description: Find and cut short segments of old film (b-roll, archival texture, film countdown leaders, grain plates, "objects on black", old maps) from movingimagearchive.com, the Internet Archive or Wikimedia Commons. Each clip's licence is checked at the archive it came from, not the aggregator, and the credits are written for the end card. Use when a video needs real archival film, when the user mentions movingimagearchive.com, Prelinger, public-domain footage or old film b-roll, or when type-film, story-video, explainer-lesson, ugc-edit or faceless-video need an archival shot. Its editing.md has shot ideas per theme, a montage recipe, sound for silent film, and grade settings.
 ---
 
 # Archive footage → verified clips + credits
@@ -12,7 +12,7 @@ movingimagearchive.com (MIA) is the best place to *find* old film: OpenCLIP sear
 ## When to use
 - B-roll and archival texture under type or narration.
 - Film countdowns, grain plates, "objects on black", glowing lines, old animated maps, cursors and frames. MIA has whole collections of these, and its search finds them.
-- Called by `type-film`, `story-video`, `explainer-lesson` and `ugc-edit`. They draw everything else; this skill supplies real film and its credit lines.
+- Called by `type-film`, `story-video`, `explainer-lesson`, `ugc-edit` and `faceless-video` (which cuts whole films from it). They draw everything else; this skill supplies real film and its credit lines.
 
 ## The flow
 Run it from the project folder: `A=~/.claude/skills/archive-footage/archive.py`.
@@ -38,7 +38,7 @@ Run it from the project folder: `A=~/.claude/skills/archive-footage/archive.py`.
    uv run $A credits [--card 1920x1080]
    ```
    - **`CREDITS.md`:** an "Archival footage" section between markers. Anything else in the file stays.
-   - **`credits.txt`:** one line per clip, `title (date) · archive · licence`, for an end card or the video description.
+   - **`credits.txt`:** one line per film (two clips from one film share a line), `title (date) · archive · licence`, for an end card or the video description.
    - **`credits.json`**, and **`credits.png`** (with `--card`): a plain end card.
    - Clips are listed in the order you fetched them. To drop one, delete its .mp4 and .json and run `credits` again.
 
@@ -46,6 +46,15 @@ Run it from the project folder: `A=~/.claude/skills/archive-footage/archive.py`.
 - **Canvas skills (type-film, explainer-lesson):** extract a JPG sequence (`ffmpeg -i clip.mp4 -q:v 2 f/%04d.jpg`) and draw frame `floor((t - t0) * 30)`. It stays frame-exact under `seek(t)`. Or overlay the mp4 with ffmpeg after the render.
 - **story-video:** joins card mp4s without re-encoding, so get the clip with `--size 3840x2160 --fps 30000/1001`.
 - **End card:** use `credits.txt` on it, or `credits.png` as is.
+- **faceless-video:** names the clip in `film.json` (`"clip": "<name>"`) and cuts, grades, scores and credits it.
+
+## Editing it
+[`editing.md`](editing.md) has the craft, taken from two archival edits on 2026-10-11:
+- **Shot ideas per theme:** search phrases that worked, and their traps.
+- **The two-worlds montage recipe:** match cuts, runs of 3-5 frame shots into a long hold, object inserts, a page pushed in, step-printing.
+- **Footage played on a screen or as a print.**
+- **Sound for silent film:** what's in the frame mapped to faceless-video's synthesised beds and foley spots.
+- **Grade and damage settings by source.** Short version: clean scans get almost no look and no fake damage.
 
 ## Licensing rules
 `get` checks the licence at the archive the film came from: archive.org `licenseurl`, the openbeelden OAI `oi:license`, images.nasa.gov, or Commons extmetadata. Then it sorts the clip into a class:
@@ -81,3 +90,6 @@ Run it from the project folder: `A=~/.claude/skills/archive-footage/archive.py`.
 - **archive.org metadata quirks:** dates like "ca. 1920s", and "N/A" in empty fields. Its search returns HTTP 200 with an error body when a `/` isn't escaped.
 - **A bogus PDM on a community upload:** a 1983 *Charlie's Angels* countdown leader carried the Public Domain Mark. That's why community uploads count as `unverified`.
 - **CREDITS.md clash:** story-video's `fetch_assets.py` rewrites the whole file. Run `archive.py credits` after it.
+- **Pillarboxed HD copies:** an openbeelden 1920x1080 file held a 4:3 picture inside black bars. Crop it (faceless-video `crop`) before a cover framing.
+- **Home movies:** a 320x240 amateur reel had a hair in the gate and whip-panned after 1.5 s. Look at the strip before you place a clip.
+- **Tragedy in the results:** "busy street 1906" returned the San Francisco earthquake. Don't borrow a disaster film for an unrelated mood.
