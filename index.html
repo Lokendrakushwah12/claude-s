@@ -44,7 +44,7 @@ h1 { margin: 0; font-weight: 600; font-size: clamp(30px, 5vw, 48px); line-height
 .chip.ref { --ic: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2012%2012%27%3E%3Cpath%20d%3D%27M6%202.6C3.3%202.6%201.4%204.7.8%206c.6%201.3%202.5%203.4%205.2%203.4s4.6-2.1%205.2-3.4C10.6%204.7%208.7%202.6%206%202.6Zm0%205.4a2%202%200%201%201%200-4%202%202%200%200%201%200%204Z%27/%3E%3C/svg%3E"); background: var(--b-yellow); color: var(--b-yellow-fg); }
 .chip.ref:hover { background: #ffeca3; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-section[hidden] { display: none; }
+[hidden] { display: none !important; }   /* the filter hides cards with `hidden`; .card's display:grid would otherwise override it */
 .intro { color: var(--dim); margin: 22px 0 14px; max-width: 70ch; }
 h2 { font-size: 13px; font-family: var(--mono); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin: 34px 0 12px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
