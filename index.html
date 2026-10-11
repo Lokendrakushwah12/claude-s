@@ -32,6 +32,7 @@ h1 { margin: 0; font-weight: 600; font-size: clamp(30px, 5vw, 48px); line-height
 .tab svg { width: 18px; height: 18px; flex: none; }
 .tab[aria-selected="true"] { color: var(--fg); }
 .tab .n { font: 500 12px var(--mono); opacity: .6; }
+.tabular-nums { font-variant-numeric: tabular-nums !important; }   /* digits share one width, so counts don't jitter as they change */
 @media (prefers-reduced-motion: reduce) { .tab-pill, .tab { transition: none; } }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 /* badges and pills: a soft tint, no border, a small icon before the label (grey = neutral, green = on, yellow = reference) */
@@ -94,8 +95,8 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule);
   <div class="bar">
     <div class="tabs" role="tablist">
       <span class="tab-pill instant" aria-hidden="true"></span>
-      <button class="tab" role="tab" id="tab-reference" aria-controls="reference" data-tab="reference"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z"/></svg>Reference<span class="n" id="n-ref"></span></button>
-      <button class="tab" role="tab" id="tab-result" aria-controls="result" data-tab="result"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M8.5 6.2v11.6c0 .7.8 1.2 1.4.8l8.6-5.8c.6-.4.6-1.2 0-1.6L9.9 5.4c-.6-.4-1.4.1-1.4.8Z"/></svg>Result<span class="n" id="n-res"></span></button>
+      <button class="tab" role="tab" id="tab-reference" aria-controls="reference" data-tab="reference"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z"/></svg>Reference<span class="n tabular-nums" id="n-ref"></span></button>
+      <button class="tab" role="tab" id="tab-result" aria-controls="result" data-tab="result"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M8.5 6.2v11.6c0 .7.8 1.2 1.4.8l8.6-5.8c.6-.4.6-1.2 0-1.6L9.9 5.4c-.6-.4-1.4.1-1.4.8Z"/></svg>Result<span class="n tabular-nums" id="n-res"></span></button>
     </div>
     <div class="chips" id="filter" aria-label="Filter by skill"></div>
   </div>
