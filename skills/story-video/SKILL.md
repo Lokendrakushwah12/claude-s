@@ -64,7 +64,7 @@ Re-roll (below) every `??` line that isn't just whisper's spelling (digits, homo
   Then run `./run.sh --keep-voice`.
 - **Text, timing or colours:** edit, then `./run.sh --keep-voice`. Re-narrate the lines whose words changed.
 - **Clone a voice:** set `REFERENCE` in `narrate.py` to a clean clip of 10 s or more, including the user's own recording.
-- **Sound:** `make_audio.py` turns the cards into cues for `sfx.py`, the shared engine (a byte-for-byte copy of `promo-video/template/sfx.py`; its docstring lists all 55 sounds). Every SFX is set by family against the voice: subs +6 dB below 150 Hz, air and micro −14 dB. The music sits 12 dB under the voice while it speaks and comes back up in pauses over 0.3 s.
+- **Sound:** `make_audio.py` turns the cards into cues for `sfx.py`, the shared engine (a byte-for-byte copy of `promo-video/template/sfx.py`; its docstring lists every sound). Every SFX is set by family against the voice: subs +6 dB below 150 Hz, air and micro −14 dB. The music sits 12 dB under the voice while it speaks and comes back up in pauses over 0.3 s.
   - `STYLE_CUE` maps style to sounds: `sub_boom` with a `passby` peaking 50 ms before the cut on `photo` and `why`, a `suck_in` ending on `white`, a `sub_boom` on `end`, nothing on crossfaded text. `CUE` overrides one slug with any sfx.py sound.
   - `SFX=none ./run.sh --keep-voice` drops every SFX and lets the music carry the cuts (the gap and echo stay).
   - `SECTIONS` shapes the bed (an arp, then a groove from the drop) and `CHORDS` sets the harmony. `BPM` is fitted near 124 so the drop lands on a bar line.

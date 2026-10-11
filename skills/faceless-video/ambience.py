@@ -12,8 +12,10 @@ shot, crossfaded on the cuts. Writes a 48 kHz stereo wav, unmastered: the projec
 
 scenes.json
   duration  seconds
-  scenes    [{t, layers: {name: gain | {gain, ...params}}}, ...]   t = the picture cut. A layer with the same params in two
+  scenes    [{t, layers: {name: gain | {gain, muffle, ...params}}}, ...]   t = the picture cut. A layer with the same params in two
             neighbouring shots is ONE signal across the cut (only its gain eases), so a continuing wind never restarts.
+            muffle (Hz) = heard through a wall: the same storm outside is {gain: .6, muffle: 500} once we're indoors, and
+            glides open on the cut back out (or on a door: a scene of 0.3 s with no muffle). Gain and muffle never restart a layer.
   spots     [[t, name], [t, name, gain], [t, name, gain, {params}], ...]   one-shot foley on picture
   xfade     crossfade on a cut, s (0.35). One rule covers both cases: gain = sqrt((1-w)·a² + w·b²), w = sin²(πp/2), so a
             bed that changes is equal-power and a bed that carries on just eases between its two gains.
@@ -37,7 +39,8 @@ Layers (gain 1 = its natural level; params with defaults)
   machine    rate 6 size 1                    a press or mill: a metallic clatter on a beat, a motor under
   projector  fps 24                           a film projector: claw clatter at fps, motor whine, fan
   hiss       crackle .5                       optical-track hiss and crackle (under silent archival film)
-Spots: chirp, gull, splash, thunder, steps {n 4, rate 1.8, surface gravel|wood}, hooves {n 8, rate 3.2}, bell {f 330, decay 1}.
+Spots: chirp, gull, splash, thunder, steps {n 4, rate 1.8, surface gravel|wood}, hooves {n 8, rate 3.2}, bell {f 330, decay 1},
+       clock {n 8, rate 1} (tick-tock: waiting, time passing indoors).
        Every spot takes pan (-1..1) and dist (0 near .. 1 far).
 """
 import json, sys, wave, zlib
@@ -50,7 +53,7 @@ SR = 48000
 LEVEL = {  # dBFS at gain 1: beds are RMS, event layers and spots are the loudest call's peak
     "room": -54, "wind": -30, "leaves": -38, "birds": -24, "gulls": -26, "stream": -31, "surf": -27, "rain": -31,
     "insects": -40, "crowd": -33, "fire": -34, "traffic": -36, "machine": -33, "projector": -33, "hiss": -47,
-    "chirp": -20, "gull": -20, "splash": -18, "thunder": -16, "steps": -22, "hooves": -20, "bell": -16}
+    "chirp": -20, "gull": -20, "splash": -18, "thunder": -16, "steps": -22, "hooves": -20, "bell": -16, "clock": -24}
 EVENTS = {"birds", "gulls"}  # levelled by their loudest call, so a sparse flock stays as quiet as a sparse flock is
 
 
@@ -367,6 +370,14 @@ def sp_bell(r, f=330.0, decay=1.0, pan=0.0, dist=0.7, **_):  # decay .15 and f 1
     y = pan2(y * np.minimum(1, tt / 0.003), pan); return distant(y, dist * 0.6) + dist * 0.8 * verb(y, 2.5)
 
 
+def sp_clock(r, n=8, rate=1.0, pan=0.0, dist=0.15, **_):  # a wall clock: tick (brighter) and tock (lower) alternate, 1/rate s apart
+    k = int(0.06 * SR); tt = np.arange(k) / SR; out = np.zeros(int((n / rate + 0.3) * SR))
+    for i in range(int(n)):
+        f = 2900 if i % 2 == 0 else 2300; y = bp(r.standard_normal(k), f * 0.7, f * 1.4) * np.exp(-tt / 0.004) + np.sin(2 * np.pi * f / 2.4 * tt) * np.exp(-tt / 0.01) * 0.3
+        j = int((i / rate + r.normal(0, 0.002)) * SR); out[j:j + k] += y * (1 if i % 2 == 0 else 0.8)
+    return distant(pan2(out, pan), dist)
+
+
 SPOTS = {k[3:]: v for k, v in globals().items() if k.startswith("sp_")}
 
 
@@ -381,26 +392,35 @@ def make(name, n, seed, params):
     return norm(name, LAYERS[name](r, n, seed, **params))
 
 
+def lowpass_curve(x, loghz):  # a low-pass whose cutoff follows loghz per sample: crossfaded fixed low-passes, so it never zippers
+    cut = [250, 500, 1000, 2000, 4000, 8000, 20000]; lv = np.interp(loghz, np.log(cut), np.arange(len(cut))); out = np.zeros_like(x)
+    for k, c in enumerate(cut):
+        w = np.clip(1 - np.abs(lv - k), 0, 1)
+        if w.any(): out += (x if c >= 20000 else filt(filt(x, "low", c), "low", c)) * w
+    return out
+
+
 def render(spec, out=None):
     dur, seed = spec["duration"], spec.get("seed", 1); N = int(dur * SR)
     xf, lead, floor = spec.get("xfade", 0.35), spec.get("lead", 0.1), spec.get("floor", 0.6)
     scenes = sorted(spec.get("scenes") or [{"t": 0, "layers": {}}], key=lambda s: s["t"])
     starts = [0.0] + [max(0.0, s["t"] - lead) for s in scenes[1:]]
-    inst = {}  # (name, params) -> gain per scene
+    inst = {}  # (name, params) -> [gain per scene, muffle Hz per scene]
     for i, s in enumerate(scenes):
         lay = dict(s.get("layers") or {})
         if floor: lay.setdefault("room", floor)
         for name, v in lay.items():
             if name not in LAYERS: sys.exit(f"unknown layer {name!r}; known: {' '.join(LAYERS)}")
-            v = v if isinstance(v, dict) else {"gain": v}; p = {k: x for k, x in v.items() if k != "gain"}
-            inst.setdefault((name, json.dumps(p, sort_keys=True)), [0.0] * len(scenes))[i] = float(v.get("gain", 1))
+            v = v if isinstance(v, dict) else {"gain": v}; p = {k: x for k, x in v.items() if k not in ("gain", "muffle")}
+            gm = inst.setdefault((name, json.dumps(p, sort_keys=True)), [[0.0] * len(scenes), [20000.0] * len(scenes)])
+            gm[0][i], gm[1][i] = float(v.get("gain", 1)), float(v.get("muffle", 20000))
     mix, t = np.zeros((2, N)), np.arange(N) / SR
-    for (name, p), gains in inst.items():
-        g = np.full(N, gains[0])
+    for (name, p), (gains, muf) in inst.items():
+        g, hz = np.full(N, gains[0]), np.full(N, np.log(muf[0]))
         for i in range(1, len(scenes)):
-            a, b = gains[i - 1], gains[i]; w = np.sin(np.pi / 2 * np.clip((t - starts[i] + xf / 2) / xf, 0, 1)) ** 2
-            g = np.where(t >= starts[i] - xf / 2, np.sqrt((1 - w) * a ** 2 + w * b ** 2), g)
-        if g.max() > 0: mix += make(name, N, seed, json.loads(p)) * g
+            a, b = gains[i - 1], gains[i]; w = np.sin(np.pi / 2 * np.clip((t - starts[i] + xf / 2) / xf, 0, 1)) ** 2; on = t >= starts[i] - xf / 2
+            g = np.where(on, np.sqrt((1 - w) * a ** 2 + w * b ** 2), g); hz = np.where(on, np.log(muf[i - 1]) * (1 - w) + np.log(muf[i]) * w, hz)
+        if g.max() > 0: x = make(name, N, seed, json.loads(p)); mix += (lowpass_curve(x, hz) if hz.min() < np.log(19000) else x) * g
     for row in spec.get("spots") or []:
         at, name, gain, kw = (list(row) + [1.0, {}][len(row) - 2:])[:4]
         if name not in SPOTS: sys.exit(f"unknown spot {name!r}; known: {' '.join(SPOTS)}")
@@ -439,7 +459,7 @@ CHECK = {  # name: (centroid range Hz, min spread dB): what each must sound like
     "insects": ((3500, 6500), 6), "crowd": ((250, 1600), 0), "fire": ((150, 4500), 0), "traffic": ((50, 900), 1),
     "machine": ((300, 3500), 3), "projector": ((300, 3500), 0), "hiss": ((2500, 8000), 0),
     "chirp": ((2000, 7000), 0), "gull": ((700, 3200), 0), "splash": ((300, 3500), 0), "thunder": ((30, 600), 0),
-    "steps": ((100, 4000), 0), "hooves": ((200, 4000), 0), "bell": ((150, 1500), 0)}
+    "steps": ((100, 4000), 0), "hooves": ((200, 4000), 0), "bell": ((150, 1500), 0), "clock": ((1000, 5000), 0)}
 
 
 def selftest():
@@ -471,6 +491,10 @@ def selftest():
     assert b > a, ("rain should brighten the bed after the cut", a, b)
     assert e[int(4.5 / 0.05) + 1] > e[int(4.3 / 0.05)] + 2, "the bell spot didn't land"
     print("ok cut: one wind across it, birds -> rain, no click, no hole, bell lands")
+    x = render({"duration": 6, "floor": 0, "scenes": [{"t": 0, "layers": {"rain": 1}}, {"t": 3, "layers": {"rain": {"gain": 0.7, "muffle": 500}}}]})
+    a, b = measure(x[:, int(0.5 * SR): int(2.5 * SR)]), measure(x[:, int(3.5 * SR): int(5.5 * SR)])
+    assert b["centroid"] < a["centroid"] / 3 and np.abs(np.diff(x, axis=1)).max() < 0.25, ("muffle: darker indoors, no click", a["centroid"], b["centroid"])
+    print(f"ok muffle: rain centroid {a['centroid']:.0f} -> {b['centroid']:.0f} Hz through the wall")
     print(f"selftest ok: {len(LAYERS)} layers, {len(SPOTS)} spots")
 
 

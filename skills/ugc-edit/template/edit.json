@@ -14,7 +14,11 @@
   {"say": "Ship it, and learn.", "cam": "B", "kw": "learn", "push": 0, "sfx": {"ship": "pop"}},
   {"say": "The reason most teams stall is the backlog.", "cam": "A", "kw": "backlog", "lockup": true, "rack": true},
   {"say": "So we built acme.", "cam": "B", "ui": {"name": "acme", "handle": "@acme", "stat": "43", "label": "releases", "takeover": true}},
-  {"say": "Pick the change and ship it.", "insert": {"kind": "app", "rows": ["Dark mode", "Undo on delete"], "button": "Ship", "done": "Shipped", "clickOn": "ship", "toast": "v1.43 is live"}},
+  {"say": "Pick the change and ship it.", "insert": {"kind": "app", "rows": ["Dark mode", "Undo on delete"], "button": "Ship", "done": "Shipped", "clickOn": "ship", "toast": "v1.43 is live",
+     "list": ["Dark mode|ready to ship", "Undo on delete|shipped Tue"], "tabs": ["Inbox", "Ship", "Team", "You"]}},
+  {"say": "One line fixed the sync bug.", "kw": "line", "insert": {"kind": "code", "title": "sync.ts", "hl": 1, "hlOn": "bug", "result": "0 conflicts in 2,000 syncs",
+     "src": "for (const op of queue)\n  await apply(op, { lock: true });"}},
+  {"say": "Our users posted it themselves.", "cam": "A", "kw": "posted", "phone": "in", "post": "acme saved my launch week"},
   {"say": "Forty three releases this year.", "insert": {"kind": "stat", "value": "43", "label": "releases this year"}},
   {"say": "Here's every one of them.", "insert": {"kind": "collection", "style": "stamps", "step": "words", "images": ["photos/launch.jpg", "src/A.mp4#3.5"], "items": ["v1", "v12", "v30"], "title": "every release"}},
   {"say": "Teams found us everywhere.", "cam": "W", "kw": "everywhere", "pops": ["DM", "@", {"text": "Mail", "img": "photos/mail.png"}], "caption": "word"},
@@ -23,7 +27,7 @@
   {"say": "Your users are waiting.", "cam": "A", "window": true},
   {"say": "That's the whole idea.", "caption": false, "out": "portal", "insert": {"kind": "card", "title": "ship small", "sub": "learn fast"}}
  ],
- "end": {"kind": "end", "text": "acme", "sub": "ship small.", "dur": 1.4},
+ "end": {"kind": "end", "text": "acme", "sub": "ship small.", "cta": "Try acme", "dur": 1.4},
  "hooks": ["So now we ship small.", "Ship it, and learn."],
  "hookBody": 3,
  "bed": "auto"

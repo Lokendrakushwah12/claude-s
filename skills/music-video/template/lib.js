@@ -185,6 +185,118 @@ function paper(c, strength = 0.5, seed = 1) {
   c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = strength; c.drawImage(LIB_PAPER, 0, 0); c.restore();
 }
 
+// ---- 3D: Three.js on the same clock ----
+// VIDEO.three = true loads three@0.169.0 before `ready` as window.THREE, with RoomEnvironment; VIDEO.three = ['geometries/RoundedBoxGeometry.js',
+// 'postprocessing/EffectComposer.js', ...] adds those examples/jsm addons, their exports merged onto THREE. Then, in any scene:
+//   const R = gl3d(); R.render(scene, camera); c.drawImage(R.domElement, 0, 0, W, H);   the 3D layer composites like an image, so 2D
+//   type, captions, looks and grain go over or under it, and --subframes motion blur works (each sub-time re-renders the scene).
+// gl3d(): one WebGLRenderer the size of the frame (a context per call runs out), transparent clear, 4x MSAA, sRGB out, ACES, soft
+// shadows; gl3d({ ss: 2 }) on the first call renders at 2x and downsamples (thin lines, fine text on textures). gl3d.env() is a studio
+// environment map: scene.environment = gl3d.env() gives PBR materials soft reflections and fill (without it metal reads black).
+// Rules: pose everything from t (no THREE.Clock, no setAnimationLoop; AnimationMixer.setTime(t)); rng(), never Math.random; textures
+// load in ready; a 2D-drawn surface is a THREE.CanvasTexture whose canvas is redrawn from ctx.reset() every frame (state left over
+// from the last frame, a textAlign, broke determinism) with needsUpdate = true. Look: fov 25-35 for products, rounded edges (no razor
+// CG corners), env fill + one key light, a soft contact shadow. Measured 2026-10-11: headless Chrome gives ANGLE Metal with 4x MSAA
+// and renders a frame bit-identically after any seek order and across launches; a phone3d frame renders in ~50 ms at 1080p.
+function gl3d(o = {}) {
+  if (!gl3d.R) {
+    const R = (gl3d.R = new THREE.WebGLRenderer({ antialias: true, alpha: true }));
+    R.setPixelRatio(o.ss || 1); R.setSize(W, H, false); R.setClearColor(0, 0); R.outputColorSpace = THREE.SRGBColorSpace;
+    R.toneMapping = THREE.ACESFilmicToneMapping; R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
+  return gl3d.R;
+}
+gl3d.env = () => (gl3d.E ||= new THREE.PMREMGenerator(gl3d()).fromScene(new THREE.RoomEnvironment(), 0.04).texture);
+// A phone in 3D whose screen is anything you draw in 2D. o: x, y (its centre on the frame, px), h (its height, px), yaw, pitch, roll
+// (radians; product shots sit at yaw -0.1..-0.35, pitch 0.05..0.15), screen(sc, w, h) (draw the app into a w x h canvas: 1110 x 2400 by
+// default, about 2.8x a 0.8 H phone at 1080p; res: screen height in px), color (the frame), chrome (false: no status bar, island, home bar),
+// blur (px, a defocus), dim (0..1, darkens it: a phone receding behind a card), alpha, shadow (0..1, default 0.35: a soft shadow on the
+// ground behind it, following its silhouette).
+// Returns the screen's corners on the frame [[x, y] x4: tl, tr, br, bl] for drawing taps, cards lifting out, or a push through it.
+// The screen is unlit (toneMapped off), so the UI's colours land exactly; a glass layer adds a faint env reflection over it (+8/255 at most).
+function phone3d(c, o = {}) {
+  const T = THREE, R = gl3d(), P = (phone3d.P ||= (() => {
+    const A = 0.4816, D = 0.052, rr = (w, h, r) => { const s = new T.Shape(); s.moveTo(-w / 2 + r, -h / 2); s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+      s.lineTo(w / 2, h / 2 - r); s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2); s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2); return s; };
+    const uv01 = g => { g.computeBoundingBox(); const b = g.boundingBox, p = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - b.min.x) / (b.max.x - b.min.x), (p.getY(i) - b.min.y) / (b.max.y - b.min.y)); return g; };
+    const scene = new T.Scene(), g = new T.Group(), bev = 0.012, cam = new T.PerspectiveCamera(30, W / H, 0.1, 100);
+    scene.environment = gl3d.env(); scene.add(g);
+    const frame = new T.MeshPhysicalMaterial({ color: '#2b2b30', metalness: 0.85, roughness: 0.28, clearcoat: 0.4, envMapIntensity: 1.6 }); // a bright rim, so it separates from a dark ground
+    const body = new T.Mesh(new T.ExtrudeGeometry(rr(A - 2 * bev, 1 - 2 * bev, 0.075), { depth: D - 2 * bev, bevelThickness: bev, bevelSize: bev, bevelSegments: 5, curveSegments: 24 }), frame);
+    body.position.z = -D / 2 + bev; g.add(body);
+    const sw = A - 0.04, sh = 1 - 0.04, screen = new T.Mesh(uv01(new T.ShapeGeometry(rr(sw, sh, 0.06), 24)), new T.MeshBasicMaterial({ toneMapped: false }));
+    screen.position.z = D / 2 + 0.0005; g.add(screen);
+    const glass = new T.Mesh(screen.geometry, new T.MeshPhysicalMaterial({ color: '#000', roughness: 0.06, metalness: 0, envMapIntensity: 0.2, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
+    glass.position.z = D / 2 + 0.001; g.add(glass);
+    for (const [y, l, side] of [[0.26, 0.05, -1], [0.17, 0.09, -1], [0.06, 0.09, -1], [0.14, 0.14, 1]]) { const b = new T.Mesh(new T.BoxGeometry(0.006, l, 0.018), frame); b.position.set(side * (A / 2 + 0.002), y, 0); g.add(b); }
+    return { scene, g, cam, frame, A, sw, sh, D, screen };
+  })());
+  const { x = W / 2, y = H / 2, h = H * 0.8, yaw = -0.2, pitch = 0.08, roll = 0, res = 2400, color = '#2b2b30', chrome = true, blur = 0, dim = 0, alpha = 1, shadow = 0.35 } = o;
+  const sh = Math.round(res), sw = Math.round((res * P.sw) / P.sh);
+  if (P.cv?.height !== sh) { // a texture per size, made at its final size (a canvas resized under a live texture drew one frame stale)
+    P.tex?.dispose(); P.cv = Object.assign(document.createElement('canvas'), { width: sw, height: sh }); P.tex = new T.CanvasTexture(P.cv);
+    P.tex.colorSpace = T.SRGBColorSpace; P.tex.anisotropy = R.capabilities.getMaxAnisotropy(); P.screen.material.map = P.tex; P.screen.material.needsUpdate = true; }
+  const s = P.cv.getContext('2d'); s.reset(); s.fillStyle = '#fff'; s.fillRect(0, 0, sw, sh); // reset(): no state (textAlign...) leaks between frames
+  if (o.screen) { s.save(); o.screen(s, sw, sh); s.restore(); }
+  if (chrome) { s.save(); const u = sw / 393, ink = o.statusInk || '#111', box = (x, y, w, h, r) => { s.beginPath(); s.roundRect(x, y, w, h, r); }; // iPhone points: 393 wide; the island 126 x 37 at 11 down; status text 17 pt semibold
+    s.fillStyle = '#000'; box(sw / 2 - 63 * u, 11 * u, 126 * u, 37 * u, 18.5 * u); s.fill();
+    s.fillStyle = ink; s.font = `600 ${17 * u}px -apple-system, "SF Pro Text", "Inter", sans-serif`; s.textBaseline = 'middle'; s.textAlign = 'center'; s.fillText('9:41', 64 * u, 30 * u);
+    for (let i = 0; i < 4; i++) s.fillRect(sw - 98 * u + i * 5 * u, 34 * u - (4 + i * 2.6) * u, 3.2 * u, (4 + i * 2.6) * u);
+    s.lineWidth = 1.2 * u; s.strokeStyle = ink; box(sw - 50 * u, 24 * u, 25 * u, 12 * u, 3.5 * u); s.globalAlpha = 0.4; s.stroke(); s.globalAlpha = 1; box(sw - 48 * u, 26 * u, 19 * u, 8 * u, 2 * u); s.fill();
+    s.globalAlpha = 0.85; box(sw / 2 - 67 * u, sh - 13 * u, 134 * u, 5 * u, 2.5 * u); s.fill(); s.restore(); }
+  P.tex.needsUpdate = true; P.frame.color.set(color);
+  // lens shift (setViewOffset) keeps the phone on the lens axis wherever it sits on the frame, so yaw means the same everywhere
+  const fov = 30, dist = H / (2 * h * Math.tan((fov * Math.PI) / 360)); P.cam.fov = fov; P.cam.aspect = W / H; P.cam.position.set(0, 0, dist); P.cam.lookAt(0, 0, 0);
+  P.cam.setViewOffset(W, H, W / 2 - x, H / 2 - y, W, H); P.cam.updateProjectionMatrix();
+  P.g.rotation.set(pitch, yaw, roll, 'YXZ'); P.g.updateMatrixWorld();
+  R.render(P.scene, P.cam);
+  c.save(); c.globalAlpha *= alpha;
+  if (shadow > 0) { c.save(); c.filter = `blur(${Math.round(h * 0.035)}px) brightness(0)`; c.globalAlpha *= shadow; c.drawImage(R.domElement, h * 0.04, h * 0.06, W, H); c.restore(); }
+  const f = [blur > 0.3 && `blur(${blur.toFixed(1)}px)`, dim > 0 && `brightness(${(1 - dim).toFixed(3)})`].filter(Boolean).join(' '); if (f) c.filter = f;
+  c.drawImage(R.domElement, 0, 0, W, H); c.restore();
+  return [[-1, 1], [1, 1], [1, -1], [-1, -1]].map(([a, b]) => { const v = new T.Vector3((a * P.sw) / 2, (b * P.sh) / 2, P.D / 2).applyMatrix4(P.g.matrixWorld).project(P.cam); return [((v.x + 1) / 2) * W, ((1 - v.y) / 2) * H]; });
+}
+
+// ---- code on screen ----
+// A code panel: src typed in a mono face with light syntax colour, a block caret, an optional highlighted line and scroll. o: w (panel
+// width; height fits `rows`, default every line), size (px), u (seconds since typing began; omit = all typed), cps (25: a code card;
+// 50-60: a CLI command), hl (line index, or [line, p] to draw the bar on with p), scroll (first line shown, fractional = smooth),
+// title (a tab label in the bar; null = no bar), theme ({bg, fg, dim, kw, str, num, fn, bar, hl}; str defaults to o.accent), gutter
+// (line numbers), font. Typing rules from the refs: a newline and its indent land as one step, the caret is solid while typing and blinks
+// (0.53 s) when idle, hold ~0.3 s on the last character before the next beat. Returns { h, caret: [x, y], lineY: i => y, cw, done } (done:
+// seconds the typing takes, to cue sounds and the next beat).
+function codeBlock(c, src, x, y, o = {}) {
+  const { w = W * 0.6, size = Math.round(H * 0.026), u = Infinity, cps = 25, scroll = 0, title = 'main.ts', gutter = true, font = 'JetBrains Mono', lh = 1.6, accent = '#ffb86b' } = o;
+  const th = { bg: '#16171b', fg: '#e8e6e3', dim: '#6b6f76', kw: '#c4a7ff', str: accent, num: '#7fd7c4', fn: '#8ab4ff', bar: '#1f2026', hl: 'rgba(255,255,255,0.08)', ...o.theme };
+  const lines = src.replace(/\t/g, '  ').split('\n'), rows = o.rows ?? lines.length, L = size * lh, pad = size * 1.1, barH = title === null ? 0 : size * 2.2;
+  // typing clock: each line's indent is free, every other character (and each newline) costs 1 / cps
+  let tt = 0; const at = lines.map(l => { const ind = l.length - l.trimStart().length, t0 = tt; tt += (l.length - ind + 1) / cps; return { ind, t0 }; });
+  const typedOf = i => (u === Infinity ? lines[i].length : u < at[i].t0 ? -1 : Math.min(lines[i].length, at[i].ind + Math.floor((u - at[i].t0) * cps + 1e-6)));
+  c.save(); c.font = `400 ${size}px "${font}"`; const cw = c.measureText('M').width, gw = gutter ? cw * 4 : 0, h = barH + pad * 2 + rows * L;
+  c.beginPath(); c.roundRect(x, y, w, h, size * 0.7); c.fillStyle = th.bg; c.fill(); c.clip();
+  if (barH) { c.fillStyle = th.bar; c.fillRect(x, y, w, barH); ['#ff5f57', '#febc2e', '#28c840'].forEach((k, i) => { c.beginPath(); c.arc(x + pad + i * size * 0.9, y + barH / 2, size * 0.26, 0, 7); c.fillStyle = k; c.globalAlpha = 0.85; c.fill(); c.globalAlpha = 1; });
+    c.font = `500 ${size * 0.78}px "${font}"`; c.fillStyle = th.dim; c.textBaseline = 'middle'; c.fillText(title, x + pad + size * 3, y + barH / 2); c.font = `400 ${size}px "${font}"`; }
+  c.beginPath(); c.rect(x, y + barH, w, h - barH); c.clip(); c.textBaseline = 'alphabetic';
+  const y0 = y + barH + pad - scroll * L, x0 = x + pad + gw, lineY = i => y0 + i * L + L * 0.72, KW = /^(const|let|var|function|return|if|else|for|while|import|from|export|async|await|class|new|true|false|null|undefined|def|self|in|of|fn|pub|use|type|interface)$/;
+  const [hli, hlp] = Array.isArray(o.hl) ? o.hl : [o.hl, 1];
+  if (hli != null && hlp > 0) { c.fillStyle = th.hl; c.fillRect(x, y0 + hli * L, w * ease.inOut(clamp(hlp)), L); c.fillStyle = accent; c.fillRect(x, y0 + hli * L, size * 0.18, L); }
+  let caret = null, cur = -1;
+  lines.forEach((l, i) => {
+    const n = typedOf(i); if (n < 0) return; cur = i; const ly = lineY(i); if (ly < y + barH - L || ly > y + h + L) return;
+    if (gutter) { c.fillStyle = th.dim; c.textAlign = 'right'; c.fillText(String(i + 1), x + pad + gw - cw * 1.5, ly); c.textAlign = 'left'; }
+    const toks = l.match(/(\/\/.*|#.*$|"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|`[^`]*`?|\d+(?:\.\d+)?|[A-Za-z_$][\w$]*|\s+|.)/g) || [];
+    let col = 0;
+    toks.forEach((k, j) => { if (col >= n) return; const s2 = k.slice(0, n - col), nx = toks[j + 1];
+      c.fillStyle = /^(\/\/|#)/.test(k) ? th.dim : /^["'`]/.test(k) ? th.str : /^\d/.test(k) ? th.num : KW.test(k) ? th.kw : /^[A-Za-z_$]/.test(k) && nx === '(' ? th.fn : th.fg;
+      c.fillText(s2, x0 + col * cw, ly); col += k.length; });
+    caret = [x0 + Math.min(n, l.length) * cw, ly];
+  });
+  const done = tt, typing = u < done, on = typing || Math.floor((u - done) / 0.53) % 2 === 0;
+  if (caret && on && o.caret !== false) { c.fillStyle = th.fg; c.globalAlpha = 0.9; c.fillRect(caret[0], caret[1] - size * 0.82, cw, size * 1.05); }
+  c.restore();
+  return { h, caret, lineY, cw, done, line: cur };
+}
+
 // ---- engine ----
 // VIDEO.stopmo = true (or { fps, jitter, flicker }) is the stop-motion paper look, off by default: time held on a 12 fps
 // grid, the whole frame jittered ±2 whole px (overscanned so no edge shows) and its exposure flickered ±1.2 % per drawing.
@@ -215,7 +327,16 @@ function boot() {
   // or a weight that isn't loaded yet draws in a fallback face on the first frames.
   const faces = f => { const [fam, ax = ''] = f.split(':'), [keys = '', vals] = ax.split('@'), k = keys.split(',');
     return (vals ? vals.split(';') : ['']).map(v => { const x = v.split(','); return `${x[k.indexOf('ital')] === '1' ? 'italic ' : ''}${k.includes('wght') ? x[k.indexOf('wght')].split('..')[0] : 400} 40px "${fam}"`; }); };
-  window.ready = Promise.all([...loads, css.then(() => Promise.all(fonts.flatMap(faces).map(f => document.fonts.load(f))))]).then(() => document.fonts.ready);
+  const three = !VIDEO.three ? null : (() => { // an import map so the addons' own `import 'three'` gets the same copy
+    const base = 'https://cdn.jsdelivr.net/npm/three@0.169.0/', m = document.createElement('script'); m.type = 'importmap';
+    m.textContent = JSON.stringify({ imports: { three: base + 'build/three.module.min.js', 'three/addons/': base + 'examples/jsm/' } }); document.head.append(m);
+    const adds = ['environments/RoomEnvironment.js', ...(Array.isArray(VIDEO.three) ? VIDEO.three : [])];
+    return Promise.all([import('three'), ...adds.map(a => import('three/addons/' + a))]).then(ms => { window.THREE = Object.assign({}, ...ms); });
+  })();
+  window.ready = Promise.all([...loads, three, css.then(() => Promise.all(fonts.flatMap(faces).map(f => document.fonts.load(f))))]).then(() => document.fonts.ready)
+    // A render must never fall back to a system font. document.fonts.check() isn't enough: it's true when the stylesheet never arrived.
+    .then(() => { const miss = fonts.map(f => f.split(':')[0]).filter(fam => ![...document.fonts].some(ff => ff.family.replace(/"/g, '') === fam && ff.status === 'loaded'));
+      if (miss.length) { const e = 'fonts failed to load: ' + miss.join(', ') + ' (network, or not a Google Fonts family)'; if (RENDER) throw new Error(e); console.warn(e); } });
   if (RENDER) return document.getElementById('hud').remove();
   // Preview: click to play/pause, arrows scrub, #12.5 in the URL jumps to 12.5s.
   const au = new Audio(VIDEO.audio || ''); const hud = document.getElementById('hud');

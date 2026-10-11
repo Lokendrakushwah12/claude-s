@@ -13,6 +13,14 @@
 //   focus: true     the shot opens from a 14 px blur (hooks);  rack: true  it blurs out over its last 0.15 s
 //   laugh: "type"   a kept laugh is typed huge across the frame, a letter every 2 frames (needs the laugh in the phrase's piece)
 //   caption: "word" one word on screen at a time, hard on and off (a reel's calm body); top-level "captions": "word" sets it for all
+// Phones and code (2026-10-11b refs: phone mockups, code on screen; lib.js phone3d / codeBlock, a real 3D phone through Three.js):
+//   app inserts sit in a 3D phone by default (device: "card" = the flat card): it rises in (or the takeover card lands on its screen),
+//        drifts, a touch disc taps the button, and the toast lifts out of the phone as a crisp card while the phone defocuses;
+//        list: ["Title|sub", ...] rows and tabs: [...] fill the screen under the card
+//   phone: true | "in" | "out"  on a cam phrase: the footage plays inside a phone as a post (handle, caption, a heart that pops on the
+//        keyword, post: its caption) over a blurred copy of itself; "in" pushes through the screen to full frame (1:1 at the cut), "out" pulls back
+//   insert {kind: "code", src, hl, hlOn, title, cps, result}: an editor types src on the words (a newline and its indent land as one step),
+//        then line hl lights up on the word hlOn and result types as a status row; end: {..., cta} adds a call-to-action pill
 // Inserts added: app (the takeover's card, full frame, with a click), stat {value, label, from, bar}, chapter {n, over, word, sub},
 //   posters {items: [{title, sub, big}], hold: 0.4}, collection {style: stamps|polaroids|grid|mosaic, images | items, title, step}.
 const E = window.EDIT, FPS = E.fps;
@@ -65,6 +73,7 @@ function camGeom(s) { // the frame's box on the canvas and the camera move: shar
 function camShot(c, t, s) {
   const ph = E.phrases[s.phrase], k = pad4(frameOf(s, t)), img = GOT[s.frames + k + '.jpg']; if (!img) return;
   if (ph.window) return windowShot(c, t, s, ph, img);
+  if (ph.phone && phoneShot(c, t, s, ph, img)) return;
   const { box, cam: co } = camGeom(s);
   c.save();
   const fb = (ph.focus && !s.jump ? 14 * S * (1 - ease.out(prog(t, s.out0, s.out0 + 0.25))) : 0) + (ph.rack ? 18 * S * ease.in(prog(t, s.out1 - 0.15, s.out1)) : 0);
@@ -81,8 +90,8 @@ const clean = w => w.toLowerCase().replace(/[^\w'?]/g, '');
 function lead(c, t, ph) {
   const ws = ph.words.map(w => ({ w: clean(w.w), t: w.t })).filter(w => w.w), gap = 0.32;
   const width = sz => ws.reduce((a, w) => a + tw(c, w.w, sz, 500, TYPE.ui, -0.01), 0) + sz * gap * (ws.length - 1);
-  const size = Math.min(46 * S, 46 * S * (0.88 * W) / width(46 * S)), frame = 2 / FPS;
-  leadIn(c, ws, W / 2, H * (ph.leadAt ?? (ph.leadY ?? (ph.behind ? 0.48 : 0.43)) + (ph.ldy ?? ph.dy ?? 0)), t, ph.end - ws.length * frame, { size, gap, frame, align: 'center', font: TYPE.ui });
+  const cx = ph.cx ?? 0.5, size = Math.min(46 * S, 46 * S * (0.88 * W * 2 * Math.min(cx, 1 - cx)) / width(46 * S)), frame = 2 / FPS; // cx: the block's centre (16:9 phones: left of it)
+  leadIn(c, ws, W * cx, H * (ph.leadAt ?? (ph.leadY ?? (ph.behind ? 0.48 : 0.43)) + (ph.ldy ?? ph.dy ?? 0)), t, ph.end - ws.length * frame, { size, gap, frame, align: 'center', font: TYPE.ui });
 }
 function lockup(c, t, ph) { // ref #44's hook title: the words before the keyword small above it (split to its edges), the rest under it
   const ws = ph.words.map(w => ({ w: clean(w.w), t: w.t })).filter(w => w.w), k = ph.kw.k, y = H * ((ph.kwY ?? 0.56) + (ph.dy || 0));
@@ -101,10 +110,10 @@ function oneWord(c, t, ph) { // a reel's calm body (ref #44): the word being sai
 const wordStyle = ph => (ph.caption ?? E.captions) === 'word';
 function keyword(c, t, ph) {
   const kw = ph.kw; if (!kw || t < kw.t) return;
-  const size = Math.min(0.24 * W, (0.86 * W * 100) / tw(c, kw.w, 100, 800)), n = NUM.exec(kw.w), u = clamp((t - kw.t) / COUNT);
+  const cx = ph.cx ?? 0.5, size = Math.min(0.24 * W * 2 * Math.min(cx, 1 - cx), cx === 0.5 ? 1e9 : 0.2 * H, (0.86 * W * 2 * Math.min(cx, 1 - cx) * 100) / tw(c, kw.w, 100, 800)), n = NUM.exec(kw.w), u = clamp((t - kw.t) / COUNT);
   const text = n && u < 1 ? (+n[1] * ease.out(u)).toFixed(n[1].includes('.') ? 1 : 0) + n[2] : kw.w; // a number counts up as it lands
   const y = H * ((ph.kwY ?? (ph.behind ? 0.42 : 0.56)) + (ph.dy || 0)), o = { size, weight: 800, hot: B.accent, cold: ph.lockup ? B.accent : B.ink, align: 'center', ...(ph.graphic || ph.lockup ? { slide: 0.18, from: 0.5 } : {}) };
-  hotWord(c, text, W / 2, y, t - kw.t, o); // a graphic keyword slams on its boom; a lockup keyword stays in the accent
+  hotWord(c, text, W * cx, y, t - kw.t, o); // a graphic keyword slams on its boom; a lockup keyword stays in the accent
   const g = prog(t, kw.t + GLINT, kw.t + GLINT + 0.35); if (!ph.lockup || g <= 0 || g >= 1) return;
   const [cv, x] = scratch('glint'); hotWord(x, text, W / 2, y, t - kw.t, { ...o, shadow: null }); x.globalCompositeOperation = 'source-in'; // a specular glint sweeps it (ref #44)
   const gx = lerp(-0.3, 1.3, ease.inOut(g)) * W, gr = x.createLinearGradient(gx - size, y - size, gx + size, y); ['#ffffff00', '#ffffffdd', '#ffffff00'].forEach((col, k) => gr.addColorStop(k / 2, col));
@@ -145,6 +154,7 @@ function title(c, t, ph) { // chapter title (tutorial bumpers): x 6 %, y 85 %, 0
 
 // ---- the product mix (refs #25, #40): a proof card beside the speaker, a takeover into the full screen, a portal, a logo cloud ----
 const CREAM = '#F3F0E8', INK = '#141414', MUTE = '#8A8A8A';
+const ON_ACCENT = (([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6 ? INK : '#ffffff')(rgbOf(B.accent)); // white on an amber button was 1.9:1
 function faceBox(s, t) { // the face box through the shot's camera, as fractions of the frame [x0, y0, x1, y1]; null if none was seen
   let f = null, d = 0.6; for (const x of s?.face || []) if (Math.abs(x[0] - (t - s.out0)) < d) { d = Math.abs(x[0] - (t - s.out0)); f = x; }
   if (!f) return null; const { box, cam: co } = camGeom(s), [, x] = scratch('camT', 8, 8); shotCam(x, t - s.out0, co); const m = x.getTransform();
@@ -181,8 +191,8 @@ function uiCard(c, x, y, w, u, o, measure = false) {
     else { c.strokeStyle = '#d0d0d0'; c.lineWidth = 3 * k; c.stroke(); }
     word(c, r, x + pad + 68 * k, ry + 48 * k, { size: 34 * k, weight: 500, font: TYPE.ui, color: on ? INK : MUTE }); });
   if (btn) { const down = o.tClick != null && u >= o.tClick && u < o.tClick + 2 / FPS, done = o.tClick != null && u >= o.tClick + 0.08;
-    c.save(); c.translate(btn[0] + btn[2] / 2, btn[1] + btn[3] / 2); if (down) c.scale(0.94, 0.94); rrect(c, -btn[2] / 2, -btn[3] / 2, btn[2], btn[3], btn[3] / 2); c.fillStyle = done ? INK : B.accent; c.fill();
-    word(c, done && o.done ? o.done : o.button, 0, 12 * k, { size: 34 * k, weight: 600, font: TYPE.ui, track: 0, color: '#fff', align: 'center' }); c.restore(); }
+    c.save(); c.translate(btn[0] + btn[2] / 2, btn[1] + btn[3] / 2); if (down) c.scale(0.94, 0.94); rrect(c, -btn[2] / 2, -btn[3] / 2, btn[2], btn[3], btn[3] / 2); c.fillStyle = done ? mixHex(B.accent, '#000000', 0.2) : B.accent; c.fill();
+    word(c, done && o.done ? o.done : o.button, 0, 12 * k, { size: 34 * k, weight: 600, font: TYPE.ui, track: 0, color: ON_ACCENT, align: 'center' }); c.restore(); }
   const sw = prog(u, 0.12, 0.62); if (sw > 0 && sw < 1) { c.save(); rrect(c, x, y, w, h, 34 * k); c.clip(); const gx = x - w * 0.3 + sw * w * 1.6, g = c.createLinearGradient(gx - 160 * k, y, gx + 160 * k, y + h * 0.3);
     ['#ffffff00', '#ffffffcc', '#ffffff00'].forEach((col, i) => g.addColorStop(i / 2, col)); c.globalCompositeOperation = 'lighter'; c.fillStyle = g; c.fillRect(x, y, w, h); c.restore(); } // the light sweep (ref #40)
   return { h, btn };
@@ -198,14 +208,16 @@ function placeUI() { // each ui card goes where the face isn't: under the chin i
   }
 }
 const appRect = o => { const w = W * (W > H ? 0.5 : 0.9), h = uiCard(MEASURE, 0, 0, w, 9, o, true).h; return [(W - w) / 2, (H - h) / 2, w, h]; };
-function appGround(c, a = 1) { c.save(); c.globalAlpha *= a; bg(c, B.ground); const g = c.createRadialGradient(W * 0.75, H * 0.12, 0, W * 0.75, H * 0.12, W);
-  g.addColorStop(0, B.accent + '44'); g.addColorStop(1, B.accent + '00'); c.fillStyle = g; c.fillRect(0, 0, W, H); c.restore(); }
+function appGround(c, a = 1, at, alpha = '30') { c.save(); c.globalAlpha *= a; bg(c, B.ground); const [gx, gy, gr, ga] = at ? [...at, alpha] : [W * 0.75, H * 0.12, W, '44'];
+  const g = c.createRadialGradient(gx, gy, 0, gx, gy, gr); g.addColorStop(0, B.accent + ga); g.addColorStop(1, B.accent + '00'); c.fillStyle = g; c.fillRect(0, 0, W, H); c.restore(); } // at: [x, y, r] a glow behind a phone (a dark bezel vanished on the plain ground)
 function uiOverlay(c, t, p) {
   const o = p.ui, u = t - p.start - (o.delay ?? 0.15); if (u < 0) return; const [x, y, w] = p.uiBox, h = uiCard(MEASURE, 0, 0, w, 9, o, true).h;
   const e = ease.spring(prog(u, 0, 0.5), 0.3), q = o.takeover ? ease.inOut(prog(t, p.end - 0.35, p.end)) : 0, out = o.takeover ? 0 : prog(t, p.end - 0.12, p.end);
-  if (q > 0) appGround(c, q); // the takeover: the card flies to where the app insert draws it, over the app's own ground
-  const big = { ...o, ...nextApp(p), rowAt: 1e9 }, hb = uiCard(MEASURE, 0, 0, w, 9, big, true).h, [, , aw] = appRect(big), x0 = clamp(q / 0.3); // the app's rows tick after the cut
-  const cx = lerp(x + w / 2, W / 2, q), cy = lerp(y + h / 2, H / 2, q), sc = lerp(1, aw / w, q) * (0.92 + 0.08 * e);
+  if (q > 0) appGround(c, q, isPhone(nextApp(p)) && nextApp(p).kind === 'app' ? [PHONE_L().x, PHONE_L().y - PHONE_L().h * 0.1, PHONE_L().h * 0.75] : undefined); // the takeover: over the app's own ground
+  const big = { ...o, ...nextApp(p), rowAt: 1e9 }, hb = uiCard(MEASURE, 0, 0, w, 9, big, true).h, x0 = clamp(q / 0.3); // the app's rows tick after the cut
+  const na = nextApp(p), [tx, ty, aw] = na.kind === 'app' && isPhone(na) ? phoneCardRect(big) : [W / 2, H / 2, appRect(big)[2]]; // onto the phone's screen
+  if (q > 0 && na.kind === 'app' && isPhone(na)) phoneApp(c, p.end, E.shots.find(x => x.phrase === p.i + 1), na, { alpha: q, card: false });
+  const cx = lerp(x + w / 2, tx, q), cy = lerp(y + h / 2, ty, q), sc = lerp(1, aw / w, q) * (0.92 + 0.08 * e);
   c.save(); c.globalAlpha *= clamp(e * 1.5) * (1 - out); c.translate(cx, cy + (1 - e) * 60 * S); c.scale(sc, sc);
   if (x0 < 1) { c.save(); c.globalAlpha *= 1 - x0; uiCard(c, -w / 2, -h / 2, w, u, o); c.restore(); }
   if (x0 > 0) { c.globalAlpha *= x0; uiCard(c, -w / 2, -hb / 2, w, u, big); } // it opens into the app as it flies
@@ -326,6 +338,7 @@ const INSERTS = {
     pointer(c, P[0], P[1], (ph * H) / (40 * S) * (down ? 0.9 : 1), { fill: '#ffffff', stroke: '#111111' });
   },
   app(c, t, s, o) { // the product demo (ref #25): the takeover's card at full size; rows tick, the pointer clicks the button, a push in
+    if (isPhone(o)) return phoneApp(c, t, s, o);
     const { oo, cs } = appOf(s, o), u = t - cs, [x, y, w] = appRect(oo), btn = uiCard(MEASURE, x, y, w, 9, oo, true).btn, tc = appClick(s, oo, cs);
     appGround(c); c.save(); if (btn) cam(c, 1 + 0.06 * ease.inOut(prog(t, s.out0, s.out1)), lerp(W / 2, btn[0] + btn[2] / 2, 0.5), btn[1] + btn[3] / 2); // push toward the button, card kept in frame
     uiCard(c, x, y, w, u, { ...oo, tClick: btn ? tc : null });
@@ -383,11 +396,28 @@ const INSERTS = {
       if (st === 'mosaic' && q > 0) { const pw0 = tw(c, o.title, sz, 800) + sz; c.save(); c.globalAlpha *= q; c.fillStyle = CREAM; c.fillRect((W - pw0) / 2, y - sz * 0.95, pw0, sz * 1.3); c.restore(); }
       glowIn(c, o.title, W / 2, y, u - last - 0.35, { size: sz, weight: 800, color: INK, align: 'center' }); }
   },
+  code(c, t, s, o) { // an editor types o.src on the words, then line o.hl lights up on the word o.hlOn; a slow push toward the caret
+    const u = t - s.out0, ct = codeTimes(s, o), wide = W > H, w = wide ? W * 0.6 : W * 0.86, src = o.src || '', n = Math.max(...src.split('\n').map(l => l.length));
+    const gutter = wide, size = Math.min(wide ? H * 0.034 : W * 0.044, (w * 0.92) / ((n + (gutter ? 6 : 2.5)) * 0.6)), nl = src.split('\n').length, rows = nl + (o.result ? 1.9 : 0.6);
+    const th = { bg: mixHex(B.ground, '#ffffff', 0.07), bar: mixHex(B.ground, '#ffffff', 0.11) }, m = codeBlock(MEASURE, src, 0, 0, { w, size, rows, gutter }), y = wide ? (H - m.h) / 2 : H * 0.42;
+    const hz = o.hl != null ? ease.inOut(prog(u, ct.tHl - 0.1, ct.tHl + 0.45)) : 0, hy = o.hl != null ? m.lineY(o.hl) + y - size * 0.3 : H / 2;
+    appGround(c); grid(c, B.ground, 'rgba(255,255,255,0.035)', 60 * S); // a slow push, then a punch-in on the highlighted line
+    c.save(); cam(c, (1 + 0.03 * ease.inOut(prog(u, 0, s.out1 - s.out0))) * (1 + (wide ? 0.25 : 0.06) * hz), W / 2, lerp(y + m.h / 2, hy, hz)); // at most 1.09x in 9:16: the panel keeps 3 % margins
+    c.save(); c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 70 * S; c.shadowOffsetY = 24 * S; rrect(c, (W - w) / 2, y, w, m.h, size * 0.7); c.fillStyle = th.bg; c.fill(); c.shadowColor = 'transparent'; c.strokeStyle = 'rgba(255,255,255,0.09)'; c.lineWidth = 2 * S; c.stroke(); c.restore();
+    codeBlock(c, src, (W - w) / 2, y, { w, size, rows, gutter, theme: th, u: u - ct.t0, cps: ct.cps, accent: B.accent, title: o.title ?? 'main.ts', hl: o.hl != null ? [o.hl, prog(u, ct.tHl, ct.tHl + 0.12)] : null });
+    if (o.result && u > ct.tHl + 0.25) { const x0 = (W - w) / 2 + size * 1.1 + (gutter ? size * 2.4 : 0), ry = y + m.lineY(nl + 0.55), n2 = Math.floor((u - ct.tHl - 0.25) * Math.max(40, o.result.length / Math.max(0.15, s.out1 - s.out0 - ct.tHl - 0.6))); // the payoff: a status row, done 0.35 s before the cut
+      c.fillStyle = 'rgba(255,255,255,0.1)'; c.fillRect((W - w) / 2 + size, ry - size * 1.45, w - size * 2, 2 * S); c.fillStyle = B.accent; c.beginPath(); c.arc(x0 + size * 0.3, ry - size * 0.32, size * 0.28, 0, 7); c.fill();
+      word(c, o.result.slice(0, n2), x0 + size * 1.1, ry, { size: size * 0.95, weight: 500, font: TYPE.mono, color: B.accent }); }
+    c.restore();
+  },
   end(c, t, s, o) { // brand end card
-    bg(c, o.ground || B.ground); const u = t - s.out0, size = Math.min(0.2 * W, (0.7 * W * 100) / tw(c, o.text, 100, 800));
+    if (o.ground) bg(c, o.ground); else appGround(c, 1, [W / 2, H * 0.48, Math.max(W, H) * 0.45], '1f'); const u = t - s.out0, size = Math.min(0.2 * W, (0.7 * W * 100) / tw(c, o.text, 100, 800));
     glowIn(c, o.text, W / 2, H * 0.5, u, { size, weight: 800, color: B.ink, align: 'center' });
     c.fillStyle = B.accent; c.beginPath(); c.arc(W / 2 + tw(c, o.text, size, 800) / 2 + size * 0.14, H * 0.5 - size * 0.06, size * 0.07 * Math.max(0, ease.back(prog(u, 0.12, 0.4))), 0, 7); c.fill();
-    if (o.sub) word(c, o.sub, W / 2, H * 0.5 + size * 0.62, { size: 42 * S, weight: 500, font: TYPE.ui, color: '#9aa0a6', align: 'center', alpha: prog(u, 0.3, 0.55) });
+    if (o.sub) word(c, o.sub, W / 2, H * 0.5 + size * 0.62, { size: 46 * S, weight: 500, font: TYPE.ui, color: '#D5D8DD', align: 'center', alpha: prog(u, 0.3, 0.55) });
+    if (o.cta) { const q = ease.out(prog(u, 0.45, 0.75)), sz = 40 * S, pw = tw(c, o.cta, sz, 700, TYPE.ui, 0) + sz * 2.4, py = H * 0.5 + size * 0.62 + sz * 2.6 + (1 - q) * 20 * S; // a call to action pill
+      c.save(); c.globalAlpha *= q; rrect(c, (W - pw) / 2, py - sz * 1.15, pw, sz * 2.3, sz * 1.15); c.fillStyle = B.accent; c.fill();
+      word(c, o.cta, W / 2, py + sz * 0.36, { size: sz, weight: 700, font: TYPE.ui, color: B.ground, align: 'center' }); c.restore(); }
   },
 };
 const MONTAGE_SLATES = [ // drawn b-roll for the montage: a big number, a calendar being crossed off, a bar of commits
@@ -396,6 +426,101 @@ const MONTAGE_SLATES = [ // drawn b-roll for the montage: a big number, a calend
     for (let k = 0; k < n; k++) { const x = x0 + (k % 7) * cw, y = y0 + Math.floor(k / 7) * cw; c.strokeRect(x, y, cw, cw); if (k < off) { c.strokeStyle = '#fff'; c.beginPath(); c.moveTo(x + 18, y + 18); c.lineTo(x + cw - 18, y + cw - 18); c.moveTo(x + cw - 18, y + 18); c.lineTo(x + 18, y + cw - 18); c.stroke(); c.strokeStyle = '#777'; } } },
   (c, it, r) => { for (let k = 0; k < 26; k++) { const h = (40 + r() * 260) * S; c.fillStyle = k % 5 ? '#bbb' : '#fff'; c.fillRect(-W * 0.4 + k * W * 0.031, 150 * S - h, W * 0.022, h); } ui(c, 'commits / week', -W * 0.4, 210 * S, { font: TYPE.mono, size: 30 * S, color: '#aaa' }); },
 ];
+// ---- phones (refs gabrielbuzziv, francoxavier33, gautam-mer1, bthreeagency): lib.js phone3d, a 3D phone whose screen is drawn in 2D ----
+// Measured: in 9:16 the phone is 55-65 % of H under a headline, in 16:9 ~85 % of H at 0.68 W; it rises in ~0.55 s (ease-out) and keeps
+// drifting; a card lifts out over a defocused phone (blur ~1 % of W); a push-through is an ease-in dolly of ~0.7-1.2 s into the screen.
+const isPhone = o => (o.device ?? E.device ?? 'phone') === 'phone';
+const PHONE_L = feed => (W > H ? { x: W * 0.68, y: H * 0.53, h: H * 0.86, yaw: -0.3 } : feed ? { x: W / 2, y: H * 0.69, h: H * 0.66, yaw: -0.2 } : { x: W / 2, y: H * 0.61, h: H * 0.72, yaw: -0.24 });
+function phonePose(U, dur, rise = true) { // U: seconds into the shot. Rises from below with a yaw that springs home, then drifts and creeps in
+  const L = PHONE_L(), d = clamp(U / Math.max(dur, 1)), r = rise ? ease.expoOut(clamp(U / 0.55)) : 1, y0 = rise ? 1 - ease.spring(clamp(U / 0.9), 0.25) : 0;
+  return { x: L.x, y: L.y + (1 - r) * H * 0.75, h: L.h * (1 + 0.04 * ease.inOut(d)), yaw: L.yaw - 0.5 * y0 + 0.07 * ease.inOut(d), pitch: 0.07 - 0.03 * d, roll: 0.025 * (1 - d) };
+}
+const quadPt = (q, u, v) => [0, 1].map(k => lerp(lerp(q[0][k], q[1][k], u), lerp(q[3][k], q[2][k], u), v)); // a point on the screen, u, v in 0..1
+const SCREEN = { ground: '#F2F2F5', top: 0.16, side: 0.045 }; // the app screen: the card under the status bar, 4.5 % margins
+function phoneCardRect(oo) { // where the takeover's card lands: the card's centre and width on the frame, at the phone's resting pose
+  const L = PHONE_L(), sw = 0.4416 * L.h * Math.cos(L.yaw), cw = sw * (1 - 2 * SCREEN.side), ch = (uiCard(MEASURE, 0, 0, 760, 9, oo, true).h * cw) / 760;
+  return [L.x, L.y - 0.48 * L.h + SCREEN.top * sw + ch / 2, cw];
+}
+function phoneApp(c, t, s, o, x = {}) { // the app on a phone; x.alpha / x.card: false when the takeover draws it under the flying card
+  const { oo, cs } = appOf(s, o), u = t - cs, U = t - s.out0, from = E.phrases[s.phrase - 1]?.ui?.takeover, tc = appClick(s, oo, cs);
+  const lift = oo.toast ? clamp((u - tc - 0.12) / 0.35) : 0, L = PHONE_L(), P = phonePose(U, s.out1 - s.out0, !from);
+  if (x.card !== false) appGround(c, 1, [L.x, L.y - L.h * 0.1, L.h * 0.75]);
+  // the camera pushes in on the card (1 -> 1.3x, the card's centre drifting to 0.42 H; the bottom of the phone leaves frame, as in the refs),
+  // then eases in a little more as the toast lifts out
+  let btn = null; const push = x.card === false ? 0 : ease.inOut(prog(U, 0.25, 1.5)), k = (1 + 0.3 * push) * (1 + 0.08 * ease.inOut(lift));
+  const [, cy0] = phoneCardRect(oo), a = (cy0 - PHONE_L().y) / PHONE_L().h, ay = lerp(P.y + a * P.h, H * (W > H ? 0.42 : 0.5), push);
+  const q = phone3d(c, { ...P, h: P.h * k, y: ay - a * P.h * k, alpha: x.alpha ?? 1, blur: 0.009 * W * ease.out(lift), dim: 0.45 * ease.out(lift), shadow: 0.4, // it recedes: 10 px defocus, 55 % brightness
+    screen: (sc, sw, sh) => { sc.fillStyle = SCREEN.ground; sc.fillRect(0, 0, sw, sh);
+      if (x.card === false) return appChrome(sc, sw, sh, sw * SCREEN.top + (uiCard(MEASURE, 0, 0, 760, 9, oo, true).h * sw * (1 - 2 * SCREEN.side)) / 760 + sw * 0.05, oo);
+      const r = uiCard(sc, sw * SCREEN.side, sw * SCREEN.top, sw * (1 - 2 * SCREEN.side), u, { ...oo, glow: false, tClick: oo.button ? tc : null });
+      if (r.btn) btn = [(r.btn[0] + r.btn[2] / 2) / sw, (r.btn[1] + r.btn[3] / 2) / sh];
+      appChrome(sc, sw, sh, sw * SCREEN.top + r.h + sw * 0.05, oo); } });
+  if (x.card === false) return;
+  if (btn && u > tc - 0.3 && u < tc + 0.5) { const [bx, by] = quadPt(q, ...btn), a = clamp((u - tc + 0.3) / 0.15) * (1 - clamp((u - tc - 0.25) / 0.25)), down = u >= tc && u < tc + 0.12;
+    clickDisc(c, bx, by, u - tc, { r: 0.04 * Math.min(W, H), dur: 0.35 }); // a touch, not a mouse pointer: a grey disc that presses, a ring on the tap
+    c.save(); c.globalAlpha = a; c.beginPath(); c.arc(bx, by, 0.034 * Math.min(W, H) * (down ? 0.82 : 1), 0, 7); c.fillStyle = 'rgba(40,40,48,0.32)'; c.fill(); c.lineWidth = 3 * S; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.stroke(); c.restore(); }
+  if (lift > 0) { // the toast lifts out of the screen toward the lens: 1.15x the screen's width, a -1.5 deg tilt, then it floats
+    const e = ease.spring(lift, 0.12), sw = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), cw = Math.min(W * 0.84, sw * 1.15), sz = cw * 0.06, ch = sz * 4.2, [bx, by] = btn ? quadPt(q, ...btn) : [L.x, L.y];
+    const fl = Math.max(0, u - tc - 0.47), cx = clamp(lerp(bx, (q[0][0] + q[1][0]) / 2, e), cw / 2 + 0.04 * W, W - cw / 2 - 0.04 * W), cy = lerp(by, quadPt(q, 0.5, 0.2)[1], e) - fl * 0.012 * H;
+    c.save(); c.translate(cx, cy); c.rotate(-0.026 + 0.012 * e); const tick = 1 + 0.05 * Math.sin(Math.PI * clamp((u - tc - 0.97) / 0.2)); c.scale(lerp(0.65, 1, e) * (1 + 0.02 * fl) * tick, lerp(0.65, 1, e) * (1 + 0.02 * fl) * tick); // a tick as the count lands c.globalAlpha = clamp(lift * 8); // opaque at once: a half-faded copy read as a ghost
+    c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = cw * 0.1; c.shadowOffsetY = cw * 0.04; rrect(c, -cw / 2, -ch / 2, cw, ch, sz * 0.9); c.fillStyle = '#ffffff'; c.fill(); c.shadowColor = 'transparent';
+    const ix = -cw / 2 + sz * 1.1; rrect(c, ix, -sz * 1.15, sz * 2.3, sz * 2.3, sz * 0.6); c.fillStyle = B.accent; c.fill(); // an app-icon tile with a check
+    c.strokeStyle = '#fff'; c.lineWidth = sz * 0.28; c.lineCap = 'round'; c.beginPath(); c.moveTo(ix + sz * 0.6, 0); c.lineTo(ix + sz * 1.0, sz * 0.4); c.lineTo(ix + sz * 1.7, -sz * 0.4); c.stroke();
+    word(c, oo.name || E.brand?.name || 'now', ix + sz * 3.1, -sz * 0.35, { size: sz * 0.8, weight: 500, font: TYPE.ui, color: MUTE });
+    const ts = Math.min(sz * 1.05, (sz * 1.05 * (cw - sz * 5.2)) / tw(c, oo.toast, sz * 1.05, 700, TYPE.ui, -0.01)), m = /\d[\d,]*/.exec(oo.toast), cp = ease.out(prog(u, tc + 0.47, tc + 0.97)); // fits; its number counts up as it lands
+    const str = m ? oo.toast.slice(0, m.index) + Math.round(+m[0].replace(/,/g, '') * lerp(0.85, 1, cp)).toLocaleString('en-US') + oo.toast.slice(m.index + m[0].length) : oo.toast; // from 85 %: from 0 read as "wiped"
+    word(c, str, ix + sz * 3.1, sz * 0.75, { size: ts, weight: 700, font: TYPE.ui, track: -0.01, color: INK }); c.restore(); }
+}
+function appChrome(c, sw, sh, top, oo) { // below the card: quiet list rows, and a tab bar, so the screen reads as an app, not a card on white
+  const u = sw / 393, m = sw * SCREEN.side, tabs = oo.tabs || ['Today', 'Stats', 'Friends', 'You'];
+  const list = oo.list || []; // list: ["Title|sub", ...] real rows; without it, quiet skeleton rows
+  for (let i = 0, y = top; y + 64 * u < sh - 100 * u && i < (list.length || 4); i++, y += 76 * u) { const [ti, sub] = (list[i] || '').split('|'); c.fillStyle = '#ffffff'; c.beginPath(); c.roundRect(m, y, sw - 2 * m, 64 * u, 14 * u); c.fill();
+    c.fillStyle = ti ? ['#FDE9A6', '#DCE9FF', '#E3F5E3', '#F9DDE6'][i % 4] : mixHex(B.accent, '#ffffff', 0.78); c.beginPath(); ti ? c.arc(m + 32 * u, y + 32 * u, 18 * u, 0, 7) : c.roundRect(m + 14 * u, y + 14 * u, 36 * u, 36 * u, 10 * u); c.fill();
+    if (ti) { word(c, ti[0], m + 32 * u, y + 37.5 * u, { size: 15 * u, weight: 700, font: TYPE.ui, color: '#3A3A44', align: 'center' }); // an avatar: initial on a tint
+      word(c, ti, m + 62 * u, y + 30 * u, { size: 15 * u, weight: 600, font: TYPE.ui, color: INK }); if (sub) word(c, sub, m + 62 * u, y + 49 * u, { size: 12.5 * u, weight: 400, font: TYPE.ui, color: MUTE }); }
+    else { c.fillStyle = '#D9DADF'; c.fillRect(m + 62 * u, y + 20 * u, (120 + 40 * ((i * 7) % 3)) * u, 9 * u); c.fillStyle = '#E8E9ED'; c.fillRect(m + 62 * u, y + 36 * u, 80 * u, 8 * u); } }
+  c.fillStyle = '#ffffffee'; c.fillRect(0, sh - 84 * u, sw, 84 * u); c.fillStyle = '#00000014'; c.fillRect(0, sh - 84 * u, sw, u);
+  tabs.forEach((l, i) => { const x = sw * (i + 0.5) / tabs.length, y = sh - 61 * u, r = 10 * u; c.save(); c.strokeStyle = c.fillStyle = i ? '#9A9AA3' : B.accent; c.lineWidth = 2 * u; c.lineJoin = 'round'; c.beginPath();
+    [() => { c.moveTo(x - r, y); c.lineTo(x, y - r); c.lineTo(x + r, y); c.lineTo(x + r * 0.8, y); c.lineTo(x + r * 0.8, y + r); c.lineTo(x - r * 0.8, y + r); c.lineTo(x - r * 0.8, y); c.closePath(); c.stroke(); }, // home
+     () => { [[-0.8, 0.4], [-0.15, 1.2], [0.5, 0.8]].forEach(([dx, hh]) => c.fillRect(x + dx * r, y + r - hh * r * 1.6, r * 0.5, hh * r * 1.6)); }, // bars
+     () => { c.arc(x - r * 0.4, y - r * 0.2, r * 0.45, 0, 7); c.moveTo(x + r * 0.95, y - r * 0.2); c.arc(x + r * 0.5, y - r * 0.2, r * 0.45, 0, 7); c.moveTo(x - r * 1.1, y + r); c.arc(x, y + r * 1.3, r * 1.1, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); }, // people
+     () => { c.arc(x, y - r * 0.35, r * 0.5, 0, 7); c.moveTo(x + r * 0.95, y + r); c.arc(x, y + r * 1.2, r * 0.95, Math.PI * 1.05, Math.PI * 1.95); c.stroke(); }][i % 4](); c.restore();
+    word(c, l, x, sh - 30 * u, { size: 11 * u, weight: 600, font: TYPE.ui, color: i ? '#8A8A92' : B.accent, align: 'center' }); });
+}
+function phoneShot(c, t, s, ph, img) { // the footage inside a phone as a post; "in" pushes through the screen, "out" pulls back into it
+  const U = t - s.out0, dur = s.out1 - s.out0, L = PHONE_L(true), full = (1.08 * Math.max(W / 0.4416, H / 0.96)) / L.h; // the screen ends at 108 %: no bezel on the last frames
+  // z: 0 in the phone, 1 its screen covers the frame (reached 0.1 s before the cut, so the last frames are the plain shot); scale = full^z
+  const z = ph.phone === 'in' ? ease.in(prog(U, dur - 0.55, dur - 0.1)) : ph.phone === 'out' ? 1 - ease.out(prog(U, 0.1, 0.55)) : 0;
+  if (z > 0.999) return false; // full frame: the plain shot draws
+  const { box, cam: co } = camGeom(s), drift = clamp(U / Math.max(dur, 1));
+  c.save(); c.filter = 'blur(40px) brightness(0.5) saturate(1.2)'; cover(c, img, -W * 0.05, -H * 0.05, W * 1.1, H * 1.1); c.restore(); // ambient: itself, blurred
+  phone3d(c, { x: lerp(L.x, W / 2, z), y: lerp(L.y, H / 2, z), h: L.h * full ** z * (1 + 0.03 * drift), yaw: (L.yaw + 0.06 * drift) * (1 - z), pitch: 0.06 * (1 - z), roll: 0.02 * (1 - z),
+    statusInk: '#ffffff', shadow: 0.45 * (1 - z), screen: (sc, sw, sh) => {
+      const k = lerp(Math.max(sw / W, sh / H), sw / (0.4416 * L.h * full), z); sc.fillStyle = '#000'; sc.fillRect(0, 0, sw, sh); sc.save(); sc.translate(sw / 2, sh / 2); sc.scale(k, k); sc.translate(-W / 2, -H / 2); shotCam(sc, U, co); sc.drawImage(img, ...box); sc.restore(); // cover the screen, easing to 1:1 with the frame at full cover (the face keeps its size across the hand-off)
+      sc.save(); sc.globalAlpha = 1 - clamp(z * 2.5); feedChrome(sc, sw, sh, t, ph); sc.restore(); } });
+  return true;
+}
+function feedChrome(c, sw, sh, t, ph) { // a reel's UI in phone points (393 wide): a scrim, the right rail, the handle and the caption
+  const u = sw / 393, g = c.createLinearGradient(0, sh * 0.62, 0, sh); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.55)'); c.fillStyle = g; c.fillRect(0, sh * 0.62, sw, sh * 0.38);
+  const g2 = c.createLinearGradient(0, 0, 0, 110 * u); g2.addColorStop(0, 'rgba(0,0,0,0.45)'); g2.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g2; c.fillRect(0, 0, sw, 110 * u); // the status bar reads over any footage
+  const hit = ph.kw ? t - ph.kw.t : -1, pop = hit >= 0 ? 1 + 0.35 * Math.exp(-hit / 0.12) * Math.cos(hit * 18) : 1, rx = sw - 34 * u;
+  [['heart', hit >= 0 ? '12.4K' : '12.3K'], ['comment', '318'], ['share', 'Share']].forEach(([kind, n], i) => { const y = sh * 0.6 + i * 74 * u, r = 15 * u;
+    c.save(); c.translate(rx, y); if (kind === 'heart') c.scale(pop, pop); c.fillStyle = kind === 'heart' && hit >= 0 ? B.accent : '#ffffff'; c.strokeStyle = '#ffffff'; c.lineWidth = 2.4 * u; c.beginPath();
+    if (kind === 'heart') { c.moveTo(0, r * 0.9); c.bezierCurveTo(-r * 1.6, -r * 0.1, -r * 0.7, -r * 1.3, 0, -r * 0.45); c.bezierCurveTo(r * 0.7, -r * 1.3, r * 1.6, -r * 0.1, 0, r * 0.9); hit >= 0 ? c.fill() : c.stroke(); }
+    else if (kind === 'comment') { c.ellipse(0, -r * 0.1, r, r * 0.85, 0, 0, 7); c.stroke(); }
+    else { c.moveTo(-r * 0.9, r * 0.6); c.quadraticCurveTo(-r * 0.6, -r * 0.5, r * 0.4, -r * 0.5); c.lineTo(r * 0.4, -r); c.lineTo(r, -r * 0.3); c.lineTo(r * 0.4, r * 0.35); c.lineTo(r * 0.4, -r * 0.05); c.quadraticCurveTo(-r * 0.4, -r * 0.1, -r * 0.9, r * 0.6); c.stroke(); }
+    c.restore(); word(c, n, rx, y + 30 * u, { size: 12 * u, weight: 600, font: TYPE.ui, color: '#ffffff', align: 'center' }); });
+  const hy = sh - 96 * u, name = (E.brand?.handle || '@' + (E.brand?.name || 'creator')).replace(/^@?/, '@');
+  c.beginPath(); c.arc(30 * u, hy, 14 * u, 0, 7); c.fillStyle = B.accent; c.fill(); word(c, name, 52 * u, hy + 5 * u, { size: 15 * u, weight: 700, font: TYPE.ui, color: '#ffffff' });
+  word(c, ph.post ?? '♪ original audio · ' + name, 18 * u, hy + 34 * u, { size: 14 * u, weight: 500, font: TYPE.ui, color: '#ffffffdd' }); // post: the post's own caption (not the reel's)
+  c.fillStyle = '#ffffff55'; c.fillRect(0, sh - 44 * u, sw, 2 * u); c.fillStyle = '#ffffff'; c.fillRect(0, sh - 44 * u, sw * clamp((t - ph.start) / (ph.end - ph.start)), 2 * u);
+}
+// ---- code on screen (refs davidmarcus, hqmank, kyonax, theviableedge): lib.js codeBlock on the brand ground, typed on the words ----
+function codeTimes(s, o) { // typing starts at 0.15 s and ends 0.3 s before hlOn's word (else 0.45 s before the cut); cps 18-70 to fit
+  const src = o.src || '', typed = src.split('\n').map(l => l.trimStart()).join('\n'), w = o.hlOn && s.phrases.flatMap(i => E.phrases[i].words).find(x => clean(x.w) === clean(o.hlOn));
+  const end = (w ? w.t - s.out0 : s.out1 - s.out0 - 0.15) - 0.3, cps = o.cps ?? clamp(typed.length / Math.max(0.3, end - 0.15), 18, 70);
+  return { t0: 0.15, cps, typed, tHl: w ? w.t - s.out0 : 0.15 + typed.length / cps + 0.15 };
+}
 // ---- clocks for the new inserts: the same numbers drive the picture and sounds(), so the cues can't drift ----
 function appOf(s, o) { // an app insert after a takeover inherits that card and its clock (the rows keep ticking across the cut)
   const prev = E.phrases[s.phrase - 1], from = prev?.ui?.takeover ? prev : null;
@@ -475,7 +600,11 @@ const SOUNDS = {
     const { oo, cs } = appOf(s, o), tc = cs + appClick(s, oo, cs), inShot = t => t > s.out0 + 0.05 && t < s.out1;
     (oo.rows || []).forEach((_, i) => inShot(cs + rowAt(oo, i)) && ev.push({ t: cs + rowAt(oo, i), kind: 'tile' }));
     if (oo.button && inShot(tc)) sfx.push([tc, 'click', 2]); if (oo.toast && inShot(tc + 0.12)) sfx.push([tc + 0.12, 'click_cluster', 1.4]);
+    if (oo.toast && isPhone(o) && inShot(tc + 0.12)) ev.push({ t: tc + 0.12, kind: 'pill' }); // the toast lifting out of the phone
+    if (oo.toast && isPhone(o) && /\d/.test(oo.toast) && inShot(tc + 0.47)) sfx.push([+(tc + 0.47).toFixed(3), 'ratchet', 0.7, { n: 8, rate: 16 }]); // its number counting
   },
+  code(s, o, ev, sfx) { const ct = codeTimes(s, o); ev.push({ t: s.out0 + ct.t0, kind: 'type', text: ct.typed, cps: ct.cps }); if (o.hl != null) ev.push({ t: s.out0 + ct.tHl, kind: 'glint', gain: 1.2 });
+    if (o.result && s.out0 + ct.tHl + 0.25 < s.out1) ev.push({ t: s.out0 + ct.tHl + 0.25, kind: 'tile' }); },
   stat(s, o, ev, sfx) { const { d0, dur } = statTimes(o); sfx.push([s.out0 + d0, 'ratchet', 0.9, { n: Math.round(dur * 14), rate: 14 }]); ev.push({ t: s.out0 + d0 + dur, kind: 'keyword' }); },
   posters(s, o, ev, sfx) { for (let f = Math.ceil(s.out0 * FPS) + 1; f < s.out1 * FPS; f++) if (posterIndex(s, o, f / FPS) !== posterIndex(s, o, (f - 1) / FPS)) ev.push({ t: f / FPS, kind: 'flip' }); },
   collection(s, o, ev, sfx) { collLayout(s, o).forEach(it => it.t0 > 0.05 && s.out0 + it.t0 < s.out1 && ev.push({ t: s.out0 + it.t0, kind: collKind(o) })); },
@@ -490,7 +619,7 @@ function sounds() {
       if (ph && (ph.flash || ph.graphic) && !s.jump) return; // the flash or the stat keyword is this cut's sound
       if (s.insert?.kind === 'montage') return ev.push({ t, kind: 'montage_in' });
       if (a.insert?.kind === 'montage') return ev.push({ t, kind: 'montage_out' });
-      if (E.phrases[a.phrase]?.out && a.phrase !== s.phrase) return ev.push({ t, kind: 'portal' }); // the circle wipe is this cut's sound
+      if ((E.phrases[a.phrase]?.out || E.phrases[a.phrase]?.phone === 'in') && a.phrase !== s.phrase) return ev.push({ t, kind: 'portal' }); // a circle wipe or a push through a phone: a reverse riser into the cut
       const ins = x => x.kind !== 'cam' || E.phrases[x.phrase]?.window; ev.push({ t, kind: ins(s) || ins(a) ? 'cut_insert' : 'cut' });
     });
     for (const p of E.phrases) {
@@ -500,6 +629,7 @@ function sounds() {
         (p.ui.rows || []).forEach((_, i) => u0 + rowAt(p.ui, i) < p.end && ev.push({ t: u0 + rowAt(p.ui, i), kind: 'tile' }));
         if (p.ui.stat) sfx.push([+(u0 + 0.25).toFixed(3), 'ratchet', 0.7, { n: 12, rate: 14 }]); }
       (p.pops || []).forEach((_, i) => ev.push({ t: popAt(p, i), kind: 'icon' }));
+      if (p.phone && p.kw) sfx.push([+p.kw.t.toFixed(3), 'pop', 0.9]); // the post's heart pops on the keyword
       if (p.window) p.words.slice(1).forEach(w => ev.push({ t: w.t, kind: 'tile', gain: 0.6 })); // a soft tick as each giant word changes
       if (p.laugh === 'type') for (const [l0, l1] of p.laughAt || []) ev.push({ t: l0, kind: 'type', text: laughStr(Math.min(64, 1 + Math.floor((l1 - l0) * LAUGH_CPS))), cps: LAUGH_CPS });
       if (p.flash) ev.push({ t: p.start, kind: 'flash' });
@@ -531,6 +661,8 @@ function bed() { // a beatless-feeling pad: one chord per ~3.6 s bar, the end ca
 
 window.VIDEO = {
   duration: E.duration, audio: 'audio.wav', vo: 'dialogue.wav', lufs: PRESET.lufs,
+  three: E.phrases.some(p => p.phone || (p.insert?.kind === 'app' && isPhone(p.insert))), // lib.js loads Three.js for phone3d
+  blur: E.phrases.filter(p => p.phone === 'in').map(p => [+(p.end - 0.35).toFixed(3), p.end, 8]), // --subframes / --smooth: 8 samples on the push
   fonts: [`${B.font}:wght@500;600;800`, `${B.ui}:wght@400;500;600`, `${B.mono}:wght@500`],
   scenes: E.shots.map(s => ({ start: s.out0, end: s.out1, draw: (c, p, t) => (s.kind === 'cam' ? camShot(c, t, s) : INSERTS[s.insert.kind](c, t, s, s.insert)) })),
   overlay(c, t) {
@@ -538,12 +670,13 @@ window.VIDEO = {
     if (ph?.pops) popsOverlay(c, t, ph);
     if (ph?.ui) uiOverlay(c, t, ph);
     if (ph?.out) portalOverlay(c, t, ph); // under the captions: the keyword rides the wipe into the cut
-    if (ph && PRESET.captions && ph.caption !== false && !ph.window && !laughing && !(ph.ui?.takeover && t > ph.end - 0.35) && (ph.caption === true || !NOCAP.has(ph.insert?.kind))) {
+    const capA = ph?.phone === 'in' ? 1 - prog(t, ph.end - 0.62, ph.end - 0.52) : 1; c.globalAlpha = capA; // captions clear before a push through a phone
+    if (ph && capA > 0 && PRESET.captions && ph.caption !== false && !ph.window && !laughing && !(ph.ui?.takeover && t > ph.end - 0.35) && (ph.caption === true || !NOCAP.has(ph.insert?.kind))) {
       if (wordStyle(ph)) oneWord(c, t, ph);
       else if (ph.lockup && ph.kw) { lockup(c, t, ph); if (behindAt !== t) keyword(c, t, ph); }
-      else { lead(c, t, ph); if (behindAt !== t && !ph.ui) keyword(c, t, ph); }
+      else { lead(c, t, ph); if (behindAt !== t && !ph.ui && ph.insert?.kind !== 'app') keyword(c, t, ph); } // a card or the app's toast is the keyword
     }
-    if (laughing) laughType(c, t, ph);
+    c.globalAlpha = 1; if (laughing) laughType(c, t, ph);
     if (ph?.title) title(c, t, ph);
     for (const p of E.phrases) if (p.flash) flash(c, t, p.start, { fps: FPS });
     behindAt = -1;
@@ -551,6 +684,13 @@ window.VIDEO = {
 };
 // ---- project inserts (this video only) ----
 
+for (const p of E.phrases) { // captions round phones and code: above them in 9:16 (phone top at 0.38 H, under the platform's top bar); left of the phone in 16:9
+  const k = p.insert?.kind, ph3 = p.phone || (k === 'app' && isPhone(p.insert));
+  if (W < H && (ph3 || k === 'code')) { p.leadY ??= 0.17; p.kwY ??= 0.31; if (k === 'app') p.caption ??= true; }
+  if (W >= H && ph3) { p.cx ??= 0.31; p.leadY ??= 0.38; p.kwY ??= 0.6; if (k === 'app') p.caption ??= true; }
+  if (W >= H && k === 'code') p.caption ??= false; // the panel fills the middle of a wide frame
+  if (E.phrases[p.i - 1]?.phone === 'in') p.z0 ??= 1.08; // after a push through the screen the shot keeps a little of the push
+}
 if (PRESET.captions) placeCaptions();
 placeUI();
 const SND = sounds(); Object.assign(VIDEO, { events: SND.ev, sfx: SND.sfx, bed: bed(), captions: E.phrases.map(p => [p.i, p.dy || 0, p.face || null]) });

@@ -53,6 +53,7 @@ em { font-style: italic; }
 .stage svg .dots { fill: url(#dots); }
 .stage svg .dash { stroke-dasharray: 3 4; }
 .stage svg .guide { stroke: var(--faint); }
+.stage svg .grid { stroke: var(--rule); }          /* chart grid lines: quieter than guides */
 .stage svg .muted { opacity: 0.22; }
 .stage svg .fade { transition: opacity 0.45s ease; }
 .stage svg .idle { color: var(--dim); }             /* an iso part that is not the picked one */
@@ -163,6 +164,46 @@ function label(g, text, sub, anchor = 'start') {   // build once; place with .at
     return G;
   };
   return G;
+}
+function note(g, text, anchor = 'start') {        // a hand-style leader: curved, ending in the arrow. Build once; place with
+  // .at(tx, ty, px, py, bend) (text position, then the point it explains). .strike(true) crosses the words out and
+  // dims them: keep the wrong idea on the figure, struck, rather than deleting it
+  const G = el('g', {}, g), p = el('path', { class: 'guide', 'marker-end': 'url(#arrow)' }, G);
+  const t = el('text', { 'text-anchor': anchor, text }, G), x = el('line', { visibility: 'hidden' }, G), w = text.length * 7.4;
+  G.at = (tx, ty, px, py, bend = 0.3) => {
+    const l = anchor === 'start' ? tx : anchor === 'end' ? tx - w : tx - w / 2;
+    const [sx, sy] = px < l ? [l - 6, ty - 4] : px > l + w ? [l + w + 6, ty - 4] : [l + w / 2, py > ty ? ty + 6 : ty - 14];
+    const cx = (sx + px) / 2 - (py - sy) * bend, cy = (sy + py) / 2 + (px - sx) * bend;
+    set(p, { d: `M${sx} ${sy}Q${cx} ${cy} ${px} ${py}` }); set(t, { x: tx, y: ty });
+    set(x, { x1: l - 3, x2: l + w + 3, y1: ty - 4, y2: ty - 4 });
+    return G;
+  };
+  G.strike = on => { set(x, { visibility: on ? 'visible' : 'hidden' }); t.classList.toggle('muted', on); return G; };
+  return G;
+}
+function chart(g, { x0, x1, y0, y1, xd, yd, xt = [], yt = [], xf = String, yf = String, xl, yl }) {
+  // a plot frame, built once: grid lines only inside the plot, 3-5 ticks, mono tick labels, the axis titles written
+  // flat at the ends (no rotated text). Returns X, Y (domain -> viewBox) and line(fn, from, to): path data for y = fn(x),
+  // held inside the plot so an asymptote leaves through the top. Name each series at its end with label(), no legend
+  const X = v => x0 + (v - xd[0]) / (xd[1] - xd[0]) * (x1 - x0), Y = v => y0 - (v - yd[0]) / (yd[1] - yd[0]) * (y0 - y1);
+  for (const v of yt) {
+    if (v !== yd[0]) el('line', { x1: x0, x2: x1, y1: Y(v), y2: Y(v), class: 'grid' }, g);
+    el('text', { x: x0 - 8, y: Y(v) + 4, 'text-anchor': 'end', class: 'sub', text: yf(v) }, g);
+  }
+  for (const v of xt) el('text', { x: X(v), y: y0 + 16, 'text-anchor': 'middle', class: 'sub', text: xf(v) }, g);
+  el('path', { d: `M${x0} ${y1}V${y0}H${x1}` }, g);
+  if (xl) el('text', { x: x1, y: y0 + 32, 'text-anchor': 'end', class: 'sub', text: xl }, g);
+  if (yl) el('text', { x: x0, y: y1 - 10, class: 'sub', text: yl }, g);
+  const line = (fn, from = xd[0], to = xd[1], n = 96) => {
+    const top = y1 - 8, pts = [];
+    for (let i = 0; i <= n; i++) {
+      const v = from + (to - from) * i / n, x = X(v), y = Y(fn(v));
+      if (y < top) { const [px, py] = pts.at(-1) ?? [x, y]; pts.push([lerp(px, x, (py - top) / (py - y || 1)), top]); break; }
+      pts.push([x, y]);
+    }
+    return 'M' + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L');
+  };
+  return { X, Y, line };
 }
 function pointer(svg, e) {                         // a mouse/touch event -> [x, y] in the svg's viewBox units
   const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse()); return [p.x, p.y];

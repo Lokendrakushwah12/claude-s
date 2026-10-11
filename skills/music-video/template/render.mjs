@@ -19,6 +19,8 @@
 //                   inside motion: held or dropped), hitches (a step far bigger than both neighbours inside motion), cuts
 //                   or pops (a jump out of rest), and a judder index. Exits 1 on any stall or hitch. Use --from/--to.
 // The page gets ?fps=<output fps>; lib.js reads it as OUTFPS (onFrame(t) = the frame's own time).
+// Output is H.264 yuv420p in BT.709 limited range, tagged, so browsers and players show the canvas colours (max error 2-3/255).
+// WebGL works: lib.js VIDEO.three loads Three.js; headless Chrome renders it on the GPU (ANGLE Metal, 4x MSAA), the same frame every time.
 //   --loopcheck     for loops: per 16x9 tile, does last frame -> frame 0 change more than any normal step? Exits 1 if so.
 //                   Catches things that pop, wrap or snap at the seam (not a moving object skipping ahead). Run it with looks off.
 // A page that synthesises its own soundtrack (explainer-lesson) defines mixdown(): before a video render its WAV is
@@ -84,8 +86,8 @@ if (o.cues) {
   console.log('wrote cues.json'); process.exit(0);
 }
 if (o.loopcheck) { // per 16x9 tile, mean |RGB difference| (0-255) between two times, measured on the page's canvas
-  const diff = (a, b) => js(`(() => { const c = document.querySelector('canvas'), x = c.getContext('2d'), w = c.width, h = c.height, px = t => (seek(t), x.getImageData(0, 0, w, h).data);
-    const A = px(${a}), B = px(${b}), T = new Float64Array(144);
+  const diff = (a, b) => js(`(async () => { const c = document.querySelector('canvas'), x = c.getContext('2d'), w = c.width, h = c.height, px = async t => (await seek(t), x.getImageData(0, 0, w, h).data);
+    const A = await px(${a}), B = await px(${b}), T = new Float64Array(144);
     for (let y = 0; y < h; y++) { const row = Math.floor((y * 9) / h) * 16; for (let i = y * w * 4, e = i + w * 4, k = 0; i < e; i += 4, k++) T[row + Math.floor((k * 16) / w)] += Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]); }
     return [...T].map(v => (v * 144) / (w * h * 3)); })()`);
   // the 8 frames before the seam, then the first 8: d[7] is the seam, the rest are normal steps. A tile fails when the seam
@@ -101,11 +103,12 @@ if (o.loopcheck) { // per 16x9 tile, mean |RGB difference| (0-255) between two t
 if (o.motioncheck) { // per output frame, mean |RGB step| (0-255) of each of 6x4 tiles, read off a 320 px copy of the canvas
   const from = +o.from, to = o.to ? +o.to : duration, n = Math.round((to - from) * fps), TX = 6, TY = 4, d = [];
   await js(`window.__mc = { prev: null, x: new OffscreenCanvas(320, Math.round(320 * document.querySelector('canvas').height / document.querySelector('canvas').width)).getContext('2d', { willReadFrequently: true }) }`);
-  for (let f0 = 0; f0 < n; f0 += 120) d.push(...await js(`(() => { const c = document.querySelector('canvas'), m = window.__mc, x = m.x, w = x.canvas.width, h = x.canvas.height;
-    return [...Array(Math.min(120, ${n} - ${f0}))].map((_, k) => { seek(${from} + (${f0} + k) / ${fps}); x.clearRect(0, 0, w, h); x.drawImage(c, 0, 0, w, h);
+  // await seek: a page whose seek is async (ugc-edit waits for footage frames to decode) draws after the promise, not before it returns
+  for (let f0 = 0; f0 < n; f0 += 120) d.push(...await js(`(async () => { const c = document.querySelector('canvas'), m = window.__mc, x = m.x, w = x.canvas.width, h = x.canvas.height, out = [];
+    for (let k = 0; k < Math.min(120, ${n} - ${f0}); k++) { await seek(${from} + (${f0} + k) / ${fps}); x.clearRect(0, 0, w, h); x.drawImage(c, 0, 0, w, h);
       const p = x.getImageData(0, 0, w, h).data, T = new Array(${TX * TY}).fill(0);
       if (m.prev) for (let y = 0; y < h; y++) for (let i = y * w * 4, k2 = 0; k2 < w; i += 4, k2++) T[Math.floor(y * ${TY} / h) * ${TX} + Math.floor(k2 * ${TX} / w)] += Math.abs(p[i] - m.prev[i]) + Math.abs(p[i + 1] - m.prev[i + 1]) + Math.abs(p[i + 2] - m.prev[i + 2]);
-      m.prev = p; return T.map(v => v * ${TX * TY} / (w * h * 3)); }); })()`));
+      m.prev = p; out.push(T.map(v => v * ${TX * TY} / (w * h * 3))); } return out; })()`));
   // d[f][tile] = the step from frame f-1 to f; a tile moves when its step is over 0.6 (sub-pixel drift is noise). Each frame is judged against its neighbours:
   // a stall is a frame where most moving tiles stop (held or dropped), a hitch a tile stepping over 2.5x both neighbours,
   // a cut or pop the whole frame jumping out of rest. One tile stopping alone is a layer held on twos (grain, a boil): reported, not failed.
@@ -157,10 +160,13 @@ const nAt = t => { const w = wins.find(([a, b]) => t >= a && t < b); let k = Mat
 // --linear wraps the average in gamma 2.2 <-> linear on 16-bit RGB, so a bright streak's blur keeps its energy.
 const lin = g => `lutrgb=r='65535*pow(val/65535\\,${g})':g='65535*pow(val/65535\\,${g})':b='65535*pow(val/65535\\,${g})'`;
 const mix = `tmix=frames=${N},select='eq(mod(n\\,${N})\\,${N - 1})',setpts=N/(${fps}*TB)`;
-const blur = N > 1 ? ['-vf', o.linear ? `format=rgb48le,${lin(2.2)},${mix},${lin(1 / 2.2)}` : mix, '-r', String(fps)] : [];
+// Colour: Chrome's JPEGs are BT.601 full range; left as is, browsers decode the MP4 as BT.709 and saturated colours shift
+// (#00ff00 played back as 0,216,0; an orange accent's green +14). Convert to BT.709 limited range and tag it (max error 4/255).
+const bt709 = 'format=rgb24,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv';
+const blur = ['-vf', [...(N > 1 ? [o.linear ? `format=rgb48le,${lin(2.2)},${mix},${lin(1 / 2.2)}` : mix] : []), bt709].join(','), ...(N > 1 ? ['-r', String(fps)] : [])];
 const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps * N), '-i', '-',
   ...(audio ? ['-ss', String(from), '-t', String(to - from), '-i', join(dir, audio)] : []), ...blur,
-  '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', o.preview ? '26' : '17', '-preset', o.preview ? 'veryfast' : 'medium',
+  '-c:v', 'libx264', '-crf', o.preview ? '26' : '17', '-preset', o.preview ? 'veryfast' : 'medium',
   ...(audio ? ['-c:a', 'aac', '-b:a', '256k', '-shortest'] : []), join(dir, o.out)], { stdio: ['pipe', 'inherit', 'inherit'] });
 const t0 = Date.now();
 for (let f = 0; f < n; f++) {

@@ -10,6 +10,8 @@
         exact on the bed's clock, and lyrics.js also gets VO = [[t, 'voices/01.wav'], ...] for VIDEO.vo (sfx.py mixes it).
     uv run align.py --check final.mp4                     review: transcribe the finished mix (no prompt, so it's honest)
         and compare it with lyrics.js: which words can't be heard, and how far each heard onset is from its karaoke onset.
+    uv run align.py --bands audio.wav                     (re)write window.BANDS in lyrics.js from a mix, e.g. after sfx.py
+        made the bed. A song run writes BANDS by itself. toon.js band(t, 'low' | 'mid' | 'high') reads it.
 
 lyrics.txt (one line per line) primes Whisper so the words come out right; where the word count matches, its spelling
 is used. Sung vocals still mis-transcribe sometimes, so read lyrics.js and fix wrong words by hand (keep the timings).
@@ -25,7 +27,25 @@ ap = argparse.ArgumentParser()
 ap.add_argument("song", nargs="?"); ap.add_argument("lyrics", nargs="?")
 ap.add_argument("--spoken", action="store_true"); ap.add_argument("--bpm", type=float)
 ap.add_argument("--every", type=float, default=2.0); ap.add_argument("--at", type=float); ap.add_argument("--check")
+ap.add_argument("--bands")
 a = ap.parse_args()
+
+
+def bands(path, fps=60):  # energy per band per 1/fps s, 0..1: instant attack, 0.15 s release, scaled by its 98th percentile
+    y, sr = librosa.load(path, sr=24000, mono=True); hop = sr // fps  # 24 kHz: hop is exact at 30 and 60 fps, so no drift
+    S = np.abs(librosa.stft(y, n_fft=2048, hop_length=hop)) ** 2; f = librosa.fft_frequencies(sr=sr, n_fft=2048); out = {"fps": fps}
+    for name, lo, hi in (("low", 20, 150), ("mid", 150, 2000), ("high", 4000, 11000)):
+        e = np.sqrt(S[(f >= lo) & (f < hi)].sum(0)); env, k = np.zeros_like(e), np.exp(-1 / (0.15 * fps))
+        for i, v in enumerate(e): env[i] = max(v, env[i - 1] * k) if i else v
+        out[name] = [round(float(v), 2) for v in np.clip(env / (np.percentile(env, 98) + 1e-9), 0, 1)]
+    return out
+
+
+if a.bands:
+    js = open("lyrics.js").read().split("\nwindow.BANDS = ")[0].rstrip("\n")
+    open("lyrics.js", "w").write(js + f"\nwindow.BANDS = {json.dumps(bands(a.bands))};\n")
+    sys.exit(print(f"BANDS from {a.bands} -> lyrics.js"))
+
 text_file = "lyrics.txt" if a.spoken else a.lyrics
 texts = [s.strip() for s in open(text_file).read().splitlines() if s.strip()] if text_file and os.path.exists(text_file) else []
 model = WhisperModel(os.environ.get("WHISPER_MODEL", "medium"), device="cpu", compute_type="int8")
@@ -90,4 +110,5 @@ with open("lyrics.js", "w") as f:
     f.write("window.LYRICS = [\n" + ",\n".join("  " + json.dumps(l, ensure_ascii=False) for l in lines) + "\n];\n")
     f.write(f"window.BEATS = {json.dumps(beats)};\n")
     if vo: f.write(f"window.VO = {json.dumps(vo)};\n")
+    if not a.spoken: f.write(f"window.BANDS = {json.dumps(bands(song))};\n")
 print(f"{duration}s, {bpm:g} bpm, {len(lines)} lines, {len(beats)} beats -> lyrics.js")

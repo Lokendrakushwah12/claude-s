@@ -65,6 +65,9 @@ Each figure gets one claim, one control (or none) and up to three readouts. Two 
 | Data → world lift | That a chart and a place are the same data | A plan ↔ world toggle. The plan is a flat chart; `lift(p)` tilts the camera and heights grow, and every mark keeps its coordinates | Letter frequencies rising off a keyboard |
 | Clock as spine | Events that happen at different moments in one action | One time axis with a playhead drives every lane above it; marks drop as events fire, and the slider scrubs the clock | Two keystrokes, light and bottomed out |
 | Object-attached callouts | Facts about parts that move | A screen-space label whose leader ends on a projected point of the part, so it follows the part but never lies under another one | Any iso figure |
+| Graph ↔ object | That a curve describes a thing you can see | One value drives both: a playhead (dashed line + ring) on the curve and the object beside it, which leaves a mark per step so its spacing is the curve's slope | An easing curve over a block and its onion-skin trail |
+| Wrong guess, then the truth | The surprise in a relationship | The guess is drawn first (`.dash`), with a `note()` asking it; as the control reaches the telling range the real curve takes over and the note is struck, never removed | "Twice as busy, twice the wait?" against the real queueing curve |
+| Re-read the same marks | That one set of things hides a structure | A toggle recolours or re-sorts the same marks; no mark appears or disappears, and a counter counts the marks that changed | Pascal's triangle coloured by parity turning into Sierpinski's |
 
 Invent at least one figure that is not in this table and that only this topic could have.
 
@@ -89,6 +92,12 @@ Invent at least one figure that is not in this table and that only this topic co
   - Hit-test against the rest pose, where the spring is heading (or `unproj` the pointer onto the ground), never against the moving drawing, or the plate slides out from under the pointer and the pick flickers.
   - Text on a surface goes through `faceMatrix`; labels stay in screen space as object-attached callouts. A label laid on the ground gets covered by the first part in front of it.
 - **Labels:** lowercase mono on a leader line that ends in a dot on the part (`label()`). An optional dim second line carries a fact ("34 teeth"). Bold the same word in the prose where it first appears, so the text and the drawing use the same name.
+- **Charts** (`chart()`), measured off the strongest chart explainers in the 2026-10-11 review:
+  - Grid lines only inside the plot, in `.grid` (quieter than `.guide`); three to five ticks per axis; mono tick labels in `.sub`; axis titles written flat at the axis ends, never rotated.
+  - Name each series at its end with `label()` and drop the legend. One series is ink and the rest `.idle`; a second kind of bar is hatched rather than coloured.
+  - Bars with an uncertainty get a whisker for the interval and their value at the end ("20.1 % · 29 of 144"); the axis can go.
+  - A readout and the figure count the same thing: the number of marks that changed, the value under the playhead.
+  - `note()` is the annotation: a curved leader ending in the arrow. Strike the wrong idea with `.strike(true)` and leave it on the figure.
 - **Chrome:**
   - The header has `FIG_00n` on the left and `[ lowercase caption ]` on the right.
   - The footer has a dim serif caption that says how to read the figure, then the mono control row. Readouts are a dim label with an ink value in tabular numbers.
@@ -127,6 +136,8 @@ fig('f3', { w: 720, h: 360, s: { t: 2.4, gear: 34 },   // s = state; its startin
   - `lerp`, `clamp`, `ease`: interpolation.
   - **Iso:** `cam({az, el, S, ox, oy})`, `proj(C, x, y, z)` and `unproj(C, sx, sy, z)`, `depth(C, x, y, z)` for paint order, `lift(p, from, to, S)` for the plan → oblique move. Footprints: `rrectRing`, `circleRing`. Path data: `slabPaths(C, ring, z0, z1, top?)` → `{ sil, top }`, `faceMatrix(C, o, U, V)` → a transform or null when the face is turned away, `grid(C, …)`. `iso(x,y,z)` is the old fixed projection, kept as an alias.
   - **Clocks:** `spring(s, 'gap', target, dt)` and `tween(s, 'pick', dt)` → `{from, to, p}`, both called from `tick`; `ease.lift`. Under reduced motion both snap, and a control change calls `tick(s, 0)` so they still land.
+  - `chart(g, { x0, x1, y0, y1, xd, yd, xt, yt, xf, yf, xl, yl })`: a plot frame built once; returns `X`, `Y` and `line(fn, from, to)`, path data for y = fn(x) that stops where it leaves the top of the plot.
+  - `note(g, text, anchor)`: build once, place with `.at(tx, ty, px, py, bend)`; `.strike(on)` crosses it out and dims it.
   - `pointer(svg, e)`: an event in viewBox units, for hit-testing.
   - `rot(x,y,cx,cy,deg)`: rotate a point.
   - `phase(t, [beats])`: which beat of a loop t is in, for scripted sequences.

@@ -10,8 +10,9 @@ from chatterbox.tts import ChatterboxTTS
 
 VOICES = Path(__file__).parent / "voices"
 REFERENCE = None  # a clean 10 s+ clip to clone that voice; None = Chatterbox's own
-# A calm teacher: exaggeration 0.5 is neutral (0.8 warm, 1.0+ dramatic); a lower cfg_weight speaks slower
-STYLE = dict(exaggeration=0.5, cfg_weight=0.5)
+# A calm teacher: exaggeration 0.5 is neutral (0.8 warm, 1.0+ dramatic); a lower cfg_weight speaks slower (0.5 read
+# a test line at 4.8 words a second, 0.35 at 4.3: closer to the 3.2 a second a caption needs)
+STYLE = dict(exaggeration=0.5, cfg_weight=0.35)
 
 model = ChatterboxTTS.from_pretrained(device="mps" if torch.backends.mps.is_available() else "cpu")
 for item in json.loads((VOICES / "todo.json").read_text()):

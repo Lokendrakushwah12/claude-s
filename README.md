@@ -10,7 +10,7 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 | [`type-film`](skills/type-film) | An original 10–30 s brand motion film from reference videos plus the brand's own site. Styles include Swiss type, cinematic, screen HUD, 80s vector CRT, single-take morph, line catalogue and isometric product | [type-film.html](demos/type-film.html) |
 | [`promo-video`](skills/promo-video) | A SaaS launch promo built from a product's repo or site, using its real logo, colours, fonts, UI and numbers, with a cursor that moves like a hand and silky 60 fps motion. Renders 16:9, 1:1 and 9:16 | [promo-video.html](demos/promo-video.html) |
 | [`explainer-lesson`](skills/explainer-lesson) | A narrated, animated lesson on one hard concept, with picture, sound and voice on one clock. Looks include blueprint, chalkboard, gouache, riso, graphite stop-motion and hairline | [explainer-lesson.html](demos/explainer-lesson.html) |
-| [`music-video`](skills/music-video) | A lyric-driven music video from a song file, or a spoken-word lyric essay over a synthesised bed: karaoke words, live counters, beat-cut scenes | [music-video.html](demos/music-video.html) |
+| [`music-video`](skills/music-video) | A lyric-driven music video from a song file, a spoken-word lyric essay over a synthesised bed, or an animated character short where the music is the action: karaoke words, live counters, beat-cut scenes, and `toon.js` acting (pose to pose, squash and stretch, faces, mouths on syllables) | [music-video.html](demos/music-video.html) |
 | [`story-video`](skills/story-video) | A narrated kinetic-typography story (founder story, recap): a card per phrase, an expressive Chatterbox voice, ducked music, a sub on every hard cut | [story-video.html](demos/story-video.html) |
 | [`explorable-explainer`](skills/explorable-explainer) | An interactive "how does X work" essay with line-art and isometric figures you scrub and pick, published as a claude.ai Artifact | [explorable-explainer.html](demos/explorable-explainer.html) |
 | [`archive-footage`](skills/archive-footage) | Public-domain archival clips (countdowns, grain plates, old streets) with each licence verified at the original archive, and credits written for you | [archive-footage.html](demos/archive-footage.html) |
@@ -29,14 +29,14 @@ Install them together. The skills share three toolkits, which they copy from eac
 
 | Template | Shared files | What they do |
 |---|---|---|
-| `music-video/template` | `render.mjs`, `lib.js` | the frame-exact renderer (`--still`, `--subframes` motion blur, `--smooth` 60 fps with a real shutter and `VIDEO.blur` windows, `--motioncheck` judder test, `--loopcheck`), the easing and timing helpers, and `smoothText` for slow-moving type |
+| `music-video/template` | `render.mjs`, `lib.js`, `toon.js` | the frame-exact renderer (`--still`, `--subframes` motion blur, `--smooth` 60 fps with a real shutter and `VIDEO.blur` windows, `--motioncheck` judder test, `--loopcheck`), the easing and timing helpers, `smoothText` for slow-moving type, 3D through Three.js (`gl3d`, a lit `phone3d` whose screen is any drawing), a typing `codeBlock`, and `toon.js` character acting |
 | `promo-video/template` | `sfx.py`, `promo.js` | 57 synthesised sounds, beds, voice ducking, sound levels by family, and `autocue` for edits |
-| `type-film/template` | `type.js`, `look.js`, `iso.js`, `filmlook.sh` | about 55 type and motion devices (including aura hits: speed ramps, punches, impact frames), film and screen looks, isometric solids, an ffmpeg film-look pass, and `creative.md`, the method the skills follow to get past derivative ideas |
+| `type-film/template` | `type.js`, `look.js`, `iso.js`, `filmlook.sh` | about 70 type and motion devices (including aura hits: speed ramps, punches, impact frames), film and screen looks, isometric solids, an ffmpeg film-look pass, and `creative.md`, the method the skills follow to get past derivative ideas |
 
 ## Requirements
 
 - macOS, with Google Chrome in `/Applications` (set `CHROME=` to use another path).
-- `node` 18+, `ffmpeg` and `uv`. `render.mjs` drives Chrome over raw CDP, so there's no `npm install`; Python steps pull their own packages through `uv`.
+- `node` 18+, `ffmpeg` and `uv`. 3D scenes load Three.js from jsdelivr at render time, so they need a network connection. `render.mjs` drives Chrome over raw CDP, so there's no `npm install`; Python steps pull their own packages through `uv`.
 - `yt-dlp` for `x-video-frames`.
 - Voice: `story-video`, `explainer-lesson`, `music-video`, `ugc-edit` and `faceless-video` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`.
 - Optional:

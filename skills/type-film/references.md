@@ -13,6 +13,7 @@ Contents: the first three films (Whop, portfolio reel, Nexus), then the 2026-10-
 17), 80s vector CRT (08), monochrome morph (12), line catalogue (20), isometric product (01, 13), UGC and screen edits
 (02, 07, 16), paper and collage (14, 06), lyric and promo motion (10, 15, 18), and process (prompt-motion, stop-motion).
 Then the 2026-10-11 batch's aura edits and motion craft (24, 31 + systms.ai, 47, 48, 49, 34, 35): the aura grammar lives in aura-edit.
+Then the 2026-10-11b batch: every kinetic-type, shape and particle film on prompt-motion.com (41), with the nine that fed this skill.
 
 ---
 
@@ -433,3 +434,91 @@ from spectrograms and band energy; nobody listened.
 
 **Lives in:** `creative.md`; the "Maker's-tool collision" style row; `maskWord`, `smear`, `pointer`.
 
+
+---
+
+# Batch 2026-10-11b: prompt-motion.com, kinetic type, shapes and particles
+
+All 41 were triaged (`~/Movies/refs/batch-2026-10-11b/review-G1.tsv`); measurements and frames are in `NOTES-G1.md` and `g1/` there.
+Sound was read from spectrograms. 27 of the 41 came from one generic "showreel" prompt and share one template (corner HUD,
+dot grid, particle sphere, curve editor, a full-stop dot): creative.md now lists it as the default to kill. The prompts belong to
+their creators: nothing below quotes one.
+
+## A photon's way out of the Sun, @apoorvjain25
+`prompt-motion.com/apoorvjain25-d24184` · 20.1 s, 30 fps, 120 BPM, −12.2 LUFS
+**TAKE**
+- One word per beat at 25–40 % of H (a two-letter word measured 40 %), landing at ~1.25× and settling in 3 frames, then dimming to ~45 % and shrinking as the next word lands. 16 cuts in 20 s.
+- Live numbers that are the story's own data (depth, temperature, bounces, time since it left), counting every frame in the corners; small tracked mono labels, values at 4–7 % of H.
+- A bokeh field of ~50 warm discs, radius 40–110 px, sharp centres, sized and blurred by depth; one hot particle with a short trail.
+- Sound: a rising arpeggio as the tension of being trapped; a hard stop into black at the turn; a 0.15 s total silence as the blink, then one soft chord under the last line.
+- The end pairs a small italic serif line (5.5 % of H) with a giant condensed payoff (24 % of H, 78 % of W) with a red/cyan fringe.
+**LEAVE** the photon story and its copy, the Sun, the eye, the starfield warp, the condensed chroma-split look as a whole.
+**Lives in:** `hitWord chromaWord drawCloud` (focus = bokeh); SKILL.md "Beat words".
+
+## Claude introducing itself, @1littlecoder
+`prompt-motion.com/1littlecoder-9fef89` · 10 s, 60 fps, 120 BPM
+**TAKE**
+- One prop carries every transition: it draws a question mark, scribbles, drops onto a ruled line, lands as each word's tittle or full stop with a squash-stretch smear, and finally a disc grows from it to wipe the frame.
+- Each word set in the voice of its meaning (one on construction gridlines, one in a plain serif on white). Three colours: cobalt, lavender, one orange.
+- 0.87 s of digital silence before the final section.
+**LEAVE** the orange dot itself (now a cliché: about 10 of the 41 use one), the words, the cobalt and lavender.
+**Lives in:** `squashDot iris`; creative.md 5b.
+
+## "Full stop", @HBCoop_
+`prompt-motion.com/hbcoop-de365c` · a point grows in dimension
+**TAKE**
+- A spine of one object changing dimension (point, line, circle, sphere, lens, ball, flock, world) and coming back as the full stop of the closing sentence; numbered editorial captions typed with a caret.
+- A particle flock that keeps one coherent ribbon shape and casts one soft shadow: particles as a body, not a spray.
+**LEAVE** the cream page, the FIG captions, the glass lens, the sequence.
+**Lives in:** `drawCloud mixPts`; SKILL.md "Particles and shapes".
+
+## Motion reel, @codeSTACKr
+`prompt-motion.com/codestackr-c071bf` · 15 s, 60 fps, 120 BPM, −7.5 LUFS
+**TAKE**
+- An extended black grotesk at 18–33 % of H against a small italic serif (9 % of H); a word cropped by the frame arrives oversized with heavy horizontal motion blur and settles in ~6 frames.
+- Full-bleed saturated grounds with a soft centre lift, changing every shot; outline echoes of the word stacked behind it.
+- A dot that grows into a circle wipe, a ring that reveals the next word. Sound: kicks on every beat, a tonal sweep on every transition, a one-second 16th roll into the logo.
+**LEAVE** the orange/cobalt/cream set, the dot grid, the curve editor, the corner HUD.
+**Lives in:** `hitWord litGround iris smear`.
+
+## Particle and shape reel, @blue_clarity
+`prompt-motion.com/blue-clarity-ef56d0` · 15 s, 60 fps
+**TAKE**
+- Outlines resampled to 200 points morphing rect → triangle → star → flower, with 2–3 fading echo outlines; a particle burst that re-forms as a word; a point sphere turning into a torus with depth-sized dots.
+- Condensed caps stacked in three weights (solid, outline, solid on a band) for one sentence.
+**LEAVE** the corner HUD, the tile grid of mini demos, the palette.
+**Lives in:** `shapePts morphPts drawPts onion pointCloud textPts mixPts drawCloud`.
+
+## A spoken line staged as architecture, @Gdgtify
+`prompt-motion.com/gdgtify-287ddf` · 20 s, 1:1, 60 fps, no audio
+**TAKE**
+- Words with physical jobs: a heavy word as a lintel pressing the sentence under it, a word hung on two fine rules that become cables while the baseline sags, a word turned upright as a support, a second support that levels the structure, and the final line resting on the platform the earlier words made.
+- Heavy grotesk for the load-bearing words, a high-contrast serif for the speech; a cue sheet by phrase, not by beat; one held stillness; the loop closes by diving into the first word.
+**LEAVE** the speech, the deep green and gold, the composition of every frame.
+**Lives in:** the "Words as structure" style; creative.md 5b.
+
+## "I'm Claude" in five voices, @souravbhar871
+`prompt-motion.com/souravbhar871-61f424` · 10 s, 60 fps, no audio
+**TAKE**
+- Each line changes typeface to act out its claim: a line typed in mono with a pen stroke that loops like a thought and pulls the next words along; a wobbly word straightened by a ruled line; extruded type for "building".
+- Two colours (terracotta, ink) plus cream; no corner furniture at all.
+**LEAVE** the lines, the asterisk mark, the palette.
+**Lives in:** creative.md 5b; `weightWave fitStack`.
+
+## Swiss motion reel, @levabashidze
+`prompt-motion.com/levabashidze-2d713a` · 15 s, 60 fps
+**TAKE**
+- Rows of one phrase scrolling at different speeds, each blurred by its speed and with weight changing word to word; one row in the accent, sharp.
+- A blob-to-star morph inside concentric echo contours; a Truchet field where one tile swaps colour.
+**LEAVE** the cream/black/vermilion, the corner HUD, the end card.
+**Lives in:** `weightWave morphPts`, `marquee` with a per-row blur.
+
+## "I can", @zheke
+`prompt-motion.com/zheke-38deff` · 15 s, 1:1, 60 fps, 104 cuts/min
+**TAKE**
+- Frame-filling stacks: condensed caps justified to the measure with ~0.12 × cap height between lines (measured 14 %, 31 % and 36 % of H in one frame), 6 % margins.
+- One frame per verb, the verb performed, on grounds that rotate black / cream / orange / blue; the loop ends on its first frame.
+**LEAVE** the verbs, the dot, the 3D blobs, the palette.
+**Lives in:** `fitStack inkBox`.
+
+Also taken (smaller): @ajith_io's letters lifting off a page as glyph embers; @hanifproduktif's words that perform themselves (now on the kill list unless the job comes from the subject); @nolkeeg's one-second data story; @lukasersil's word sliced into sliding strips; @raphaelaubryy's numeral built from grid cells; @rendesr's flow field of strokes revealing a word; @ndhabarde11's grid of shapes morphing at t − 0.3 × distance; @manuelogomigo's single halftone primitive with a light serif; @tdinh_me's mark assembling from its own facets; @vanshwtfff's italic serif annotations on a blueprint ground.

@@ -75,7 +75,7 @@ function onColor(fill) {
 // ---- drawing ----
 
 /** Font stacks, set from the look by the page before the first frame. */
-const fonts = { sans: "system-ui, sans-serif", heading: "system-ui, sans-serif", mono: "ui-monospace, monospace" };
+const fonts = { sans: "system-ui, sans-serif", heading: "system-ui, sans-serif", mono: "ui-monospace, monospace", hand: "cursive" };
 
 /**
  * How the current frame's lines and fills come out. applyLook() sets it every frame, so the same drawing code
@@ -161,7 +161,7 @@ function knockout(ctx, color, box, hatch = true) {
   ctx.restore();
 }
 
-/** o: size (18), weight (400|500|700), color, align, baseline, font (sans|heading|mono), alpha. */
+/** o: size (18), weight (400|500|700), color, align, baseline, font (sans|heading|mono|hand), alpha. */
 function text(ctx, s, x, y, o = {}) {
   ctx.save();
   ctx.globalAlpha *= o.alpha ?? 1;
@@ -262,10 +262,10 @@ function strokeLine(ctx, pts, color, lw) {
       line(pts.map(([x, y], i) => [x + (hash(i, pass) - 0.5) * lw * 0.7, y + (hash(pass, i) - 0.5) * lw * 0.7]), color, lw * (pass ? 0.6 : 0.85));
     }
   } else if (style.stroke === "riso") {
-    // A second ink printed a hair out of register
-    ctx.globalAlpha *= 0.55;
-    line(pts.map(([x, y]) => [x + lw * 0.45, y + lw * 0.35]), style.misregister, lw);
-    ctx.globalAlpha /= 0.55;
+    // A second ink printed a hair out of register: under a unit, so a thick line reads as one stroke, not a blur
+    ctx.globalAlpha *= 0.45;
+    line(pts.map(([x, y]) => [x + Math.min(0.9, lw * 0.3), y + Math.min(0.7, lw * 0.22)]), style.misregister, lw);
+    ctx.globalAlpha /= 0.45;
     line(pts, color, lw);
   } else {
     // glow: a soft halo under a crisp line, like light on a blueprint
@@ -432,7 +432,7 @@ const DEFAULT_MUSIC = { bpm: 80, gain: 0.07, chords: [[50, 54, 57, 61], [47, 50,
 const TYPED = { cps: 37, hold: 3 };
 
 /**
- * spec: title, look, theme ('light' | 'dark'), duration, chapters [{at, title}], captions [{at, text, say?, hold?}],
+ * spec: title, look, theme ('light' | 'dark'), duration, chapters [{at, title, claim?}], captions [{at, text, say?, hold?}],
  * cues [{at, sound, gain?, pitch?, len?}], sources (two or more), scene({ctx, t, theme}), plus optional
  * music (null for none), voice ('typed' for no narration), pronounce, poster, eyebrowFrom (4), end ({at, title, sub} or false).
  * Every time in the spec is script time. The returned lesson's times are real playback time, stretched where the
@@ -503,6 +503,7 @@ function validate(l) {
     list.forEach((x, i) => { if (i && x.at <= list[i - 1].at) bad.push(`${name} at ${x.at}s is out of order`); });
   }
   l.chapters.forEach((c, i) => { if ((l.chapters[i + 1]?.at ?? l.duration) - c.at > 180) bad.push(`chapter "${c.title}" runs over 3 minutes; split it`); });
+  l.chapters.forEach((c) => { if ((c.claim ?? "").length > 44) bad.push(`claim "${c.claim}" is over 44 characters: one short sentence, or it runs off the frame`); });
   for (const c of l.cues) {
     if (!(c.sound in SOUNDS)) bad.push(`unknown sound "${c.sound}" at ${c.at}s`);
     if (c.at < 0 || c.at >= l.duration) bad.push(`cue at ${c.at}s is outside the film`);

@@ -15,39 +15,74 @@ function plot({ box, x, y }) {
     const v = x.min + ((x.max - x.min) * i) / samples;
     return [X(v), Y(fn(v))];
   });
+  /** Run fn clipped to the plot area, so a steep curve leaves through the top gridline instead of running past it. */
+  const clipped = (ctx, fn) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(box.x0 - 4, box.y1 - 2, box.x1 - box.x0 + 18, box.y0 - box.y1 + 8);
+    ctx.clip();
+    fn();
+    ctx.restore();
+  };
+  /** Points of y = fn(x) from x.min up to x = to, ending exactly at `to`. */
+  const trace = (fn, to = x.max) => {
+    const pts = [];
+    to = Math.min(to, x.max);
+    for (let i = 0; i <= 100; i++) { const v = x.min + ((x.max - x.min) * i) / 100; if (v >= to) break; pts.push([X(v), Y(fn(v))]); }
+    pts.push([X(to), Y(fn(to))]);
+    return pts;
+  };
   return {
-    X, Y, box, points,
-    /** Axis lines draw on over `dur` from `at`; ticks, grid and labels fade in after. */
-    axes(ctx, th, t, at, dur = 1.4) {
+    X, Y, box, points, x, y, // x and y are the axis specs: set x.ticks to change the ticks mid-film
+    /**
+     * Axis lines draw on over `dur` from `at`; ticks, grid and labels fade in after. Ticks outside the current domain
+     * are skipped. `tickAlpha` is a number or (value, 'x' | 'y') => alpha: across a zoom, list the old and new ticks
+     * together and crossfade them, so the old ones slide out as the new ones arrive and the axis is never bare. The y
+     * title sits flat at the top of its axis, never rotated. Axis lines are lighter than any data line.
+     */
+    axes(ctx, th, t, at, dur = 1.4, tickAlpha = 1) {
       // Looks with cards put the graph on a pinned sheet of paper, a quiet surface over a textured backdrop
       if (style.cards) card(ctx, th, box.x0 - 100, box.y1 - 22, box.x1 - box.x0 + 136, box.y0 - box.y1 + 86, span(t, at - 0.6, at + 0.2));
-      path(ctx, [[box.x0, box.y1 - 10], [box.x0, box.y0], [box.x1 + 10, box.y0]], th.ink, 2, span(t, at, at + dur));
+      path(ctx, [[box.x0, box.y1 - 10], [box.x0, box.y0], [box.x1 + 10, box.y0]], alpha(th.ink, 0.8), 1.5, span(t, at, at + dur));
       const a = span(t, at + dur * 0.7, at + dur * 0.7 + 1);
       if (a <= 0) return;
       ctx.save();
       ctx.globalAlpha *= a;
-      for (const v of x.ticks) {
+      const inside = (ax, v) => v >= ax.min - 1e-9 && v <= ax.max + 1e-9;
+      const ta = (v, ax) => clamp(typeof tickAlpha === "function" ? tickAlpha(v, ax) : tickAlpha), base = ctx.globalAlpha;
+      ctx.save();
+      for (const v of x.ticks.filter((v) => inside(x, v) && ta(v, "x") > 0)) {
+        ctx.globalAlpha = base * ta(v, "x");
         path(ctx, [[X(v), box.y0], [X(v), box.y0 + 6]], th.ink, 1.5);
         if (x.grid && v !== x.min) path(ctx, [[X(v), box.y0], [X(v), box.y1]], alpha(th.faint, 0.9), 1);
         text(ctx, fmt(x, v), X(v), box.y0 + 26, { size: 16, color: th.muted, align: "center", font: "mono" });
       }
-      for (const v of y.ticks) {
+      for (const v of y.ticks.filter((v) => inside(y, v) && ta(v, "y") > 0)) {
+        ctx.globalAlpha = base * ta(v, "y");
         path(ctx, [[box.x0 - 6, Y(v)], [box.x0, Y(v)]], th.ink, 1.5);
         if (y.grid !== false && v !== y.min) path(ctx, [[box.x0, Y(v)], [box.x1, Y(v)]], alpha(th.faint, 0.9), 1);
         text(ctx, fmt(y, v), box.x0 - 12, Y(v) + 5, { size: 16, color: th.muted, align: "right", font: "mono" });
       }
+      ctx.restore();
       text(ctx, x.label, (box.x0 + box.x1) / 2, box.y0 + 44, { size: 17, color: th.ink, align: "center" });
-      ctx.translate(box.x0 - 70, (box.y0 + box.y1) / 2);
-      ctx.rotate(-Math.PI / 2);
-      text(ctx, y.label, 0, 0, { size: 17, color: th.ink, align: "center" });
+      text(ctx, y.label, box.x0 - 12, box.y1 - 18, { size: 17, color: th.ink });
       ctx.restore();
     },
-    /** y = fn(x), drawn on to `progress`. Returns the tip, for a leading dot. */
+    /** Move the window onto the data (a zoom into the region that matters): every later X, Y, curve and tick follows. */
+    domain(xr, yr) {
+      if (xr) [x.min, x.max] = xr;
+      if (yr) [y.min, y.max] = yr;
+    },
+    /**
+     * y = fn(x), drawn on left to right: `progress` is the fraction of the x range, so the tip moves at an even pace
+     * along x (with a playhead) however steep the curve gets. Clipped to the plot, so an asymptote leaves through the
+     * top instead of running off the frame. Returns the tip, for a leading dot.
+     */
     curve(ctx, fn, color, lw = 4, progress = 1) {
       if (progress <= 0) return null;
-      const pts = points(fn);
-      path(ctx, pts, color, lw, progress);
-      return pts[Math.min(pts.length - 1, Math.round(progress * (pts.length - 1)))];
+      const pts = trace(fn, x.min + (x.max - x.min) * clamp(progress));
+      clipped(ctx, () => path(ctx, pts, color, lw));
+      return pts.at(-1);
     },
     /** A dot at (vx, vy) with dashed guides down to the x axis and across to the y axis. */
     marker(ctx, th, vx, vy, color, a) {
@@ -69,6 +104,50 @@ function plot({ box, x, y }) {
       ctx.fillRect(X(from), box.y1, X(to) - X(from), box.y0 - box.y1);
       text(ctx, label, (X(from) + X(to)) / 2, top ? box.y1 + 26 : box.y0 - 16, { size: 16, weight: 500, color, align: "center" });
       ctx.restore();
+    },
+    /**
+     * A playhead at x = vx: a thin dashed drop line and a dot riding y = fn(vx), with `label` (its x value) in a pill on
+     * the axis. Drive vx from the same t as the thing the graph describes (the object moving beside it, a counter), so
+     * the eye links the two. Returns the dot.
+     */
+    scrub(ctx, th, fn, vx, color, a = 1, label) {
+      if (a <= 0) return null;
+      const x = X(vx), y = Y(fn(vx));
+      ctx.save();
+      ctx.globalAlpha *= clamp(a);
+      ctx.save();
+      ctx.setLineDash([4, 5]);
+      path(ctx, [[x, box.y0], [x, y + 8]], alpha(th.ink, 0.5), 1.5); // stops at the dot, never runs on past it
+      ctx.restore();
+      circle(ctx, x, y, 11, alpha(color, 0.22));
+      circle(ctx, x, y, 6, color, th.bg, 2);
+      if (label) { // where the playhead is, read on the x axis: pick ticks that stay clear of where it rests
+        roundRect(ctx, x - 26, box.y0 + 8, 52, 24, 12);
+        ctx.fillStyle = color;
+        ctx.fill();
+        text(ctx, label, x, box.y0 + 26, { size: 16, weight: 500, color: onColor(color), font: "mono", align: "center" });
+      }
+      ctx.restore();
+      return [x, y];
+    },
+    /**
+     * The same graph changing state: fnA becomes fnB as p goes 0 → 1, and fnA stays behind as a faint ghost so the
+     * viewer can compare (the wrong idea and the right one on one set of axes). Strike the ghost with note()'s struck.
+     * `to` stops the new curve at that x (the playhead), so it never shows the next beat's part of the curve early.
+     */
+    morph(ctx, th, fnA, fnB, p, color, lw = 4, ghost = 0.3, to = x.max) {
+      if (p > 0 && ghost > 0) {
+        ctx.save();
+        ctx.globalAlpha *= ghost * clamp(p * 4);
+        clipped(ctx, () => path(ctx, points(fnA), th.muted, lw * 0.6));
+        ctx.restore();
+      }
+      const k = ease.inOut(clamp(p));
+      clipped(ctx, () => path(ctx, trace((v) => lerp(fnA(v), fnB(v), k), to), color, lw));
+    },
+    /** A direct label at the end of a series, in the series' colour, instead of a legend: just right of (vx, fn(vx)). */
+    tag(ctx, th, fn, vx, label, color, a = 1, dy = 0) {
+      text(ctx, label, X(vx) + 14, Y(fn(vx)) + 6 + dy, { size: 18, weight: 500, color, alpha: a });
     },
   };
 }
@@ -127,13 +206,30 @@ function titleCard(ctx, th, t, lines, from = 0.2, to = 4.3, y = 92) {
   if (lines[1]) text(ctx, lines[1], W / 2, y + 48 - lift, { size: 40, weight: 500, font: "heading", color: th.accent, align: "center", alpha: a });
 }
 
-/** "03 · THE CEILING" top-left, crossfading at chapter changes. defineLesson draws it. */
+/**
+ * "03 · THE CEILING" top-left, crossfading at chapter changes. defineLesson draws it. A chapter with a `claim` also
+ * gets its point as a headline under the label, word by word: the claim a muted viewer still reads ("The owner dies").
+ * `claimAt` holds it back until the picture has made the point, so the headline never gives the payoff away early.
+ * It sits at y 50-80, so start figures at y 100.
+ */
 function eyebrow(ctx, th, t, chapters, duration, from = 4) {
   const i = activeIndex(chapters, t), c = chapters[i];
   if (!c) return;
-  const end = chapters[i + 1]?.at ?? duration + 1;
-  const a = Math.min(span(t, c.at, c.at + 0.6), 1 - span(t, end - 0.4, end)) * span(t, from, from + 1);
-  text(ctx, `${String(i + 1).padStart(2, "0")} · ${c.title.toUpperCase()}`, 40, 46, { size: 16, weight: 500, color: th.muted, font: "mono", alpha: a });
+  const end = chapters[i + 1]?.at ?? duration + 1, open = i === 0 && from <= 0; // eyebrowFrom 0: on the first frame (the thumbnail)
+  const a = Math.min(open ? 1 : span(t, c.at, c.at + 0.6), 1 - span(t, end - 0.4, end)) * (open ? 1 : span(t, from, from + 1));
+  const label = `${String(i + 1).padStart(2, "0")} · ${c.title.toUpperCase()}`;
+  if (!c.claim) return text(ctx, label, 40, 46, { size: 16, weight: 500, color: th.muted, font: "mono", alpha: a });
+  text(ctx, label, 40, 38, { size: 14, weight: 500, color: th.muted, font: "mono", alpha: a });
+  // word by word, 0.12 s apart, each fading in over 0.15 s: a still never shows a word cut in half
+  const t0 = open && c.claimAt === undefined ? -1 : Math.max(c.claimAt ?? c.at, from) + 0.2;
+  ctx.save();
+  ctx.font = `500 30px ${fonts.heading}`;
+  let x = 38;
+  c.claim.split(" ").forEach((w, k) => {
+    text(ctx, w, x, 76, { size: 30, weight: 500, font: "heading", color: th.ink, alpha: a * span(t, t0 + k * 0.12, t0 + k * 0.12 + 0.15) });
+    x += ctx.measureText(`${w} `).width;
+  });
+  ctx.restore();
 }
 
 /** Fades the film under a closing line from `from`. defineLesson draws it. */
@@ -147,13 +243,13 @@ function endCard(ctx, th, t, from, title, sub) {
 }
 
 /**
- * The caption, burnt in below SAFE_BOTTOM. defineLesson draws it. Default: white on a dark rounded box. slip: ink on a
+ * The caption, burnt in below SAFE_BOTTOM. defineLesson draws it. Default: ink on a card a step darker than the ground. slip: ink on a
  * paper slip taped to the page (graphite). shown: characters typed so far (typed captions); the lines are laid out
  * for the whole text, so they never reflow while it types. o: { th, slip, shown, seed }.
  */
 function caption(ctx, s, o = {}) {
   if (!s) return;
-  const slip = o.slip && o.th, size = slip ? 20 : 21, line = size * 1.35, max = W * 0.8;
+  const slip = o.slip && o.th, size = slip ? 20 : 19, line = size * 1.35, max = W * 0.8;
   ctx.save();
   ctx.font = `400 ${size}px ${slip ? fonts.mono : fonts.sans}`;
   ctx.textAlign = "center";
@@ -188,6 +284,18 @@ function caption(ctx, s, o = {}) {
       ctx.restore();
     }
     ctx.fillStyle = th.ink;
+  } else if (o.th) {
+    // A card in the look's own colours: part of the design, not a player's black subtitle box
+    const th = o.th, k = ctx.getTransform().a;
+    ctx.save();
+    ctx.shadowColor = alpha("#000000", th.dark ? 0.35 : 0.12);
+    ctx.shadowBlur = 14 * k;
+    ctx.shadowOffsetY = 3 * k;
+    ctx.fillStyle = alpha(mix(th.bg, th.ink, 0.09), 0.95); // a step off the ground in every look, ink on it
+    roundRect(ctx, W / 2 - w / 2, y, w, h, 10);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = th.ink;
   } else {
     ctx.fillStyle = "rgba(0,0,0,0.75)";
     roundRect(ctx, W / 2 - w / 2, y, w, h, 6);
@@ -217,7 +325,7 @@ const LOOKS = {
   /** A painted wall with a table ledge, speckled ceramic fills, graphs on pinned paper cards. */
   gouache: {
     mood: "warm, physical things as objects: cells, molecules, organs, kitchen science",
-    fonts: { sans: "Inter", heading: "Fraunces", mono: "JetBrains Mono" },
+    fonts: { sans: "Inter", heading: "Fraunces", mono: "JetBrains Mono", hand: "Caveat" },
     themes: {
       light: pal(false, { bg: "#8dbdb7", panel: "#f7f0e3", ink: "#172120", muted: "#26403d", faint: "#e2d8c5", accent: "#983717", red: "#d4553c", blue: "#285f80", teal: "#2d6f64", amber: "#c98f2a" }),
       dark: pal(true, { bg: "#1f3a3f", panel: "#274549", ink: "#f4ede1", muted: "#bfd0cb", faint: "#3b5d61", accent: "#f08a5d", red: "#f2735a", blue: "#8cc7e6", teal: "#7fd1bf", amber: "#f2c46b" }),
@@ -227,7 +335,7 @@ const LOOKS = {
   /** A chalk talk: smudged green board, chalky strokes, pastel chalk. */
   chalkboard: {
     mood: "step-by-step derivations, proofs, algorithms, the teacher at the board",
-    fonts: { sans: "Nunito", heading: "Kalam", mono: "Space Mono" },
+    fonts: { sans: "Nunito", heading: "Kalam", mono: "Space Mono", hand: "Kalam" },
     themes: {
       light: pal(true, { bg: "#2c4a3f", panel: "#34564a", ink: "#f1f1e8", muted: "#c6d3cb", faint: "#4d6b5f", accent: "#f7d774", red: "#f4a09a", blue: "#a8d8ef", teal: "#b5ead7", amber: "#ffd79a" }),
       dark: pal(true, { bg: "#20362e", panel: "#294338", ink: "#f1f1e8", muted: "#c0cdc5", faint: "#42604f", accent: "#f7d774", red: "#f4a09a", blue: "#a8d8ef", teal: "#b5ead7", amber: "#ffd79a" }),
@@ -237,7 +345,7 @@ const LOOKS = {
   /** An engineering drawing: blue grid paper, crisp glowing lines. */
   blueprint: {
     mood: "machines, circuits, pressure and flow, anything built from parts",
-    fonts: { sans: "IBM Plex Sans", heading: "IBM Plex Sans", mono: "IBM Plex Mono" },
+    fonts: { sans: "IBM Plex Sans", heading: "IBM Plex Sans", mono: "IBM Plex Mono", hand: "Caveat" },
     themes: {
       light: pal(true, { bg: "#1e4f8a", panel: "#245a9a", ink: "#eef4ff", muted: "#c3d6f2", faint: "#3d6ea8", accent: "#ffd166", red: "#ff9aa2", blue: "#9ad1ff", teal: "#8ff0d8", amber: "#ffd166" }),
       dark: pal(true, { bg: "#122f55", panel: "#183a66", ink: "#eef4ff", muted: "#b8cbe8", faint: "#2e5a8e", accent: "#ffd166", red: "#ff9aa2", blue: "#9ad1ff", teal: "#8ff0d8", amber: "#ffd166" }),
@@ -247,7 +355,7 @@ const LOOKS = {
   /** A risograph print: grainy cream paper, halftone fills, a second ink slightly out of register. */
   riso: {
     mood: "comparisons, classifications, lists with punch, money and markets",
-    fonts: { sans: "Space Grotesk", heading: "Space Grotesk", mono: "Space Mono" },
+    fonts: { sans: "Space Grotesk", heading: "Space Grotesk", mono: "Space Mono", hand: "Caveat" },
     themes: {
       light: pal(false, { bg: "#f3ede1", panel: "#ebe3d3", ink: "#1f1d3a", muted: "#4b4866", faint: "#dcd3c1", accent: "#e8378e", red: "#e0356b", blue: "#1f5fae", teal: "#00796f", amber: "#c98a00" }),
       dark: pal(true, { bg: "#1e1c30", panel: "#28263e", ink: "#f3ede1", muted: "#c9c3d9", faint: "#3a3754", accent: "#ff6fb5", red: "#ff6f93", blue: "#79aef2", teal: "#5fd3c3", amber: "#f5c84c" }),
@@ -262,7 +370,7 @@ const LOOKS = {
    */
   graphite: {
     mood: "algorithms, data structures and step-by-step mechanisms as a notebook sketch; first-person explainers",
-    fonts: { sans: "Patrick Hand", heading: "Caveat", mono: "Special Elite" },
+    fonts: { sans: "Patrick Hand", heading: "Caveat", mono: "Special Elite", hand: "Caveat" },
     themes: {
       light: pal(false, { bg: "#ECECE6", panel: "#F5F5EF", ink: "#383933", muted: "#4E4F49", faint: "#C9CBC4", accent: "#625FB8", red: "#AC505B", blue: "#625FB8", teal: "#2F7468", amber: "#8A6A12", highlight: "#E1DDA9" }),
       dark: pal(true, { bg: "#2A2B28", panel: "#34352F", ink: "#E7E6DF", muted: "#B3B2AA", faint: "#4A4B46", accent: "#AFACF2", red: "#F0A0A8", blue: "#AFACF2", teal: "#8ED5C6", amber: "#E8CF7A", highlight: "#6A6232" }),
@@ -276,7 +384,7 @@ const LOOKS = {
    */
   hairline: {
     mood: "data stories, systems and devices in plan and isometric, precise and quiet; colour only on the one highlight",
-    fonts: { sans: "Geist", heading: "Geist", mono: "Geist Mono" },
+    fonts: { sans: "Geist", heading: "Geist", mono: "Geist Mono", hand: "Caveat" },
     themes: {
       light: pal(false, { bg: "#EAEAE4", panel: "#F4F4F0", ink: "#1D1916", muted: "#64605D", faint: "#D6D2CE", accent: "#D2491F", red: "#C2402A", blue: "#2F5BC8", teal: "#1F7A6B", amber: "#9A6B00", highlight: "#F3D9C9" }),
       dark: pal(true, { bg: "#191918", panel: "#222220", ink: "#ECEBE6", muted: "#9C9B95", faint: "#3A3936", accent: "#FF7A4D", red: "#FF8A70", blue: "#8FB0FF", teal: "#6FD6C2", amber: "#E8B94A", highlight: "#4A2A1E" }),
@@ -619,4 +727,202 @@ function highlight(ctx, th, x, y, w, h, p) {
   ctx.closePath();
   ctx.fill();
   ctx.restore();
+}
+
+// ---- annotate: the hand layer over a figure (measured off marker-note explainers: notes write on at about 30
+// characters a second, their arrows draw in 0.35 s, notes land 0.25 s apart; the wrong idea is struck, never removed) ----
+
+/** Points on a curve from a to b that bows sideways by `bend` × its length (positive bows below a left-to-right stroke). */
+function bow(a, b, bend = 0.25, n = 20) {
+  const [x0, y0] = a, [x1, y1] = b, cx = (x0 + x1) / 2 - (y1 - y0) * bend, cy = (y0 + y1) / 2 + (x1 - x0) * bend;
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const u = i / n, v = 1 - u;
+    return [v * v * x0 + 2 * v * u * cx + u * u * x1, v * v * y0 + 2 * v * u * cy + u * u * y1];
+  });
+}
+
+/** A hand-drawn arrow: a curve from a to b drawn on as p goes 0 → 1, with an open V head once it arrives. */
+function curveArrow(ctx, a, b, color, p, bend = 0.3, lw = 2.2) {
+  if (p <= 0) return;
+  const pts = bow(a, b, bend);
+  path(ctx, pts, color, lw, p);
+  if (p < 0.98) return;
+  const [x, y] = pts.at(-1), [px, py] = pts.at(-3), ang = Math.atan2(y - py, x - px), s = 9 + lw;
+  path(ctx, [[x - Math.cos(ang - 0.5) * s, y - Math.sin(ang - 0.5) * s], [x, y], [x - Math.cos(ang + 0.5) * s, y - Math.sin(ang + 0.5) * s]], color, lw);
+}
+
+/**
+ * A hand note: words that write on, then a curved arrow from the side of the words that faces `to`. struck crosses the
+ * words out at that time, tight to the words in red (strikeColor; the misconception stays on screen). Returns when the note has
+ * finished drawing, so the next note can start 0.25 s later and a cue can land on it.
+ * o: { at, text, x, y (baseline), align ('left' | 'right' | 'center'), to?: [x, y], color (th.ink), size (24), bend (0.3), struck?, strikeColor?, out? }
+ * Write a note next to the thing it names; use `to` only when there is no room beside it.
+ */
+function note(ctx, th, t, o) {
+  const size = o.size ?? 24, color = o.color ?? th.ink, done = o.at + o.text.length / 30;
+  const end = done + (o.to ? 0.35 : 0);
+  if (t < o.at) return end;
+  ctx.save();
+  ctx.globalAlpha *= o.out ? 1 - span(t, o.out, o.out + 0.3) : 1;
+  ctx.font = `500 ${size}px ${fonts.hand}`;
+  const w = ctx.measureText(o.text).width, align = o.align ?? "left";
+  const left = align === "left" ? o.x : align === "right" ? o.x - w : o.x - w / 2, mid = o.y - size * 0.32;
+  const shown = o.text.slice(0, Math.floor(clamp((t - o.at) / (done - o.at || 1)) * o.text.length));
+  const dim = o.struck ? 1 - 0.45 * span(t, o.struck, o.struck + 0.3) : 1;
+  text(ctx, shown, left, o.y, { size, weight: 500, color, font: "hand", alpha: dim }); // from the left edge: letters never shift
+  if (o.struck) path(ctx, [[left - 2, mid + 2], [left + w + 2, mid - 2]], o.strikeColor ?? th.red, 2, span(t, o.struck, o.struck + 0.25, ease.out));
+  if (o.to) {
+    const [tx, ty] = o.to;
+    const from = tx < left - 10 ? [left - 8, mid] : tx > left + w + 10 ? [left + w + 8, mid] : ty > o.y ? [left + w / 2, o.y + 10] : [left + w / 2, o.y - size - 2];
+    curveArrow(ctx, from, o.to, color, span(t, done, done + 0.35, ease.out), o.bend ?? 0.3);
+  }
+  ctx.restore();
+  return end;
+}
+
+/** A loose hand ring drawn round something as p goes 0 → 1; it overshoots its start a little, like a marker. */
+function ring(ctx, color, cx, cy, rx, ry, p, lw = 2.6, seed = 1) {
+  if (p <= 0) return;
+  const a0 = -2.3 + hash(seed, 2) * 0.6, n = 48, pts = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + (Math.PI * 2 * 1.1 * i) / n, k = 1 + (i / n) * 0.07 + (hash(seed, i) - 0.5) * 0.02;
+    pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
+  }
+  path(ctx, pts, color, lw, p);
+}
+
+/**
+ * A dimension bracket from point a to point b, grown from its middle as p goes 0 → 1, with a hand label beside its nib:
+ * the gap between two values ("5×" between the guess and the truth), a span under an axis ("same team"). Its ends turn
+ * towards the left of the a → b direction, so for a gap below a span pass a on the right; flip a and b to flip it.
+ */
+function bracket(ctx, color, a, b, p, label, size = 24) {
+  if (p <= 0) return;
+  const [ax, ay] = a, [bx, by] = b, L = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / L, uy = (by - ay) / L, nx = uy, ny = -ux;
+  const mx = (ax + bx) / 2, my = (ay + by) / 2, h = (L / 2) * clamp(p), P = (s, n) => [mx + ux * s + nx * n, my + uy * s + ny * n];
+  path(ctx, [P(-h, 9), P(-h, 0), P(h, 0), P(h, 9)], color, 2);
+  path(ctx, [P(0, 0), P(0, -7)], color, 2);
+  if (!label) return;
+  const [lx, ly] = P(0, -20), side = Math.abs(nx) > 0.5;
+  text(ctx, label, lx, ly + (side ? size * 0.33 : ny < 0 ? size * 0.6 : 2), { size, weight: 500, color, font: "hand", align: side ? (nx < 0 ? "left" : "right") : "center", alpha: span(p, 0.6, 1) });
+}
+
+/** A word slammed on like a rubber stamp ("EXPIRED", "SENT TWICE"): lands at t0 from 1.6× size in 0.16 s, turned 4°. Give it a thud. */
+function stamp(ctx, t, t0, x, y, word, color, size = 20) {
+  if (t < t0) return;
+  const p = span(t, t0, t0 + 0.16, ease.out), s = lerp(1.6, 1, p);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.07);
+  ctx.scale(s, s);
+  ctx.globalAlpha *= clamp(p * 3);
+  ctx.font = `700 ${size}px ${fonts.mono}`;
+  const w = ctx.measureText(word).width + size * 1.4, h = size * 1.8;
+  roundRect(ctx, -w / 2, -h / 2, w, h, 4);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  text(ctx, word, 0, size * 0.36, { size, weight: 700, color, font: "mono", align: "center" });
+  ctx.restore();
+}
+
+// ---- charts: bars one per beat, unit charts, the same marks re-arranged ----
+
+/**
+ * A bar chart built one bar per beat (henk: the bar grows 0.6 s, its interval whisker draws, then its value fades in;
+ * ~1.6 s a bar). Labels sit on the bars' own rows and values at their ends: no axis, no legend. One bar can be the
+ * hot one (accent); the rest are muted. Pair `at`/`gap` with barCues() for sound.
+ * o: { x, y, len (canvas length of `max`), max, items: [{ label, v, lo?, hi?, text? }], at, gap (1.6), dir ('right' | 'up'),
+ *      row (48: row pitch), thick (22), hot (index), color (th.muted), hotColor (th.accent), format (v => string) }
+ * 'right': x is the bars' base with labels to its left, y the first row's centre. 'up': y is the baseline, x the first bar's centre.
+ */
+function bars(ctx, th, t, o) {
+  const gap = o.gap ?? 1.6, row = o.row ?? 48, thick = o.thick ?? 22, up = o.dir === "up", L = (v) => (v / o.max) * o.len;
+  const P = (i, along, across) => (up ? [o.x + i * row + across, o.y - along] : [o.x + along, o.y + i * row + across]);
+  o.items.forEach((it, i) => {
+    const t0 = o.at + i * gap, g = span(t, t0, t0 + 0.6, ease.out);
+    if (g <= 0) return;
+    const hot = i === o.hot, c = hot ? o.hotColor ?? th.accent : o.color ?? th.muted;
+    const [lx, ly] = up ? [o.x + i * row, o.y + 26] : [o.x - 14, o.y + i * row + 6];
+    text(ctx, it.label, lx, ly, { size: up ? 16 : 18, weight: 500, color: th.ink, align: up ? "center" : "right", alpha: clamp(g * 2) });
+    const [ax, ay] = P(i, 0, -thick / 2), [bx, by] = P(i, L(it.v) * g, thick / 2);
+    ctx.beginPath();
+    ctx.rect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    fillWith(ctx, c);
+    if (it.lo !== undefined) {
+      const w = span(t, t0 + 0.5, t0 + 0.9, ease.out), a = L(it.lo), b = lerp(a, L(it.hi), w);
+      path(ctx, [P(i, a, 0), P(i, b, 0)], th.ink, 1.6);
+      for (const e of w >= 1 ? [a, b] : [a]) path(ctx, [P(i, e, -7), P(i, e, 7)], th.ink, 1.6);
+    }
+    const end = Math.max(L(it.v), it.hi !== undefined ? L(it.hi) : 0) + 12, va = span(t, t0 + 0.6, t0 + 1);
+    const [vx, vy] = up ? P(i, end, 0) : P(i, end, 6);
+    text(ctx, it.text ?? (o.format ? o.format(it.v) : String(it.v)), vx, vy, { size: 18, weight: hot ? 700 : 500, color: th.ink, font: "mono", align: up ? "center" : "left", alpha: va });
+  });
+}
+/** One cue per bar of bars(), on the moment it starts to grow. */
+const barCues = (o, sound = "pop", gain) => o.items.map((_, i) => ({ at: o.at + i * (o.gap ?? 1.6) + 0.04, sound, gain, pitch: 1 + (i === o.hot ? 0.25 : 0) }));
+
+/** Positions for n marks in rows of `cols`, `gap` apart, from (x, y): left to right, then down. */
+const gridPts = (n, cols, x, y, gap) => Array.from({ length: n }, (_, i) => [x + (i % cols) * gap, y + Math.floor(i / cols) * gap]);
+
+/**
+ * The same marks moving from layout a to layout b (equal lengths) as p goes 0 → 1, mark i leaving `spread` × i/n
+ * later, so they travel as a wave. A grid becomes one column per group, a map becomes clusters: keep the marks, change
+ * what they say (Drone Emprit, the backlink audit).
+ */
+function arrange(a, b, p, spread = 0.5) {
+  return a.map((q, i) => {
+    const k = ease.inOut(clamp((p - (spread * i) / a.length) / (1 - spread)));
+    return [lerp(q[0], b[i][0], k), lerp(q[1], b[i][1], k)];
+  });
+}
+
+const shuffles = new Map();
+/** A fixed shuffled order of 0..n-1 (seeded, so it never changes between frames): rank[i] is mark i's place in it. */
+function shuffleRank(n, seed) {
+  const key = `${n}|${seed}`;
+  if (!shuffles.has(key)) {
+    const r = rand(seed), ids = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+    const rank = new Array(n);
+    ids.forEach((id, k) => { rank[id] = k; });
+    shuffles.set(key, rank);
+  }
+  return shuffles.get(key);
+}
+
+/**
+ * A unit chart: one mark per thing counted, at pts (gridPts, or arrange() mid-move). Marks pop in over `dur` from `at`;
+ * then hot.n of them recolour one by one from hot.at over hot.dur, in a shuffled (or reading) order. Returns how many
+ * are recoloured at t, so the number on screen counts the same marks the eye sees (the audit's "0% → 81%").
+ * o: { pts, r (5), at, dur (0.8), color (muted, half strength), shape ('dot' | 'square'), hot?: { n, at, dur, color (th.accent), order ('shuffle' | 'reading'), seed } }
+ */
+function units(ctx, th, t, o) {
+  const n = o.pts.length, r = o.r ?? 5, dur = o.dur ?? 0.8, h = o.hot;
+  const shown = h ? Math.floor(h.n * span(t, h.at, h.at + h.dur, ease.linear) + 1e-6) : 0;
+  const rank = h && h.order !== "reading" ? shuffleRank(n, h.seed ?? 7) : null;
+  const base = o.color ?? mix(th.muted, th.bg, 0.5), hotC = h?.color ?? th.accent;
+  o.pts.forEach(([x, y], i) => {
+    const p = span(t, o.at + (dur * i) / n, o.at + (dur * i) / n + 0.25, ease.back);
+    if (p <= 0) return;
+    const c = (rank ? rank[i] : i) < shown ? hotC : base, s = r * p;
+    ctx.beginPath();
+    if (o.shape === "square") ctx.rect(x - s, y - s, s * 2, s * 2);
+    else ctx.arc(x, y, Math.max(0, s), 0, Math.PI * 2);
+    ctx.fillStyle = c;
+    ctx.fill();
+  });
+  return shown;
+}
+
+/**
+ * A hard chapter switch: `color` floods the frame from the left over `dur` from `at`, and leaves to the right from
+ * `until` (Celld floods the frame green for "the obvious fix"). Call it first in scene() and draw the figure on it;
+ * a flood is a new idea, never decoration.
+ */
+function wipe(ctx, t, at, color, dur = 0.4, until = Infinity) {
+  const p = span(t, at, at + dur, ease.inOut), q = span(t, until, until + dur, ease.inOut);
+  if (p <= 0 || q >= 1) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(W * q, 0, W * (p - q), H);
 }

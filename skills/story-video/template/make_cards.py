@@ -111,11 +111,13 @@ def centered(draw, text, f, fill, box=(0, 0, W, H), max_w=None):
 
 
 @cache
-def photo(slug):  # darkened once, at full resolution, so the caption reads over any photo
+def photo(slug):  # darkened once, at full resolution, where the caption sits: a band 60 % black at the middle,
+    # 20 % at the top and bottom edges, so the caption reads and the photo keeps its light (a flat 40 % turned photos grey)
     path = asset(slug)
     if path:
         im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
-        return Image.blend(im, Image.new("RGB", im.size, BLACK), 0.4)
+        band = Image.new("L", (1, 256)); band.putdata([int(255 * (0.2 + 0.4 * math.exp(-(((y - 128) / 70) ** 2)))) for y in range(256)])
+        return Image.composite(Image.new("RGB", im.size, BLACK), im, band.resize(im.size))
 
 
 def card(slug, style, text, z=1.0):

@@ -42,6 +42,7 @@ uv run ~/.claude/skills/x-video-frames/deconstruct.py "<x.com URL | any URL | lo
 - `--stems` splits voice from the rest with demucs (torch, about 1 GB on first use). **Use it whenever someone speaks.** Without it, sounds inside words are dropped, because on a full mix a syllable and an SFX look the same. It also measures the real ducking.
 - `--drift` measures camera zoom and pan per shot with ORB (opencv): push-ins, slides, zoom-settles.
 - About 15 s for a 50 s clip, or 30 s with both flags once they're installed. Only the first video of a multi-video post is used.
+- Memory grows with length: a 168 s 1080p video takes about 2 minutes and peaks near 4 GB. If a run ends with only a `leaked semaphore` warning and no `report.md`, macOS killed it for memory. Re-run it when nothing else is rendering.
 
 It writes to `~/Downloads/x-frames/<id or file name>/`:
 - `report.md` with the facts, and `report.html`, the same page with the images embedded.

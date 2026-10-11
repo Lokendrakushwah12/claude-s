@@ -108,6 +108,14 @@ HIT = a swell runs into the cue and the hit lands on it. Every SFX takes **param
   clink           .     f 2600                                      keys snapping into order
   ratchet         .     n 8 rate 24 f 2400                          a counter ratcheting
   stamp           .     f 180                                       a stamp or cut-out lands on paper (thunk + slap)
+  characters (cue on the animation's own frames: take-off, the squash frame, the startle)
+  boing           .     f 150 dur .6 depth .3 rate 16 (micro)        a spring, a startle, a wobble
+  slide           .     f0 500 f1 1400 dur .25 vib .012 (micro)     slide whistle: up on a take-off, down for a fall; a
+                                                                    whistled tune is one slide per note, vib .03
+  chirp           .     n 2 f0 2600 f1 4400 gap .07 (micro)         a small creature's "cheep"
+  babble          .     text '' n 6 f 260 mood ''|ask|happy|sad     a character "talks": one formant buzz per vowel
+                                                                    group of text, ~11 a second (micro)
+  squish          .     f 150 (foley)                               a soft body lands: round bwomp + wet slap
   bed and utilities (no family, never re-levelled)
   tape_stop       .     dur .35 hold                                music bus slows to a stop, then silence until the
                                                                     next section (or for hold s)
@@ -138,7 +146,7 @@ levels   {"music": -9, "duck": 0, ...} in cues.json (top level or bed) overrides
 
     uv run sfx.py --check                       # assert-based checks of the newer recipes and autocue rules
 """
-import json, subprocess, sys, wave
+import json, re, subprocess, sys, wave
 from pathlib import Path
 
 import numpy as np
@@ -615,6 +623,50 @@ def stamp(at, g=1.0, f=180, **_):  # a stamp or cut-out lands on paper: a short 
     put(at, fin(body * 0.7 + slap, 20) * 0.6, g, pan=rng.uniform(-0.25, 0.25), send=0.08)
 
 
+# ---------- characters (cartoon acting: cue them on the animation's own frames) ----------
+@reg("micro")
+def boing(at, g=1.0, f=150, dur=0.6, depth=0.3, rate=16, **_):  # a spring or a startle: a twang whose pitch wobbles +-depth at rate Hz, dying away
+    n = int(dur * SR); t = np.arange(n) / SR; fr = f * (1 + 0.25 * np.exp(-t / 0.05)) * (1 + depth * np.exp(-t / (dur * 0.35)) * np.sin(2 * np.pi * rate * t))
+    put(at, fin(filt(osc(fr, n, "saw") * 0.5 + osc(fr, n, "sine"), "low", 1800) * env(n, 0.003, dur * 0.3)) * 0.5, g, send=0.15)
+
+
+@reg("micro")
+def slide(at, g=1.0, f0=500, f1=1400, dur=0.25, vib=0.012, **_):  # slide whistle: up on a take-off (or a rising hope), down (f0 > f1) on a fall;
+    # a whistled melody is one slide per note (f0 a semitone under f1) with vib .03 (5.5 Hz, growing in after 0.12 s)
+    n = int(dur * SR); u = np.arange(n) / n; t = u * dur; fr = f0 * (f1 / f0) ** (u ** 0.8) * (1 + vib * np.minimum(1, t / 0.12) * np.sin(2 * np.pi * 5.5 * t))
+    x = osc(fr, n, "sine") + 0.12 * osc(2 * fr, n, "sine") + bandnoise(fr, 0.3) * 0.6
+    put(at, fin(x * np.minimum(1, t / 0.015) * np.minimum(1, (dur - t) / 0.04), 10) * 0.3, g, send=0.2)
+
+
+@reg("micro")
+def chirp(at, g=1.0, n=2, f0=2600, f1=4400, gap=0.07, **_):  # a small creature's "cheep": n quick upward sweeps
+    m = int(0.045 * SR); u = np.arange(m) / m
+    for k in range(n): put(at + k * gap, fin(osc(f0 * (f1 / f0) ** u * (1 + 0.04 * k), m, "sine") * np.sin(np.pi * u) ** 1.5, 3) * 0.3, g, pan=rng.uniform(-0.3, 0.3), send=0.25)
+
+
+VOWELS = {"a": (800, 1200), "e": (500, 1900), "i": (300, 2300), "o": (500, 900), "u": (350, 800), "y": (300, 2300)}
+
+
+@reg("micro")
+def babble(at, g=1.0, text="", n=6, f=260, mood="", rate=11, **_):  # a character "talks" with no words (one formant buzz per vowel group of text)
+    r = np.random.default_rng(len(text) * 31 + n); t0, k = at, 0
+    syl = re.findall(r"[aeiouy]+| ", text.lower()) if text else [str(r.choice(list("aeiou"))) for _ in range(n)]; m_ = max(1, sum(s != " " for s in syl) - 1)
+    for s in syl:  # mood: ask = rises at the end, happy = higher and bouncier, sad = sinks
+        if s == " ": t0 += 0.12; continue
+        d = r.uniform(0.7, 1.1) / rate; m = int(d * SR); tt = np.arange(m) / SR; u = k / m_
+        p = f * (1.25 if mood == "happy" else 1) * 2 ** (r.uniform(-2, 2) / 12) * (1 + (0.35 * u * u if mood == "ask" else -0.25 * u if mood == "sad" else 0))
+        src = osc(p * (1 + (0.08 if mood == "happy" else 0.03) * np.sin(np.pi * tt / d)), m, "saw"); F1, F2 = VOWELS[s[0]]
+        x = filt(src, "band", [F1 * 0.8, F1 * 1.25]) + 0.6 * filt(src, "band", [F2 * 0.85, F2 * 1.2])
+        put(t0, fin(x * np.sin(np.pi * tt / d) ** 0.6, 5) * 0.7, g, send=0.1); t0 += d + r.uniform(0.01, 0.03); k += 1
+
+
+@reg("foley")
+def squish(at, g=1.0, f=150, **_):  # a soft body lands on its squash frame: a round low bwomp and a wet slap, no click
+    n = int(0.3 * SR); t = np.arange(n) / SR; body = osc(f * 0.45 + f * 0.55 * np.exp(-t / 0.035), n, "sine") * env(n, 0.006, 0.07)
+    wet = filt(noise(n), "band", [250, 1600]) * env(n, 0.002, 0.03) * (0.6 + 0.4 * np.sin(2 * np.pi * 45 * t)) * 0.4
+    put(at, fin(body + wet, 30) * 0.6, g, send=0.1)
+
+
 # ---------- bed and utility cues (no family) ----------
 @reg(None)
 def tape_stop(at, g=1.0, dur=0.35, hold=None, **_):
@@ -1014,6 +1066,13 @@ def check():
     assert pk(x, 0, 0.06) > 450 and pk(x, 0.3, 0.45) < 160 and rms(0.3, 0.45) > 0.1 * rms(0.02, 0.1), "deflate: falls to the floor, still sounding"
     x, _ = grab("shine"); X = np.abs(np.fft.rfft(x)) ** 2; f = np.fft.rfftfreq(len(x), 1 / SR); assert (f * X).sum() / X.sum() > 4000, "shine: bright"
     x, start = grab("reverse_riser", dur=0.35); assert abs(start + len(x) / SR) < 0.02 and abs(start + 0.35) < 0.02, "reverse_riser: ENDS on the cue"
+    x, _ = grab("slide"); assert pk(x, 0, 0.04) < 700 < 1100 < pk(x, 0.18, 0.24), "slide: rises 500 -> 1400 Hz"
+    x, _ = grab("slide", f0=1400, f1=400); assert pk(x, 0, 0.04) > pk(x, 0.18, 0.24) + 400, "slide down falls"
+    global CAP
+    reset(4); CAP = []; babble(1.0, text="oh hello there", mood="ask"); evs, CAP = CAP, None
+    assert len(evs) == 5 and 0.4 < (evs[-1][1] + evs[-1][2].shape[1]) / SR - 1 < 0.9, f"babble: one buzz per vowel group (5), got {len(evs)}"
+    x, _ = grab("squish"); X = np.abs(np.fft.rfft(x)) ** 2; f = np.fft.rfftfreq(len(x), 1 / SR)
+    assert X[f < 300].sum() / X.sum() > 0.5 and len(x) < 0.32 * SR, "squish: a low, short body"
     rows = autocue([{"t": 2.0, "kind": "portal"}])
     assert [r[1] for r in rows] == ["reverse_riser", "sub_boom"] and rows[0][3] == {"dur": 0.35}, rows
     pile = autocue([{"t": 1 + k * 0.05, "kind": "land"} for k in range(12)]); ts = [r[0] for r in pile]

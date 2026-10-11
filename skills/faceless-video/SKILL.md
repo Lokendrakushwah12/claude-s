@@ -70,7 +70,8 @@ Never use a reference's footage, a real public figure, or a disaster film for an
 - **Nature:** `wind`, `leaves`, `birds`, `gulls`, `stream`, `surf`, `rain`, `insects` (crickets or cicadas), `fire`.
 - **Places and machines:** `crowd`, `traffic`, `machine`, `projector`, `hiss`, `room`.
 
-The `ambience.py` docstring has every param. `spots` are one-shots relative to the cut: `chirp`, `gull`, `splash`, `thunder`, `steps` (gravel or wood), `hooves`, and `bell` (`f`, `decay`; f 1450 with decay .05 is a tram's ding).
+The `ambience.py` docstring has every param. `spots` are one-shots relative to the cut: `chirp`, `gull`, `splash`, `thunder`, `steps` (gravel or wood), `hooves`, `clock` (tick-tock, `n`, `rate`), and `bell` (`f`, `decay`; f 1450 with decay .05 is a tram's ding).
+- **Inside and outside (`muffle`).** A layer's value can carry `muffle` in Hz: the same storm heard through a wall is `{"wind": {"gain": 0.6, "muffle": 500}}`. Gain and muffle never restart a layer, so cutting from the coast to a room keeps ONE storm that darkens on the cut (the J-cut lead applies) and opens again when we go back out. A door is a short shot with the muffle off. This is how a silent short told its story with no words (measured on a 45 s lighthouse film: the high band vanished on the cut indoors, a clock ticked every 0.41 s, steps on the stairs came before the picture, and the lamp's harmonic drone was the only music, held into 0.6 s of silence before the end card).
 - **What keeps it clean and human** (each rule is in the code):
   - The cut never drops to digital silence: a room floor runs under everything.
   - Nothing loops: events are Poisson with refractory gaps, a little random pitch, level and pan, all seeded.

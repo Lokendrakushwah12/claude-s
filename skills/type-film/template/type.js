@@ -811,3 +811,170 @@ function maskWord(c, str, x, y, fill, o = {}) {
   s.globalCompositeOperation = o.knock ? 'source-out' : 'source-in'; s.setTransform(m); fill(s);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha *= o.alpha ?? 1; c.drawImage(cv, 0, 0); c.restore();
 }
+
+// ---- display type, particles and shape morphs (the 2026-10-11b prompt-motion batch: 41 kinetic-type, shape and particle films) ----
+// Measured on the best of them: hero words at 18-40 % of H that land oversized and settle in 3-5 frames, one dot that carries
+// every transition, point clouds whose size, blur and brightness all follow one depth, and outlines morphing at 200 points.
+
+// Beat word: lands at `from` × its size and settles (tau s), then dims toward `dim` over `fade` s, so the word on the next beat
+// outranks it. u = seconds since the hit. o: word()'s options plus from (1.25) tau (0.07) dim (1 = never) fade (0.4)
+// blur (px at the hit, gone in 2-3 frames) chroma (px: red/cyan fringes via chromaWord).
+function hitWord(c, str, x, y, u, o = {}) {
+  if (u < 0) return; const { from = 1.25, tau = 0.07, dim = 1, fade = 0.4, blur = 0, size = 200, chroma = 0 } = o;
+  const s = 1 + (from - 1) * Math.exp(-u / tau), a = lerp(1, dim, 1 - Math.exp(-u / fade)), cy = y - size * 0.36;
+  c.save(); c.translate(x, cy); c.scale(s, s); c.translate(-x, -cy); if (blur && u < 0.15) c.filter = `blur(${blur * Math.exp(-u / 0.03)}px)`;
+  (chroma ? chromaWord : word)(c, str, x, y, { ...o, split: chroma, alpha: (o.alpha ?? 1) * a });
+  c.restore();
+}
+// Chromatic word: red and cyan copies split sideways behind it, so colour fringes show at the edges (a lens's colour error on type).
+// o: word()'s options plus split (px, default 1.2 % of size) and fringe ([left, right]). A translucent word (alpha < 1) shows them through.
+function chromaWord(c, str, x, y, o = {}) {
+  const { split = (o.size || 200) * 0.012, fringe = ['#FF2D55', '#22D3EE'] } = o;
+  word(c, str, x - split, y, { ...o, color: fringe[0] }); word(c, str, x + split, y, { ...o, color: fringe[1] }); word(c, str, x, y, o);
+}
+// Full-bleed ground with a soft lift: lighter at the centre, darker at the edges, so a flat colour reads as a lit surface.
+function litGround(c, color, k = 1, o = {}) {
+  bg(c, color); const { x = W / 2, y = H * 0.45 } = o, g = c.createRadialGradient(x, y, 0, x, y, Math.hypot(W, H) * 0.62);
+  g.addColorStop(0, `rgba(255,255,255,${0.07 * k})`); g.addColorStop(0.45, 'rgba(255,255,255,0)'); g.addColorStop(1, `rgba(0,0,0,${0.22 * k})`);
+  c.save(); c.fillStyle = g; c.fillRect(0, 0, W, H); c.restore();
+}
+// Iris: the next shot opens through a circle growing from (x, y) out of radius r0, so a prop (a dot, a full stop) becomes the cut.
+// fn(c) draws the next shot. o: r0, ease, ring (a colour: a hairline riding the edge), lw. Run p from 1 to 0 to close onto a point.
+function iris(c, x, y, p, fn, o = {}) {
+  if (p <= 0) return; const Rm = Math.max(Math.hypot(x, y), Math.hypot(W - x, y), Math.hypot(x, H - y), Math.hypot(W - x, H - y));
+  const R = lerp(o.r0 || 0, Rm, (o.ease || ease.inOut)(clamp(p)));
+  c.save(); c.beginPath(); c.arc(x, y, R, 0, 7); c.clip(); fn(c); c.restore();
+  if (o.ring && p < 1) { c.save(); c.strokeStyle = o.ring; c.lineWidth = o.lw || 3 * S; c.beginPath(); c.arc(x, y, R, 0, 7); c.stroke(); c.restore(); }
+}
+// A dot in motion: stretched along its velocity (px/s) by what a 180° shutter would smear (v/120 px) and thinned to keep its
+// weight, so a fast prop reads as fast in a still frame. Velocity from your own position function: (pos(t) - pos(t - 1/60)) * 60.
+function squashDot(c, x, y, r, vx = 0, vy = 0, o = {}) {
+  const v = Math.hypot(vx, vy), sx = 1 + (v * (o.shutter ?? 1 / 120)) / (2 * r), sy = 1 / Math.sqrt(sx);
+  c.save(); c.translate(x, y); c.rotate(Math.atan2(vy, vx)); c.scale(sx, sy); c.beginPath(); c.arc(0, 0, r, 0, 7); c.fillStyle = o.color || '#FF5A1F'; c.fill(); c.restore();
+}
+
+// ---- particles ----
+// 3D point sets in world units (about ±1), seeded, for drawCloud. kind: 'sphere' (an even Fibonacci shell), 'ball' (filled),
+// 'torus', 'helix' (two strands up y), 'ring' (a thin band in the x-z plane), anything else = 'field' (a ±1 box: rain, dust, warp).
+function pointCloud(kind, n, seed = 1) {
+  const r = rng(seed), G = Math.PI * (3 - Math.sqrt(5));
+  return Array.from({ length: n }, (_, i) => {
+    const u = r(), v = r(), w = r(), a = u * 2 * Math.PI;
+    if (kind === 'sphere') { const y = 1 - (2 * (i + 0.5)) / n, q = Math.sqrt(1 - y * y); return [Math.cos(G * i) * q, y, Math.sin(G * i) * q]; }
+    if (kind === 'ball') { const R = Math.cbrt(w), y = 2 * v - 1, q = Math.sqrt(1 - y * y); return [Math.cos(a) * q * R, y * R, Math.sin(a) * q * R]; }
+    if (kind === 'torus') { const b = v * 2 * Math.PI, rr = 0.75 + 0.28 * Math.cos(b); return [Math.cos(a) * rr, 0.28 * Math.sin(b), Math.sin(a) * rr]; }
+    if (kind === 'helix') { const y = (i / n) * 2 - 1, th = y * 3 * Math.PI + (i % 2) * Math.PI; return [Math.cos(th) * 0.5, y, Math.sin(th) * 0.5]; }
+    if (kind === 'ring') return [Math.cos(a) * (1 + (v - 0.5) * 0.08), (w - 0.5) * 0.03, Math.sin(a) * (1 + (v - 0.5) * 0.08)];
+    return [u * 2 - 1, v * 2 - 1, w * 2 - 1];
+  });
+}
+// Points on a word's ink: the word drawn once offscreen and its filled pixels sampled (seeded), centred on 0,0 in units of the
+// font size (a capital is ~0.7 tall). Build a word out of particles, or burst one apart, with mixPts + drawCloud. o: word()'s font options.
+function textPts(str, n, o = {}) {
+  const size = 160, key = `~tp|${str}|${o.font || TYPE.display}|${o.weight || TYPE.weight}|${o.track ?? ''}|${n}|${o.seed || 1}`;
+  if (CACHE[key]) return CACHE[key];
+  const cv = document.createElement('canvas'), x = cv.getContext('2d'), w = Math.ceil(tw(x, str, size, o.weight, o.font, o.track) + size), h = Math.ceil(size * 1.6);
+  cv.width = w; cv.height = h; word(x, str, w / 2, size * 1.1, { ...o, size, align: 'center', color: '#000', alpha: 1 });
+  const d = x.getImageData(0, 0, w, h).data, ink = [], r = rng(o.seed || 1);
+  for (let j = 0; j < h; j += 2) for (let i = 0; i < w; i += 2) if (d[(j * w + i) * 4 + 3] > 128) ink.push([(i - w / 2) / size, (j - size * 0.75) / size]);
+  return (CACHE[key] = Array.from({ length: n }, () => { const q = ink[Math.floor(r() * ink.length)] || [0, 0]; return [q[0] + (r() - 0.5) * 0.012, q[1] + (r() - 0.5) * 0.012, (r() - 0.5) * 0.04]; }));
+}
+// Point i of a morph from set a to set b (lengths may differ; indices wrap). Each point leaves at its own seeded delay within
+// `spread` of p, so a swap reads as a flock rather than a crossfade; burst pushes points out from the centre mid-flight (0.4 = a puff).
+function mixPts(a, b, i, p, o = {}) {
+  const { spread = 0.35, burst = 0, seed = 3 } = o, A = a[i % a.length], B = b[i % b.length];
+  const q = (o.ease || ease.inOut)(clamp((p - rng(seed * 7919 + i)() * spread) / (1 - spread))), k = 1 + burst * Math.sin(Math.PI * q);
+  return [lerp(A[0], B[0], q) * k, lerp(A[1], B[1], q) * k, lerp(A[2], B[2], q) * k];
+}
+const softDot = col => CACHE['~sd' + col] || (CACHE['~sd' + col] = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, col); g.addColorStop(0.55, col + 'cc'); g.addColorStop(0.85, col + '40'); g.addColorStop(1, col + '00'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return cv; })());
+// Particle renderer: fn(i, t) -> [x, y, z] in world units for i < o.n. The set turns (ry about y, then rx about x), is projected
+// through a camera `dist` units back, and painted far to near. One depth drives size, brightness, trail length and focus, which is
+// what makes particles look placed rather than sprinkled. o: n, x, y (screen centre), scale (px per unit, 0.32 H), dist (4), rx, ry,
+// size (px radius at depth 0, 2.2 S), sizeVar (0.6: a few particles, power-law, up to 1 + 4·sizeVar larger), color ('#rrggbb' or
+// (i, z) => '#rrggbb'), alpha, fog (0.6: how much the far side fades), trail (s: each particle a streak from fn(i, t - trail)),
+// focus (a depth: particles away from it swell into soft discs and dim, i.e. bokeh), coc (blur px per unit of depth error, 60 S),
+// soft (always soft discs), op (a composite op, 'lighter' for light).
+function drawCloud(c, fn, t, o = {}) {
+  const { n = 800, x = W / 2, y = H / 2, scale = 0.32 * H, dist = 4, rx = 0, ry = 0, size = 2.2 * S, sizeVar = 0.6, color = '#ffffff', alpha = 1, fog = 0.6, trail = 0, focus, coc = 60 * S, seed = 9 } = o;
+  const cX = Math.cos(rx), sX = Math.sin(rx), cY = Math.cos(ry), sY = Math.sin(ry), r = rng(seed), ff = focus === undefined ? 0 : dist / (dist + focus);
+  const proj = q => { const x1 = q[0] * cY + q[2] * sY, z1 = -q[0] * sY + q[2] * cY, y1 = q[1] * cX - z1 * sX, z2 = q[1] * sX + z1 * cX, f = dist / Math.max(0.05, dist + z2); return [x + x1 * scale * f, y + y1 * scale * f, z2, f]; };
+  const P = Array.from({ length: n }, (_, i) => [proj(fn(i, t)), trail ? proj(fn(i, t - trail)) : null, i, 1 + 4 * sizeVar * r() ** 6]).sort((a, b) => b[0][2] - a[0][2]);
+  c.save(); const A = c.globalAlpha; if (o.op) c.globalCompositeOperation = o.op;
+  for (const [[px, py, z, f], pq, i, m] of P) {
+    const col = typeof color === 'function' ? color(i, z) : color, rad = size * m * f, R = focus === undefined ? rad : Math.hypot(rad, (f - ff) * coc);
+    const a = alpha * (1 - fog * clamp((z + 1) / 2)) * Math.sqrt(rad / R); if (a < 0.004 || R < 0.15) continue;
+    c.globalAlpha = A * clamp(a);
+    if (pq) { c.strokeStyle = col; c.lineWidth = 2 * rad; c.lineCap = 'round'; c.beginPath(); c.moveTo(pq[0], pq[1]); c.lineTo(px, py); c.stroke(); }
+    else if (o.soft || R > rad * 1.5) c.drawImage(softDot(col), px - R, py - R, 2 * R, 2 * R);
+    else { c.fillStyle = col; c.beginPath(); c.arc(px, py, R, 0, 7); c.fill(); }
+  }
+  c.restore();
+}
+
+// ---- shapes ----
+// A closed outline as n points evenly spaced along its length, centred on 0,0 at radius 1, starting at the top and running clockwise,
+// so any two morph cleanly. kind: 'circle' 'square' 'tri' 'poly' (o.k sides) 'star' (o.k points, o.inner 0.45) 'flower' (o.k petals,
+// o.amp 0.18) 'blob' (seeded, o.amp) or your own centred [[x, y], ...] polygon. Draw with drawPts; trail it with onion().
+function shapePts(kind, n = 200, o = {}) {
+  const { k = 5, inner = 0.45, amp = 0.18, seed = 2 } = o, top = -Math.PI / 2 + (o.rot || 0);
+  const ring = (m, rf, off = 0) => Array.from({ length: m }, (_, i) => { const a = top + off + (i / m) * 2 * Math.PI, rr = rf(a, i); return [Math.cos(a) * rr, Math.sin(a) * rr]; });
+  if (kind === 'circle' || kind === 'flower' || kind === 'blob') {
+    const r = rng(seed), ph = Array.from({ length: 4 }, () => [r() * 6.28, 2 + Math.floor(r() * 4)]);
+    return ring(n, a => (kind === 'circle' ? 1 : kind === 'flower' ? 1 - amp + amp * Math.cos(k * (a - top)) : 1 - amp + amp * ph.reduce((s, [p, f]) => s + Math.sin(f * a + p), 0) / 4));
+  }
+  const poly = Array.isArray(kind) ? kind : kind === 'star' ? ring(k * 2, (a, i) => (i % 2 ? inner : 1)) : kind === 'square' ? ring(4, () => 1, Math.PI / 4) : ring(kind === 'tri' ? 3 : k, () => 1);
+  const L = [0]; for (let i = 1; i <= poly.length; i++) { const a = poly[i - 1], b = poly[i % poly.length]; L.push(L[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  let s = 0; return Array.from({ length: n }, (_, j) => { const d = (j / n) * L[poly.length]; while (L[s + 1] < d) s++; const a = poly[s], b = poly[(s + 1) % poly.length], u = (d - L[s]) / (L[s + 1] - L[s] || 1); return [lerp(a[0], b[0], u), lerp(a[1], b[1], u)]; });
+}
+// Morph outline a into b (same n) at p (a spring may overshoot): b's start is first turned to the offset nearest a, so it doesn't twist.
+function morphPts(a, b, p) {
+  const n = a.length; let best = 0, bd = Infinity;
+  for (let k = 0; k < n; k += 2) { let d = 0; for (let i = 0; i < n; i += 4) { const q = b[(i + k) % n]; d += (a[i][0] - q[0]) ** 2 + (a[i][1] - q[1]) ** 2; } if (d < bd) { bd = d; best = k; } }
+  return a.map((q, i) => { const r = b[(i + best) % n]; return [lerp(q[0], r[0], p), lerp(q[1], r[1], p)]; });
+}
+// Tapered stroke as ONE filled outline, w0 px wide at the first point to w1 at the last: bolts, brush and pen strokes. Stroking a
+// polyline segment by segment with round caps leaves a bead at every joint once alpha < 1 or a blur is on; this doesn't.
+function taperLine(c, pts, w0, w1, color) {
+  const n = pts.length, A = [], B = []; if (n < 2) return;
+  for (let i = 0; i < n; i++) { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1, w = lerp(w0, w1, i / (n - 1)) / 2;
+    A.push([pts[i][0] - (dy / d) * w, pts[i][1] + (dx / d) * w]); B.push([pts[i][0] + (dy / d) * w, pts[i][1] - (dx / d) * w]); }
+  c.save(); if (color) c.fillStyle = color; c.beginPath(); A.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); for (let i = n - 1; i >= 0; i--) c.lineTo(B[i][0], B[i][1]);
+  c.closePath(); c.fill(); c.restore();
+}
+// Draw an outline from shapePts/morphPts at (x, y), radius r px. o: fill, stroke, lw, rot.
+function drawPts(c, pts, x, y, r, o = {}) {
+  c.save(); c.translate(x, y); c.rotate(o.rot || 0); c.beginPath(); pts.forEach(([px, py], i) => (i ? c.lineTo(px * r, py * r) : c.moveTo(px * r, py * r))); c.closePath();
+  if (o.fill) { c.fillStyle = o.fill; c.fill(); } if (o.stroke) { c.strokeStyle = o.stroke; c.lineWidth = o.lw || 2 * S; c.lineJoin = 'round'; c.stroke(); }
+  c.restore();
+}
+
+// ---- type set by its ink ----
+// Ink box of a string as word() sets it: l and r = px from the pen x to the ink's left and right edges, a and d = ascent and
+// descent from the baseline. Place big type by its ink, not its advance box: at 400 px an 'O' overhangs its box and an 'I' sits inside it.
+function inkBox(c, str, size, o = {}) {
+  c.save(); setFont(c, size, o.weight, o.font, 0); const m = c.measureText(str); c.restore();
+  const t = (o.track ?? TYPE.track) * size * Math.max(0, [...str].length - 1); // tracking between glyphs (measured untracked, so no trailing space)
+  return { l: -m.actualBoundingBoxLeft, r: m.actualBoundingBoxRight + t, a: m.actualBoundingBoxAscent, d: m.actualBoundingBoxDescent };
+}
+// Justified stack (the frame-filling poster): each line sized so its INK spans width w from x, lines `gap` × the next line's cap
+// height apart (0.12). A line may be { s, size } to fix its size. o: word()'s font options, gap, max (px). Returns
+// [{ s, size, x, y }] (pen x and baseline per line, for word/rise/hitWord with align 'left') with the total height in .h.
+function fitStack(c, lines, x, top, w, o = {}) {
+  const { gap = 0.12, max = Infinity } = o; let y = top;
+  const L = lines.map((ln, i) => {
+    const s = ln.s ?? ln, b = inkBox(c, s, 100, o), size = ln.size || Math.min(max, (100 * w) / (b.r - b.l)), k = size / 100;
+    y += (i ? gap * b.a * k : 0) + b.a * k; const row = { s, size, x: x - b.l * k, y }; y += b.d * k; return row;
+  });
+  L.h = y - top; return L;
+}
+// Weight wave: each glyph's weight follows a wave travelling along the line (a variable font loaded with a range, e.g.
+// 'Archivo:wght@100..900'), so emphasis moves through a word. t = seconds; o: size font w0 (200) w1 (900) len (wave length in
+// glyphs, 6) speed (glyphs/s, 10) color align track. Kerning is lost (glyphs are set one by one): keep it for display sizes.
+function weightWave(c, str, x, y, t, o = {}) {
+  const { size = 200, w0 = 200, w1 = 900, len = 6, speed = 10, align = 'left' } = o, ch = [...str];
+  const wt = i => Math.round(w0 + (w1 - w0) * (0.5 + 0.5 * Math.cos((2 * Math.PI * (i - t * speed)) / len)));
+  const adv = ch.map((s, i) => tw(c, s, size, wt(i), o.font, o.track) + (o.track ?? TYPE.track) * size), total = adv.reduce((a, b) => a + b, 0);
+  let px = align === 'left' ? x : align === 'right' ? x - total : x - total / 2;
+  ch.forEach((s, i) => { word(c, s, px, y, { ...o, size, weight: wt(i), align: 'left' }); px += adv[i]; });
+}

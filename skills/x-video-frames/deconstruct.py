@@ -48,6 +48,13 @@ from PIL import Image, ImageDraw, ImageFont
 FONT = ImageFont.load_default(size=15)  # this ffmpeg has no drawtext, so every label is drawn with PIL
 
 
+ASR = """import sys, json, soundfile as sf
+from faster_whisper import WhisperModel
+segs, info = WhisperModel("base", device="cpu", compute_type="int8").transcribe(sf.read(sys.argv[1], dtype="float32")[0], word_timestamps=True)
+print(json.dumps({"lang": info.language, "segments": [{"start": s.start, "end": s.end, "text": s.text, "nsp": s.no_speech_prob, "lp": s.avg_logprob,
+                  "words": [[w.start, w.end, w.word, w.probability] for w in s.words or []]} for s in segs]}))"""
+
+
 def run(*cmd):
     return subprocess.run([str(c) for c in cmd], check=True, capture_output=True)
 
@@ -241,15 +248,21 @@ if has_audio:
         fx_name = "no-voice stem (demucs)"
 
     # words first: SFX read inside words need the voice split off, and ducking needs to know when someone speaks.
-    # faster-whisper gets a numpy array, because its PyAV decode path is broken here.
-    from faster_whisper import WhisperModel
-    segs, asr = WhisperModel("base", device="cpu", compute_type="int8").transcribe(
-        librosa.resample(voice if voice is not None else y, orig_sr=sr, target_sr=16000), word_timestamps=True)
-    segments = [s for s in segs if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0]
-    words = [[round(w.start, 2), round(w.end, 2), w.word.strip(), round(w.probability, 2)] for s in segments for w in s.words]
+    # faster-whisper runs in a child process: it can segfault (exit 139) on music-only audio, and that must not lose the report.
+    # It gets a numpy array, because its PyAV decode path is broken here.
+    a16 = out / "asr16k.wav"
+    sf.write(a16, librosa.resample(voice if voice is not None else y, orig_sr=sr, target_sr=16000), 16000)
+    r = subprocess.run([sys.executable, "-c", ASR, str(a16)], capture_output=True, text=True)
+    a16.unlink()
+    if r.returncode:
+        print(f"words: whisper exited {r.returncode}; the report continues without a transcript", file=sys.stderr)
+    asr = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 else {"lang": None, "segments": []}
+    r2 = lambda v: round(v, 2)
+    wl = lambda s: [[r2(w0), r2(w1), w.strip(), r2(pr)] for w0, w1, w, pr in s["words"]]
+    segments = [s for s in asr["segments"] if s["nsp"] < 0.6 and s["lp"] > -1.0]
+    words = [w for s in segments for w in wl(s)]
     if len(words) >= 3:
-        json.dump({"lang": asr.language, "segments": [{"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip(),
-                   "words": [[round(w.start, 2), round(w.end, 2), w.word.strip(), round(w.probability, 2)] for w in s.words]} for s in segments]},
+        json.dump({"lang": asr["lang"], "segments": [{"start": r2(s["start"]), "end": r2(s["end"]), "text": s["text"].strip(), "words": wl(s)} for s in segments]},
                   open(out / "transcript.json", "w"), indent=1)
     else:
         words = []
@@ -497,7 +510,7 @@ if has_audio:
           + (f" {skipped} more fell inside words and were dropped: on the full mix a syllable reads like an SFX, so run `--stems` to read under the voice." if skipped else "")]
     if words:
         span = words[-1][1] - words[0][0]
-        L.append(f"- **Voice:** {len(words)} words, {len(words) / max(span, 1e-6) * 60:.0f} wpm over {span:.1f} s; language `{asr.language}`, mean word confidence {np.mean([w[3] for w in words]):.2f} (low, or the wrong language, means whisper is hearing words in music).")
+        L.append(f"- **Voice:** {len(words)} words, {len(words) / max(span, 1e-6) * 60:.0f} wpm over {span:.1f} s; language `{asr["lang"]}`, mean word confidence {np.mean([w[3] for w in words]):.2f} (low, or the wrong language, means whisper is hearing words in music).")
     if v:
         L.append("- **Mix:** " + (f"voice {v['voice_db']} dBFS, bed under voice {v['bed_under_voice_db']} dBFS (voice {v['voice_over_bed_db']} dB over the bed), bed in speech gaps {v['bed_in_gaps_db']} dBFS, so ducking ≈ {v['ducking_db']} dB (under ~2 dB is separation noise: our own lesson, mixed with none, reads 1.4)."
                                   if "voice_db" in v else f"mix while speaking {v['mix_while_speaking_db']} dBFS, bed in speech gaps {v['bed_in_gaps_db']} dBFS. Run `--stems` for the bed under the voice and the ducking."))

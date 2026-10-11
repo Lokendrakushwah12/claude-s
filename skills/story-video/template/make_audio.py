@@ -1,5 +1,5 @@
 # Soundtrack for the cards: story-video's cues handed to sfx.py, the shared engine (a byte-for-byte copy of
-# promo-video/template/sfx.py; its docstring lists the 55 sounds). sfx.py ducks the music 12 dB under the voice and lets it
+# promo-video/template/sfx.py; its docstring lists every sound). sfx.py ducks the music 12 dB under the voice and lets it
 # back up in pauses over 0.3 s, sets every SFX by family against the voice, and masters to -14 LUFS.
 # Run after make_cards.py:  uv run --with numpy --with scipy --with pillow make_audio.py      (SFX=none: music only)
 import json
