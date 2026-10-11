@@ -303,7 +303,7 @@ function codeBlock(c, src, x, y, o = {}) {
 // For the 3-drawing boil, seed hand-drawn lines with boil(t, 12, 3), e.g. sketch(c, pts, { seed: id * 3 + boil(t, 12, 3) }).
 function seek(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  ctx.clearRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, H); ctx.imageSmoothingQuality = 'high'; // 'low' (the default) is bilinear: scaled footage and photos came out soft
   const sm = VIDEO.stopmo && { fps: 12, jitter: 2, flicker: 0.012, ...VIDEO.stopmo };
   if (sm) { t = stepT(t, sm.fps); const [dx, dy] = jitter(boil(t, sm.fps), sm.jitter), k = 1 + (2 * sm.jitter + 1) / Math.min(W, H); ctx.setTransform(k, 0, 0, k, dx - (W * (k - 1)) / 2, dy - (H * (k - 1)) / 2); }
   for (const s of VIDEO.scenes) {

@@ -85,7 +85,7 @@ for i, s in enumerate(shots):
         out.mkdir(parents=True, exist_ok=True); [f.unlink() for f in out.glob("*.jpg")]
         rate = s.get("speed", 1.0)  # 0.5 = half speed (archival often runs fast: 16-18 fps material shown at 24)
         run("ffmpeg", "-loglevel", "error", "-y", "-ss", s.get("in", 0), "-i", src, "-t", d * rate, "-an",
-            "-vf", (f"crop={s['crop']}," if s.get("crop") else "") + f"setpts=PTS/{rate},fps={FPS},scale='min(iw,1600)':-2", "-q:v", "3", out / "%04d.jpg")
+            "-vf", (f"crop={s['crop']}," if s.get("crop") else "") + f"setpts=PTS/{rate},fps={FPS},scale='min(iw,1600)':-2:flags=lanczos", "-q:v", "2", out / "%04d.jpg")
         (out / "stamp").write_text(stamp)
     s["frames"], s["n"] = f"{out}/", len(list(out.glob("*.jpg")))
 

@@ -34,12 +34,12 @@ const pad4 = k => String(k + 1).padStart(4, '0'), frameOf = (s, t) => clamp(Math
 const phraseAt = t => E.phrases.find(p => t >= p.start && t < p.end);
 
 // ---- frames: pre-extracted JPEGs; seek(t) awaits their decode (render.mjs evaluates with awaitPromise) ----
-const IM = new Map(), GOT = {};
+const IM = new Map(), GOT = {}, CAP = clamp(Math.round((240 * 1620 * 2880) / Math.max(1, ...E.shots.map(s => (s.fw || 0) * (s.fh || 0)))), 24, 240); // same memory budget at any frame size
 function load(src) {
   if (!IM.has(src)) {
     const im = new Image(); im.src = src;
     IM.set(src, im.decode().then(() => (GOT[src] = im), () => (console.warn('missing frame', src), null)));
-    if (IM.size > 240) { const k = IM.keys().next().value; IM.delete(k); delete GOT[k]; }
+    if (IM.size > CAP) { const k = IM.keys().next().value; IM.delete(k); delete GOT[k]; }
   }
   return IM.get(src);
 }

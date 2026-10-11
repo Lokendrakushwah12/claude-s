@@ -140,12 +140,13 @@ def build():
             if isinstance(o, dict):
                 if o.get("images"): o["images"] = [still(x) for x in o["images"]]
                 if o.get("img"): o["img"] = still(o["img"])
-    # frames: footage at 1.5x the output (cover fit, never upscaled); mattes at half that, grey (white = subject)
+    # frames: footage at 2x the output (cover fit, never upscaled), so a punch-in up to ~1.6x still downsamples: at 1.5x a 1.46x zoom
+    # drew each output pixel from ~1 stored pixel, bilinear, and a 4K phone clip came out 14 % softer than a straight crop of it; mattes at half that, grey (white = subject)
     Path("frames").mkdir(exist_ok=True)
     for k, s in enumerate(shots):
         s["i"] = k; s["out0"], s["out1"] = round(s["out0"], 6), round(s["out1"], 6)
         if s["kind"] == "cam":
-            clip = src["clips"][s["cam"]]; sc = min(1.0, max(1.5 * Wd / clip["w"], 1.5 * Hd / clip["h"])); fw, fh = int(clip["w"] * sc) // 2 * 2, int(clip["h"] * sc) // 2 * 2
+            clip = src["clips"][s["cam"]]; sc = min(1.0, max(2 * Wd / clip["w"], 2 * Hd / clip["h"])); fw, fh = int(clip["w"] * sc) // 2 * 2, int(clip["h"] * sc) // 2 * 2
             s.update(n=max(1, round((s["out1"] - s["out0"]) * FPS)), frames=f"frames/s{k:02d}/", fw=fw, fh=fh)
             extract(clip["path"], s["i0"] + clip.get("offset", 0), s["n"], s["frames"], fw, fh); s["matte"] = False
             s["n"] = len(list(Path(s["frames"]).glob("[0-9]*.jpg")))  # fewer if the clip ends first: the last frame holds
@@ -269,7 +270,7 @@ def extract(path, t0, n, d, w, h, prefix=""):  # n frames from t0, cached by a k
     d = Path(d); d.mkdir(parents=True, exist_ok=True); key = d / f".key{prefix}"; k = json.dumps([str(path), round(t0, 4), n, w, h])
     if key.exists() and key.read_text() == k: return
     for f in d.glob(f"{prefix}[0-9]*.jpg"): f.unlink()
-    sh("ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, t0):.4f}", "-i", path, "-frames:v", n, "-vf", f"fps={FPS},scale={w}:{h}" + (",format=gray" if prefix else ""), "-q:v", 3, d / f"{prefix}%04d.jpg")
+    sh("ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, t0):.4f}", "-i", path, "-frames:v", n, "-vf", f"fps={FPS},scale={w}:{h}:flags=lanczos" + (",format=gray" if prefix else ""), "-q:v", 2, d / f"{prefix}%04d.jpg")
     key.write_text(k)
 
 
@@ -283,7 +284,7 @@ def still(spec):  # a photo, or "clip.mov#2.5" = the frame at 2.5 s of a clip (H
         try: pr = probe(path)
         except (KeyError, ValueError, StopIteration): pr = {"hdr": False}  # a still has no duration to probe
         if pr["hdr"]: path = conform(path, pr, Path("src") / f"{Path(path).stem}.sdr.mov")
-        sh("ffmpeg", "-loglevel", "error", "-y", *(["-ss", at] if at else []), "-i", path, "-frames:v", 1, "-vf", "scale=1400:1400:force_original_aspect_ratio=decrease", "-q:v", 3, out)
+        sh("ffmpeg", "-loglevel", "error", "-y", *(["-ss", at] if at else []), "-i", path, "-frames:v", 1, "-vf", "scale=1400:1400:force_original_aspect_ratio=decrease:flags=lanczos", "-q:v", 2, out)
     return str(out)
 
 

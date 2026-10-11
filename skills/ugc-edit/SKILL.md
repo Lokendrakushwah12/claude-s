@@ -29,7 +29,7 @@ uv run ingest.py --placeholder tutorial --script vo.txt       # no footage: voic
 - **Faces:** each clip gets `src/<clip>.face.json` (MediaPipe BlazeFace full-range, 5×/s; placeholders write the true box).
 - **Script file:** one take per line; `(0.9) text` raises the exaggeration. Chatterbox reads at about 4.5 words/s, so ~110 words gives a 28 s cut.
 - **Lock:** Chatterbox always runs under `~/.cache/claude-s/ttslock.py`, because other agents narrate too.
-- **Footage resolution:** it should be at least 1.5× the output; ingest warns when it isn't, because punch-ins will soften.
+- **Footage resolution:** it should be at least 1.5× the output; ingest warns when it isn't, because punch-ins will soften. Frames are pulled at up to 2× the output (a 4K clip at full size for a 1080 cut), Lanczos, JPEG q2, so a punch-in still downsamples.
 
 ## 2. Write `edit.json`, then `uv run edit.py build`
 Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
@@ -51,7 +51,7 @@ The template `edit.json` shows every field once. A phrase is one caption line an
 What `build` does for you:
 - **Cut points:** `cut = next word − 0.08 s`; into a `graphic` phrase, the picture cuts at its keyword + 0.15 s.
 - **Pauses:** pauses over 0.35 s shrink to 0.12 s after the voice actually ends, plus 0.08 s before the next word. Everything snaps to 30 fps.
-- **Outputs:** `dialogue.wav` (the pieces with 5 ms fades, lightly compressed) and frames at 1.5× the output in `frames/sNN/`.
+- **Outputs:** `dialogue.wav` (the pieces with 5 ms fades, lightly compressed) and frames at 2× the output (capped at the source) in `frames/sNN/`.
 - **Report:** it prints the ASL, the fillers, retakes and laughs, and the words it cut. Read it every time.
 - **Export:** `edit.fcpxml` (FCPXML 1.10, the format Final Cut Pro and Resolve import) and `edit.edl` (CMX 3600, which Premiere, Resolve and Avid import), so a person can polish the cut. V1 holds the camera shots, with inserts and the end card as named gaps; A1 holds the dialogue from the master audio; there's a marker per phrase. build parses both back and stops if a clip is off by a frame. HDR clips point at their SDR conform.
 
@@ -64,6 +64,7 @@ Edit rules:
 - **Project inserts:** add them at the bottom of video.js as `INSERTS.<kind>(c, t, s, o)`, plus `SOUNDS.<kind>(s, o, ev, sfx)` for its UI sounds. Draw them as concepts from the brand's own world. Never reuse a reference's metaphor (no iceberg).
 
 ## 3. Camera, captions, look
+- **Zoom ceiling:** a punch-in magnifies the source. Keep a phone's front camera at 1.3x or under; past that the wall and hair read soft even at 2x frames. To raise a face that sits low in frame, anchor the zoom low (`ay` 0.9–1.0) rather than zooming harder.
 - **Camera:** footage is never still. Each shot zoom-settles `z = 1 + (z0−1)e^(−t/τ)` and slides. The frame is overscanned by `2·|slide|·dur` so an edge never shows.
 - **Lead-in line:** about 46 px at 1080 wide, at 0.43 H. Words land on their onsets in pre-spaced slots, and at the phrase end it un-types in reverse, a word every 2 frames.
 - **Keyword:** 800 weight, cap height 0.11–0.2 W, at 0.56 H. It slides in with an expo ease, and each letter cools from the brand's accent to warm to white like a fuse. One accent per brand, and never the reference's mint green.
@@ -156,3 +157,4 @@ uv run edit.py pov pov.json     # segments = [source in, length in 8ths]; trim +
 - **A stale phone screen:** the phone's screen canvas is redrawn every frame; a textAlign left over from the status bar shifted the app's text from the second frame on. phone3d now starts each frame from `ctx.reset()`.
 - **Colours shifted in every MP4:** render.mjs piped BT.601 JPEGs into an untagged H.264, and browsers decoded it as BT.709: #00ff00 played as 0,216,0 and the accent's green channel moved 14 levels. render.mjs now converts to BT.709 limited range and tags it (max error 2-3/255).
 - **The takeover popped:** the proof card and the app card differ in height, so the card now cross-fades into the app over the first 30 % of the move. The lockup glint's shine measured +0.4 dB (masked), so it plays at 1.8x.
+- **Softer than the source:** a 4K iPhone talking head looked visibly blurrier in the 1080 cut than the original. Frames were pulled at 1.5× the output with bicubic and JPEG q3, the camera then zoomed 1.46x, and Chrome drew them with its default bilinear smoothing: each output pixel came from about one stored pixel, 14 % softer (Laplacian variance) than a straight Lanczos crop of the 4K frame. Frames now come at 2× (Lanczos, q2) and lib.js sets `imageSmoothingQuality = 'high'`: within 2 % of the ideal crop. Chrome's JPEG capture and x264 CRF 17 were measured too: PNG capture gave no gain after the encode (both 41 dB against the lossless frame).

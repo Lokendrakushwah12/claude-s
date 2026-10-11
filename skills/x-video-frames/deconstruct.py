@@ -274,7 +274,8 @@ if has_audio:
     S = np.abs(librosa.stft(fx, n_fft=2048, hop_length=hop))
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
     oe = librosa.onset.onset_strength(S=librosa.amplitude_to_db(S, ref=np.max), sr=sr, hop_length=hop)
-    tempo, bf = librosa.beat.beat_track(onset_envelope=oe, sr=sr, hop_length=hop)
+    # trim=False: librosa's last-beat trim (a numba gufunc) segfaults on some clips (exit 139); trimming only drops weak edge beats.
+    tempo, bf = librosa.beat.beat_track(onset_envelope=oe, sr=sr, hop_length=hop, trim=False)
     tempo = float(np.atleast_1d(tempo)[0])
     beats = librosa.frames_to_time(bf, sr=sr, hop_length=hop)
     # pulse = how much the onset autocorrelation PEAKS at the beat lag over the off-beat valley. Plain ac[lag] reads
