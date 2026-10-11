@@ -540,7 +540,7 @@ const fmtOf = u => new Promise(ok => { const v = document.createElement('video')
   v.onloadedmetadata = () => ok(`${Math.round(v.duration)} s · ${shape(v.videoWidth / v.videoHeight)}`); v.onerror = () => ok(''); });
 // A page's cuts. New examples are <article class="cut" data-title> blocks with their own prompt and notes; older videos
 // carry data-title and share the page's prompt and notes; a page with no video is one interactive cut.
-const parse = id => pages.get(id) || pages.set(id, fetch(`demos/${id}.html`).then(r => r.text()).then(async html => {
+const parse = id => pages.get(id) || pages.set(id, fetch(`demos/${id}.html`, { cache: 'no-cache' }).then(r => r.text()).then(async html => {
   const d = new DOMParser().parseFromString(html, 'text/html');
   const lis = (h, own) => [...d.querySelectorAll('h2')].filter(x => x.textContent === h && x.closest('article.cut') === own).flatMap(x => [...x.parentElement.querySelectorAll('li')].map(li => li.textContent));
   const cuts = await Promise.all([...d.querySelectorAll('video')].map(async v => {
