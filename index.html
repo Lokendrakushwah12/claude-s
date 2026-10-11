@@ -276,7 +276,7 @@ const SKILLS = [
   { id: 'archive-footage', makes: 'Public-domain archival film clips, with each licence checked at the archive it came from and the credits written for you.',
     demo: 'archive-footage', title: 'Machines at work: 1918 and 1937 public-domain film', meta: '17 s, 16:9 · synthesised foley · then old film b-roll' },
   { id: 'x-video-frames', makes: 'Frames from any x.com video, and deconstruct.py: cuts, spectrogram, SFX events, beats, ducking, words and camera drift for any reference.',
-    demo: 'x-video-frames', title: 'A deconstruction report of our own heat-pump lesson', meta: 'report page' },
+    demo: 'x-video-frames-vorsa', extra: ['x-video-frames'], title: 'Taking apart the VORSA aura edit: cuts, beats and sounds, measured', meta: 'report pages' },
 ];
 
 // feeds: which skills took something from it (in our words, never theirs)
@@ -548,7 +548,7 @@ const parse = id => pages.get(id) || pages.set(id, fetch(`demos/${id}.html`, { c
     const q = own ? own.querySelector('blockquote') : [...d.querySelectorAll('blockquote')].find(b => !b.closest('article.cut'));
     return { src, page: id, title: own?.dataset.title || v.dataset.title || '', prompt: q?.textContent || '', did: lis('What the skill did', own), sound: lis('Sound', own), fmt: await fmtOf(src) };
   }));
-  if (!cuts.length) cuts.push({ page: id, iframe: true, title: d.title, prompt: d.querySelector('meta[name="prompt"]')?.content || d.querySelector('blockquote')?.textContent || '', did: [], sound: [], fmt: 'interactive page' });
+  if (!cuts.length) cuts.push({ page: id, iframe: true, title: d.title, prompt: d.querySelector('meta[name="prompt"]')?.content || d.querySelector('blockquote')?.textContent || '', did: [], sound: [], fmt: 'page' });
   return cuts;
 })).get(id);
 let cur = 0, ticket = 0, cuts = [];

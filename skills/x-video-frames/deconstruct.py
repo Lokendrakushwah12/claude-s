@@ -50,7 +50,7 @@ FONT = ImageFont.load_default(size=15)  # this ffmpeg has no drawtext, so every 
 
 ASR = """import sys, json, soundfile as sf
 from faster_whisper import WhisperModel
-segs, info = WhisperModel("base", device="cpu", compute_type="int8").transcribe(sf.read(sys.argv[1], dtype="float32")[0], word_timestamps=True)
+segs, info = WhisperModel("base", device="cpu", compute_type="int8").transcribe(sf.read(sys.argv[1], dtype="float32")[0], word_timestamps=True, vad_filter=True)
 print(json.dumps({"lang": info.language, "segments": [{"start": s.start, "end": s.end, "text": s.text, "nsp": s.no_speech_prob, "lp": s.avg_logprob,
                   "words": [[w.start, w.end, w.word, w.probability] for w in s.words or []]} for s in segs]}))"""
 
@@ -259,7 +259,8 @@ if has_audio:
     asr = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 else {"lang": None, "segments": []}
     r2 = lambda v: round(v, 2)
     wl = lambda s: [[r2(w0), r2(w1), w.strip(), r2(pr)] for w0, w1, w, pr in s["words"]]
-    segments = [s for s in asr["segments"] if s["nsp"] < 0.6 and s["lp"] > -1.0]
+    # VAD keeps music out of whisper; a segment with no letters ("1.6%", "6.9%") is still a music hallucination
+    segments = [s for s in asr["segments"] if s["nsp"] < 0.6 and s["lp"] > -1.0 and any(c.isalpha() for c in s["text"])]
     words = [w for s in segments for w in wl(s)]
     if len(words) >= 3:
         json.dump({"lang": asr["lang"], "segments": [{"start": r2(s["start"]), "end": r2(s["end"]), "text": s["text"].strip(), "words": wl(s)} for s in segments]},
@@ -274,9 +275,27 @@ if has_audio:
     S = np.abs(librosa.stft(fx, n_fft=2048, hop_length=hop))
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
     oe = librosa.onset.onset_strength(S=librosa.amplitude_to_db(S, ref=np.max), sr=sr, hop_length=hop)
-    # trim=False: librosa's last-beat trim (a numba gufunc) segfaults on some clips (exit 139); trimming only drops weak edge beats.
-    tempo, bf = librosa.beat.beat_track(onset_envelope=oe, sr=sr, hop_length=hop, trim=False)
-    tempo = float(np.atleast_1d(tempo)[0])
+    # librosa.beat.beat_track's last-beat step (a numba gufunc) segfaults (exit 139) under librosa 1.0, even with trim=False.
+    # This is the same dynamic-programming tracker (Ellis 2007) in numpy: a beat on an onset peak, one period after the last.
+    # On a 150 BPM edit it lands a median 10 ms off the edit's own grid (PLP peaks ran ~90 ms late). Swap back once librosa is fixed.
+    tempo = float(np.atleast_1d(librosa.feature.tempo(onset_envelope=oe, sr=sr, hop_length=hop))[0])
+    def dp_beats(env, period, tight=100.0):
+        o = env / (env.std() + 1e-9)
+        local = np.convolve(o, np.exp(-0.5 * (np.arange(-round(period), round(period) + 1) * 32 / period) ** 2), 'same')
+        score, back = local.copy(), np.full(len(o), -1)
+        lo, hi = round(2 * period), round(period / 2)
+        for i in range(hi, len(o)):
+            prev = np.arange(max(0, i - lo), i - hi)
+            if len(prev):
+                c = score[prev] - tight * np.log((i - prev) / period) ** 2
+                k = c.argmax(); score[i] = local[i] + c[k]; back[i] = prev[k]
+        pk = np.flatnonzero(librosa.util.localmax(score))
+        i = pk[score[pk] >= 0.5 * np.median(score[pk])][-1] if len(pk) else len(o) - 1
+        out = []
+        while i >= 0: out.append(i); i = back[i]
+        b = np.array(out[::-1], dtype=int)
+        return b[local[b] > 0.1 * local.max()]   # no beats invented in silence
+    bf = dp_beats(oe, 60 * fr / tempo) if tempo > 0 else np.array([], dtype=int)
     beats = librosa.frames_to_time(bf, sr=sr, hop_length=hop)
     # pulse = how much the onset autocorrelation PEAKS at the beat lag over the off-beat valley. Plain ac[lag] reads
     # 0.35 on a beatless bed of slow swells; this reads 0.35 on a 130 BPM song and under 0.07 on speech and beds.
