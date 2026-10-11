@@ -1,5 +1,2 @@
 .DS_Store
 __pycache__/
-# aura-edit demo hidden for now (kept locally)
-demos/aura-edit.html
-demos/posters/aura-edit.jpg

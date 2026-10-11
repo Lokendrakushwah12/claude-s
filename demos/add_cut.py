@@ -69,7 +69,8 @@ if ".cut{" not in s:   # one rule for every cut block, added once per page
     s = s.replace("</style>", "article.cut{display:grid;gap:18px;padding-top:28px;border-top:1px solid var(--rule)}\nh2.ct{font-size:22px;color:var(--fg);margin:0;font-weight:600}\n</style>", 1)
 if a.first:   # before the first older cut, blockquote or video, whichever comes first
     m = re.search(r'<article class="cut"|<blockquote>|<video', s)
-    s = s[:m.start()] + cut + s[m.start():]
+    at = m.start() if m else s.index("<footer>")   # a new page has nothing to go before yet
+    s = s[:at] + cut + s[at:]
 else:
     s = s.replace("<footer>", cut + "<footer>", 1)
 page.write_text(s)
