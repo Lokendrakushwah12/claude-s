@@ -11,8 +11,10 @@
   {"say": "So now we ship small.", "cam": "A", "kw": "small", "behind": true, "flash": true, "build": true},
   {"say": "One feature a week.", "kw": "week", "insert": {"kind": "screen", "query": "Dark mode toggle", "button": "Ship", "clickOn": "week",
      "results": ["v1.43  Dark mode toggle", "v1.42  Undo on delete"]}},
-  {"say": "Ship it, and learn.", "cam": "B", "kw": "learn", "push": 0},
+  {"say": "Ship it, and learn.", "cam": "B", "kw": "learn", "push": 0, "sfx": {"ship": "pop"}},
   {"say": "That's the whole idea.", "caption": false, "insert": {"kind": "card", "title": "ship small", "sub": "learn fast"}}
  ],
- "end": {"kind": "end", "text": "acme", "sub": "ship small.", "dur": 1.4}
+ "end": {"kind": "end", "text": "acme", "sub": "ship small.", "dur": 1.4},
+ "hooks": ["So now we ship small.", "Ship it, and learn."],
+ "hookBody": 3
 }

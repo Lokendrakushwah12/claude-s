@@ -39,14 +39,18 @@ function alphaOf(img) { // grey matte (white = subject) -> alpha, for type.js be
   const d = x.getImageData(0, 0, img.width, img.height); for (let i = 0; i < d.data.length; i += 4) d.data[i + 3] = d.data[i];
   x.putImageData(d, 0, 0); return cv;
 }
+function camGeom(s) { // the frame's box on the canvas and the camera move: shared by the drawing and the face-safe captions
+  const ph = E.phrases[s.phrase], o = { z0: 1.35, tau: 0.4, ax: 0.5, ay: 0.4, slide: (s.i % 2 ? -1 : 1) * 0.02, ...ph };
+  if (s.jump) o.z0 = Math.max(o.z0, 1.25); // a jump cut re-punches, so the cut reads as intended
+  const zb = 1 + 2 * Math.abs(o.slide) * (s.out1 - s.out0) + 0.02, sc = Math.max(W / s.fw, H / s.fh) * zb; // overscan: the slide never shows an edge
+  return { box: [(W - s.fw * sc) / 2, (H - s.fh * sc) / 2, s.fw * sc, s.fh * sc],
+    cam: { z0: o.z0, tau: o.tau, ax: o.ax, ay: o.ay, slide: o.slide, kw: ph.pull && ph.kw ? ph.kw.t - s.out0 : undefined, kwZ: 1.2, push: ph.push != null && ph.push !== false ? +ph.push : undefined, pushZ: 0.18, pushDur: s.out1 - s.out0 } };
+}
 function camShot(c, t, s) {
   const ph = E.phrases[s.phrase], k = pad4(frameOf(s, t)), img = GOT[s.frames + k + '.jpg']; if (!img) return;
-  const o = { z0: 1.35, tau: 0.4, ax: 0.5, ay: 0.4, slide: (s.i % 2 ? -1 : 1) * 0.02, ...ph };
-  if (s.jump) o.z0 = Math.max(o.z0, 1.25); // a jump cut re-punches, so the cut reads as intended
-  const zb = 1 + 2 * Math.abs(o.slide) * (s.out1 - s.out0) + 0.02, sc = Math.max(W / img.width, H / img.height) * zb; // overscan: the slide never shows an edge
-  const box = [(W - img.width * sc) / 2, (H - img.height * sc) / 2, img.width * sc, img.height * sc];
+  const { box, cam: co } = camGeom(s);
   c.save();
-  shotCam(c, t - s.out0, { z0: o.z0, tau: o.tau, ax: o.ax, ay: o.ay, slide: o.slide, kw: ph.pull && ph.kw ? ph.kw.t - s.out0 : undefined, kwZ: 1.2, push: ph.push != null && ph.push !== false ? +ph.push : undefined, pushZ: 0.18, pushDur: s.out1 - s.out0 });
+  shotCam(c, t - s.out0, co);
   const m = s.matte && ph.behind && ph.kw && t >= ph.kw.t && GOT[s.frames + 'm' + k + '.jpg'];
   if (m) { behind(c, img, alphaOf(m), cc => { cc.save(); cc.setTransform(1, 0, 0, 1, 0, 0); keyword(cc, t, ph); cc.restore(); }, box); behindAt = t; }
   else c.drawImage(img, ...box);
@@ -59,12 +63,38 @@ function lead(c, t, ph) {
   const ws = ph.words.map(w => ({ w: clean(w.w), t: w.t })).filter(w => w.w), gap = 0.32;
   const width = sz => ws.reduce((a, w) => a + tw(c, w.w, sz, 500, TYPE.ui, -0.01), 0) + sz * gap * (ws.length - 1);
   const size = Math.min(46 * S, 46 * S * (0.88 * W) / width(46 * S)), frame = 2 / FPS;
-  leadIn(c, ws, W / 2, H * (ph.leadY ?? (ph.behind ? 0.48 : 0.43)), t, ph.end - ws.length * frame, { size, gap, frame, align: 'center', font: TYPE.ui });
+  leadIn(c, ws, W / 2, H * ((ph.leadY ?? (ph.behind ? 0.48 : 0.43)) + (ph.ldy ?? ph.dy ?? 0)), t, ph.end - ws.length * frame, { size, gap, frame, align: 'center', font: TYPE.ui });
 }
 function keyword(c, t, ph) {
   const kw = ph.kw; if (!kw || t < kw.t) return;
-  const size = Math.min(0.24 * W, (0.86 * W * 100) / tw(c, kw.w, 100, 800));
-  hotWord(c, kw.w, W / 2, H * (ph.kwY ?? (ph.behind ? 0.42 : 0.56)), t - kw.t, { size, weight: 800, hot: B.accent, cold: B.ink, align: 'center', ...(ph.graphic ? { slide: 0.18, from: 0.5 } : {}) }); // a graphic keyword slams on its boom
+  const size = Math.min(0.24 * W, (0.86 * W * 100) / tw(c, kw.w, 100, 800)), n = NUM.exec(kw.w), u = clamp((t - kw.t) / COUNT);
+  const text = n && u < 1 ? (+n[1] * ease.out(u)).toFixed(n[1].includes('.') ? 1 : 0) + n[2] : kw.w; // a number counts up as it lands
+  hotWord(c, text, W / 2, H * ((ph.kwY ?? (ph.behind ? 0.42 : 0.56)) + (ph.dy || 0)), t - kw.t, { size, weight: 800, hot: B.accent, cold: B.ink, align: 'center', ...(ph.graphic ? { slide: 0.18, from: 0.5 } : {}) }); // a graphic keyword slams on its boom
+}
+const NUM = /^(\d+(?:\.\d+)?)([k%x+]?)$/, COUNT = 0.4;
+// ---- face-safe captions: the lead-in + keyword block moves off the face (after kurbaitaev/ghost-editor's safezone.mjs, MIT).
+// The face box (src/<cam>.face.json, through this shot's camera) is sampled every 0.1 s of a phrase; the block stays where the
+// last phrase had it if that's clear, else goes to the house spot, below the chin, above the head, or as low as the platform UI
+// allows. A behind-the-subject keyword stays on the head; only its lead-in line moves (above the head first, so it reads first).
+// Phrases with an explicit leadY/kwY are left alone.
+const SAFE = [0.14, 0.76]; // the block's limits as fractions of H: the platform's top bar and caption/buttons area
+function faceOnScreen(s, t) {
+  let f = null, d = 0.6; for (const x of s.face || []) if (Math.abs(x[0] - (t - s.out0)) < d) { d = Math.abs(x[0] - (t - s.out0)); f = x; }
+  if (!f) return null;
+  const { box, cam: co } = camGeom(s), [, x] = scratch('camT', 8, 8); shotCam(x, t - s.out0, co); const m = x.getTransform();
+  const y = v => m.transformPoint(new DOMPoint(box[0] + 0.5 * box[2], box[1] + v * box[3])).y / H; return [y(f[2]), y(f[4])];
+}
+function placeCaptions() {
+  let prev = null;
+  for (const p of E.phrases) {
+    if (p.leadY != null || p.kwY != null || p.caption === false) { prev = null; continue; }
+    const B = !!p.behind, top0 = (B ? 0.48 : 0.43) - 0.035, h = (p.kw && !B ? 0.56 + 0.03 : top0 + 0.047) - top0; let ft = 1, fb = 0;
+    for (let t = p.start; t < p.end; t += 0.1) { const s = E.shots.find(s => t >= s.out0 && t < s.out1), f = s?.kind === 'cam' && faceOnScreen(s, t); if (f) { ft = Math.min(ft, f[0]); fb = Math.max(fb, f[1]); } }
+    if (ft >= fb) { p.dy = 0; prev = top0; continue; } // no face seen (an insert, or a missed detection): the house spot
+    const ok = y => y != null && y >= SAFE[0] && y + h <= SAFE[1] && (y + h <= ft - 0.015 || y >= fb + 0.015);
+    const y = (B ? [top0, ft - 0.02 - h, fb + 0.02] : [prev, top0, fb + 0.02, ft - 0.02 - h]).find(ok) ?? (B ? top0 : SAFE[1] - h);
+    p[B ? 'ldy' : 'dy'] = +(y - top0).toFixed(4); p.face = [+ft.toFixed(3), +fb.toFixed(3)]; prev = B ? null : y;
+  }
 }
 function title(c, t, ph) { // chapter title (tutorial bumpers): x 6 %, y 85 %, 0.25 s fades
   const a = prog(t, ph.start, ph.start + 0.25) * (1 - prog(t, ph.end - 0.25, ph.end)), size = 56 * S, w = tw(c, ph.title, size, 600, TYPE.display, -0.02);
@@ -172,11 +202,19 @@ function sounds() {
     }
   }
   E.shots.forEach(s => s.insert && SOUNDS[s.insert.kind]?.(s, s.insert, ev, sfx));
+  // a sound on a spoken word: onomatopoeia get theirs, and "sfx": {"word": "sound" | ["sound", gain], ...} on a phrase puts any sfx.py
+  // sound on any of its words ("sfx": false: none). The idea is hassancs91/claude-youtube-editor's /suggest-sfx (MIT): sync to the word
+  for (const p of E.phrases) {
+    for (const w of p.sfx === false ? [] : p.words) { const v = p.sfx?.[clean(w.w)] ?? (PRESET.cutSounds && ONOMATOPOEIA[clean(w.w)]), [name, g = 1] = [].concat(v || []); if (name) sfx.push([+w.t.toFixed(3), name, g, { word: clean(w.w) }]); }
+    if (p.kw && NUM.test(p.kw.w) && PRESET.cutSounds) sfx.push([+p.kw.t.toFixed(3), 'ratchet', 0.8, { n: 8, rate: 8 / COUNT }]); // ticks under the count-up
+  }
   // autocue keeps one air sound per 0.4 s and the EARLIER wins, so a keyword just before a cut would silence the cut: the cut wins
   const cuts = E.shots.slice(1).map(s => s.out0), out = ev.filter(e => e.kind !== 'keyword' || !cuts.some(c => c > e.t && c - e.t < 0.45));
   out.forEach(e => (e.t = +e.t.toFixed(3)));
   return { ev: out, sfx };
 }
+const ONOMATOPOEIA = { boom: 'boom_sting', bang: 'boom_sting', kaboom: 'boom_sting', pow: 'boom_sting', click: 'click', clicked: 'click', snap: 'click',
+  tap: 'click', pop: 'pop', popped: 'pop', ding: 'ui_blip', ping: 'ui_blip', beep: 'ui_blip', tick: 'tick', whoosh: 'whoosh', swoosh: 'swoosh', glitch: 'glitch' }; // creator preset only: "click" is every other word in a tutorial
 function bed() { // a beatless-feeling pad: one chord per ~3.6 s bar, the end card on a bar line, a riser into it
   if (E.bed !== undefined && E.bed !== null) return E.bed; if (!PRESET.bed) return null;
   const end = E.shots.find(s => s.kind === 'end')?.out0 ?? E.duration, bars = Math.max(1, Math.round(end / 3.6));
@@ -197,4 +235,5 @@ window.VIDEO = {
 };
 // ---- project inserts (this video only) ----
 
-const SND = sounds(); Object.assign(VIDEO, { events: SND.ev, sfx: SND.sfx, bed: bed() });
+if (PRESET.captions) placeCaptions();
+const SND = sounds(); Object.assign(VIDEO, { events: SND.ev, sfx: SND.sfx, bed: bed(), captions: E.phrases.map(p => [p.i, p.dy || 0, p.face || null]) });

@@ -7,15 +7,17 @@
     uv run edit.py build     -> timeline.js / timeline.json (shots, phrases, words on the OUTPUT clock), dialogue.wav, frames/
     uv run edit.py review    after the render: every cut has a sound, every sub lands on a cut, the final mix transcribed back
                              against the phrases, review/spectrogram.png with the cuts, review/times.txt (each cut -2..+2 frames)
+    uv run edit.py hooks     edit.json "hooks" -> hooks/hN.mp4: each candidate opening line + the first body phrases, for A/B tests
     uv run edit.py pov pov.json   the fast path, no canvas: one locked-off clip jump-cut on a song's 8th-note grid + one caption
 
 Cut rules applied here, so edit.json never holds a time:
   cut = next word - 0.08 s (audio and picture); into a `graphic` phrase the picture cuts at its keyword + 0.15 s
   pauses over 0.35 s shrink to 0.12 s after the voice ends (a phrase's "hold" keeps more) + 0.08 s before the next word;
-  fillers and words outside every phrase are cut
+  fillers, dropped retakes (src.json) and words outside every phrase are cut; a laugh after a phrase is kept ("laugh": false cuts it)
   every boundary snaps to the 30 fps grid; a phrase whose pause was removed inside it becomes a jump cut (a new shot, re-punched)
 """
 import difflib, json, re, subprocess, sys, wave
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -28,36 +30,46 @@ q = lambda t: round(t * FPS) / FPS
 def sh(*a, **k): return subprocess.run([str(x) for x in a], check=True, **k)
 
 
-def align(phrases, words, fillers):
-    """Each phrase's `say` -> transcript words, in order. Returns per phrase: kept word indices and display tokens [{w, i}]."""
-    toks = [(pi, tok) for pi, p in enumerate(phrases) for tok in p["say"].split()]
-    sm = difflib.SequenceMatcher(None, [norm(t) for _, t in toks], [norm(w["w"]) for w in words], autojunk=False)
-    hit = {a + k: b + k for a, b, n in sm.get_matching_blocks() for k in range(n)}; claimed = set(hit.values())
-    out, last = [], -1
+def align(phrases, words, fillers, drop=frozenset()):
+    """Each phrase's `say` -> transcript words, in order. Returns per phrase: kept word indices and display tokens [{w, i}].
+    Fillers and dropped retakes never match, so a say lands on the take that was kept. A "hook": true phrase is matched on its
+    own, anywhere in the recording (a hook variant opens on a later line); the other phrases in order."""
+    skip, out = set(fillers) | set(drop), {}
+    def run(pis):
+        toks = [(pi, tok) for pi in pis for tok in phrases[pi]["say"].split()]
+        sm = difflib.SequenceMatcher(None, [norm(t) for _, t in toks], ["\0" if i in skip else norm(w["w"]) for i, w in enumerate(words)], autojunk=False)
+        hit = {a + k: b + k for a, b, n in sm.get_matching_blocks() for k in range(n)}; claimed = set(hit.values()); last = -1
+        for pi in pis:
+            p, ks = phrases[pi], [k for k, (j, _) in enumerate(toks) if j == pi]; m = [hit[k] for k in ks if k in hit]
+            if not m: sys.exit(f"phrase {pi} {p['say']!r}: no words found in the transcript" + (" (dropped as a retake? \"retakes\": false in edit.json keeps every take)" if drop else ""))
+            lo, hi = max(min(m), last + 1), max(m); first = next(j for j, k in enumerate(ks) if k in hit); end = max(j for j, k in enumerate(ks) if k in hit)
+            for k in reversed(ks[:first]):  # a misheard first/last word ("Flipway" for "Slipway") claims the unclaimed word beside the range,
+                if lo - 1 > last and lo - 1 not in claimed and lo - 1 not in skip: lo -= 1; hit[k] = lo; claimed.add(lo)  # or it'd be cut
+            for k in ks[end + 1:]:
+                if hi + 1 < len(words) and hi + 1 not in claimed and hi + 1 not in skip: hi += 1; hit[k] = hi; claimed.add(hi)
+            last = hi
+            if hi - lo + 1 > 2 * len(ks) + 3: print(f"  phrase {pi}: spans {hi - lo + 1} heard words for {len(ks)} written; check its say text matches the take")
+            heard = [f"{toks[k][1]!r} as {words[hit[k]]['w']!r}" if k in hit else repr(toks[k][1]) for k in ks if k not in hit or norm(toks[k][1]) != norm(words[hit[k]]["w"])]
+            if heard: print(f"  phrase {pi}: not heard as written: {', '.join(heard)} (captions use the phrase's spelling)")
+            keep = [i for i in range(lo, hi + 1) if i not in skip]
+            cut = [words[i]["w"] for i in range(lo, hi + 1) if i in fillers]; gone = [words[i]["w"] for i in range(lo, hi + 1) if i in drop]
+            if cut: print(f"  phrase {pi}: fillers cut {cut}")
+            if gone: print(f"  phrase {pi}: false start cut {gone}")
+            out[pi] = (keep, [{"w": toks[k][1], "i": hit.get(k)} for k in ks])
+        skip.update(i for pi in pis for i in out[pi][0])  # a hook's words aren't the body's to take
     for pi, p in enumerate(phrases):
-        ks = [k for k, (j, _) in enumerate(toks) if j == pi]; m = [hit[k] for k in ks if k in hit]
-        if not m: sys.exit(f"phrase {pi} {p['say']!r}: no words found in the transcript")
-        lo, hi = max(min(m), last + 1), max(m); first = next(j for j, k in enumerate(ks) if k in hit); end = max(j for j, k in enumerate(ks) if k in hit)
-        for k in reversed(ks[:first]):  # a misheard first/last word ("Flipway" for "Slipway") claims the unclaimed word beside the range,
-            if lo - 1 > last and lo - 1 not in claimed and lo - 1 not in fillers: lo -= 1; hit[k] = lo; claimed.add(lo)  # or it'd be cut
-        for k in ks[end + 1:]:
-            if hi + 1 < len(words) and hi + 1 not in claimed and hi + 1 not in fillers: hi += 1; hit[k] = hi; claimed.add(hi)
-        last = hi
-        if hi - lo + 1 > 2 * len(ks) + 3: print(f"  phrase {pi}: spans {hi - lo + 1} heard words for {len(ks)} written; check its say text matches the take")
-        heard = [f"{toks[k][1]!r} as {words[hit[k]]['w']!r}" if k in hit else repr(toks[k][1]) for k in ks if k not in hit or norm(toks[k][1]) != norm(words[hit[k]]["w"])]
-        if heard: print(f"  phrase {pi}: not heard as written: {', '.join(heard)} (captions use the phrase's spelling)")
-        keep = [i for i in range(lo, hi + 1) if i not in fillers]
-        cut = [words[i]["w"] for i in range(lo, hi + 1) if i in fillers]
-        if cut: print(f"  phrase {pi}: fillers cut {cut}")
-        out.append((keep, [{"w": toks[k][1], "i": hit.get(k)} for k in ks]))
-    return out
+        if p.get("hook"): run([pi])
+    run([pi for pi, p in enumerate(phrases) if not p.get("hook")])
+    return [out[pi] for pi in range(len(phrases))]
 
 
 def build():
     src, ed = json.loads(Path("src.json").read_text()), json.loads(Path("edit.json").read_text())
     Wd, Hd = map(int, ed.get("size", "1080x1920").split("x")); words, phrases = src["words"], ed["phrases"]
-    al = align(phrases, words, set(src["fillers"])); kept = {i for keep, _ in al for i in keep}
-    gone = [i for i in range(len(words)) if i not in kept and i not in src["fillers"]]
+    drop = set() if ed.get("retakes") is False else {i for i0, i1, _ in src.get("retakes", []) for i in range(i0, i1 + 1)}
+    al = align(phrases, words, set(src["fillers"]), drop); kept = {i for keep, _ in al for i in keep}
+    gone = [i for i in range(len(words)) if i not in kept and i not in src["fillers"] and i not in drop]
+    if drop - kept: print(f"  retakes cut: {' | '.join(' '.join(words[i]['w'] for i in range(i0, i1 + 1)) for i0, i1, _ in src['retakes'] if i0 in drop)}")
     if gone: print(f"  cut (in no phrase): {' '.join(words[i]['w'] for i in gone)}")
     # runs of kept words with no long pause and nothing cut between them -> audio pieces on the source clock
     runs = []
@@ -77,6 +89,8 @@ def build():
         a, b = words[ws[0]], words[ws[-1]]
         nb = words[ws[-1] + 1] if ws[-1] + 1 < len(words) else None; pv = words[ws[0] - 1] if ws[0] else None
         i0 = max(a["s"] - LEAD, pv["e"] + 0.01 if pv else 0.0); cap = nb["s"] - LEAD if nb else src["duration"]; o1 = min(voiced_to(b["e"], cap) + phrases[pi].get("hold", TAIL), cap)
+        lg = next((l for l in src.get("laughs", []) if b["e"] - 0.05 <= l[0] < cap), None) if phrases[pi].get("laugh", True) else None
+        if lg: o1 = min(max(o1, lg[1] + TAIL), cap); print(f"  phrase {pi}: laugh kept ({lg[1] - lg[0]:.1f} s)")  # cut-video: laughs aren't silences
         if pieces and pieces[-1]["last"] + 1 == ws[0] and a["s"] - words[ws[0] - 1]["e"] <= MAXGAP:  # same take: one shared point
             pieces[-1]["o1"] = i0 = max(words[ws[0] - 1]["e"], a["s"] - LEAD); pieces[-1]["flow"] = True
         pieces.append({"phrase": pi, "i0": i0, "o1": o1, "last": ws[-1], "words": ws, "flow": False})
@@ -127,6 +141,8 @@ def build():
             s.update(n=max(1, round((s["out1"] - s["out0"]) * FPS)), frames=f"frames/s{k:02d}/", fw=fw, fh=fh)
             extract(clip["path"], s["i0"] + clip.get("offset", 0), s["n"], s["frames"], fw, fh); s["matte"] = False
             s["n"] = len(list(Path(s["frames"]).glob("[0-9]*.jpg")))  # fewer if the clip ends first: the last frame holds
+            if clip.get("face"):  # face boxes on the shot's own clock, 0..1 of the frame: video.js keeps captions off the face
+                t0 = s["i0"] + clip.get("offset", 0); s["face"] = [[round(b[0] - t0, 3)] + b[1:] for b in json.loads(Path(clip["face"]).read_text())["boxes"] if len(b) == 5 and -0.5 <= b[0] - t0 <= s["n"] / FPS + 0.5]
             if any(P[i].get("behind") for i in s["phrases"]):
                 if clip.get("matte"): extract(clip["matte"], s["i0"] + clip.get("offset", 0), s["n"], s["frames"], fw // 2, fh // 2, "m"); s["matte"] = True
                 else: s["matte"] = matte(s)
@@ -145,8 +161,100 @@ def build():
     tl = {"size": f"{Wd}x{Hd}", "fps": FPS, "duration": round(dur, 3), "preset": ed.get("preset", "creator"), "brand": ed.get("brand", {}), "bed": ed.get("bed"),
           "shots": shots, "phrases": P, "words": [{"w": words[i]["w"], "t": out_t[i]} for i in sorted(out_t)]}
     Path("timeline.json").write_text(json.dumps(tl, indent=1)); Path("timeline.js").write_text("window.EDIT = " + json.dumps(tl) + ";\n")
-    cut_s = sum(p["i0"] - (pieces[k - 1]["o1"] if k else 0) for k, p in enumerate(pieces))
+    export(tl, pieces, src, Path.cwd().name)
+    cut_s = sum(max(0, p["i0"] - (pieces[k - 1]["o1"] if k else 0)) for k, p in enumerate(pieces))  # a hook from later on jumps back: not a cut pause
     print(f"timeline.js: {len(shots)} shots, ASL {np.mean([s['out1'] - s['out0'] for s in shots]):.2f} s, {dur:.2f} s ({cut_s:.2f} s of pauses and fillers cut), dialogue.wav")
+
+
+def tcstart(path):  # a file's start timecode in seconds (0 if it has none) and its frame rate
+    j = json.loads(sh("ffprobe", "-v", "error", "-show_entries", "stream=codec_type,r_frame_rate:stream_tags=timecode:format_tags=timecode", "-of", "json", path, capture_output=True).stdout)
+    v = next((s for s in j["streams"] if s["codec_type"] == "video"), None); fps = Fraction(v["r_frame_rate"]) if v else Fraction(FPS)
+    tc = next((s["tags"]["timecode"] for s in j["streams"] if s.get("tags", {}).get("timecode")), None) or j.get("format", {}).get("tags", {}).get("timecode")
+    if not tc: return Fraction(0), fps
+    h, m, s, f = map(int, re.split("[:;.]", tc)); return h * 3600 + m * 60 + s + Fraction(f, round(fps)), fps
+
+
+def export(tl, pieces, src, name):
+    """The cut as an editor timeline, for a person to polish: edit.fcpxml (Final Cut Pro, DaVinci Resolve) and edit.edl (CMX 3600:
+    Premiere, Resolve, Avid). V1 = the camera shots from the source clips; inserts and the end card are gaps named after them.
+    A1 = the kept dialogue from the master audio. 30 fps, each source offset by its own start timecode, a marker per phrase.
+    The EDL layout (reel AX, FROM CLIP NAME, record from 01:00:00:00) follows kajisho5/ffmpeg-skill's timeline export (MIT)."""
+    from xml.sax.saxutils import quoteattr as qa
+    Wd, Hd = tl["size"].split("x"); F = lambda t: Fraction(round(t * FPS), FPS); T = lambda x: f"{x.numerator}/{x.denominator}s" if x.denominator > 1 else f"{x.numerator}s"
+    srcs = {}  # path -> (asset id, tc start, fps); the master audio is a1
+    def asset(path):
+        if path not in srcs: srcs[path] = (f"a{len(srcs) + 1}", *tcstart(path))
+        return srcs[path]
+    asset(src["audio"]); video, audio = [], []  # [rec_in, rec_out, path or None, src_in, label]
+    for s in tl["shots"]:
+        r0, r1 = F(s["out0"]), F(s["out1"])
+        if s["kind"] != "cam": video.append([r0, r1, None, Fraction(0), f"{s['kind']}: {s['insert'].get('kind')} {s['insert'].get('title') or s['insert'].get('text') or ''}".strip()]); continue
+        clip = src["clips"][s["cam"]]; _, tc, fps = asset(clip["path"])
+        video.append([r0, r1, clip["path"], tc + Fraction(round((s["i0"] + clip.get("offset", 0)) * fps), 1) / fps, s["cam"]])
+    for p in pieces: audio.append([F(p["out0"]), F(p["out1"]), src["audio"], F(p["i0"]), "dialogue"])
+    dur = F(tl["duration"]); out = ['<?xml version="1.0" encoding="UTF-8"?>', "<!DOCTYPE fcpxml>", '<fcpxml version="1.10">', "  <resources>",
+                                    f'    <format id="f0" frameDuration="1/{FPS}s" width="{Wd}" height="{Hd}"/>']
+    for path, (aid, tc, fps) in srcs.items():
+        pr = json.loads(sh("ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height:stream_side_data=rotation:format=duration", "-of", "json", path, capture_output=True).stdout)
+        v = next((x for x in pr["streams"] if x["codec_type"] == "video"), None); fmt = ""; has_a = any(x["codec_type"] == "audio" for x in pr["streams"])
+        if v:
+            w, h = (v["height"], v["width"]) if any(abs(int(d.get("rotation", 0))) % 180 == 90 for d in v.get("side_data_list", [])) else (v["width"], v["height"])
+            out.append(f'    <format id="f{aid}" frameDuration="{T(1 / fps)}" width="{w}" height="{h}"/>'); fmt = f' format="f{aid}"'
+        out += [f'    <asset id="{aid}" name={qa(Path(path).name)} start="{T(tc)}" duration="{T(F(float(pr["format"]["duration"])))}" hasVideo="{int(bool(v))}" hasAudio="{int(has_a)}"{fmt}'
+                + (' audioSources="1" audioChannels="1" audioRate="48000"' if not v else "") + ">", f'      <media-rep kind="original-media" src={qa(Path(path).resolve().as_uri())}/>', "    </asset>"]
+    out += ["  </resources>", "  <library>", f"    <event name={qa(name)}>", f"      <project name={qa(name)}>",
+            f'        <sequence format="f0" duration="{T(dur)}" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">', "          <spine>"]
+    for r0, r1, path, s0, label in video:  # each dialogue piece hangs off the V1 item it starts in, at that item's local time
+        kids = [f'              <asset-clip ref="a1" lane="-1" offset="{T(s0 + a0 - r0)}" name="dialogue" start="{T(as0)}" duration="{T(a1 - a0)}"/>' for a0, a1, _, as0, _ in audio if r0 <= a0 < r1]
+        kids += [f'              <marker start="{T(s0 + F(p["start"]) - r0)}" duration="1/{FPS}s" value={qa(p["say"])}/>' for p in tl["phrases"] if r0 <= F(p["start"]) < r1]
+        tag, attrs = ("asset-clip", f'ref="{srcs[path][0]}" name={qa(label)} srcEnable="video"') if path else ("gap", f"name={qa(label)}")  # V1 is picture only: A1 carries the voice
+        out += [f'            <{tag} {attrs} offset="{T(r0)}" start="{T(s0)}" duration="{T(r1 - r0)}">', *kids, f"            </{tag}>"]
+    out += ["          </spine>", "        </sequence>", "      </project>", "    </event>", "  </library>", "</fcpxml>"]
+    Path("edit.fcpxml").write_text("\n".join(out) + "\n")
+    tc = lambda x: (lambda f: f"{f // (3600 * FPS):02d}:{f // (60 * FPS) % 60:02d}:{f // FPS % 60:02d}:{f % FPS:02d}")(round(x * FPS))
+    ev = sorted([(r0, "V", path, s0, r1, label) for r0, r1, path, s0, label in video] + [(r0, "A", path, s0, r1, label) for r0, r1, path, s0, label in audio], key=lambda e: (e[0], e[1] == "A"))
+    edl = [f"TITLE: {name}", "FCM: NON-DROP FRAME", ""]
+    for n, (r0, ch, path, s0, r1, label) in enumerate(ev, 1):
+        edl += [f"{n:03d}  {'AX' if path else 'BL':<8} {ch:<5} C        {tc(s0)} {tc(s0 + r1 - r0)} {tc(3600 + r0)} {tc(3600 + r1)}",
+                f"* FROM CLIP NAME: {Path(path).name}" if path else f"* {label}", ""]
+    Path("edit.edl").write_text("\n".join(edl))
+    # read both back: every clip's offset, start and duration must be the cut's (timeline shots, dialogue pieces) to the frame
+    import xml.etree.ElementTree as ET
+    R, fr = (lambda v: Fraction(v[:-1]) if v else Fraction(0)), (lambda t: round(t * FPS))
+    got_v, got_a = [], []
+    for el in ET.parse("edit.fcpxml").getroot().find(".//spine"):  # a child's offset is on its parent's clock: parent start + (t - parent offset)
+        o, st, du = R(el.get("offset")), R(el.get("start")), R(el.get("duration")); got_v.append((o * FPS, (o + du) * FPS, st))
+        got_a += [((o + R(k.get("offset")) - st) * FPS, (o + R(k.get("offset")) - st + R(k.get("duration"))) * FPS, R(k.get("start")) * FPS) for k in el.findall("asset-clip")]
+    want_v = [(fr(s["out0"]), fr(s["out1"]), v[3]) for s, v in zip(tl["shots"], video)]; want_a = [(fr(p["out0"]), fr(p["out1"]), fr(p["i0"])) for p in pieces]
+    edl_t = lambda c: sum(int(x) * k for x, k in zip(c.split(":"), (3600 * FPS, 60 * FPS, FPS, 1)))
+    got_e = sorted((edl_t(e[6]) - 3600 * FPS, edl_t(e[7]) - 3600 * FPS, e[2]) for e in (l.split() for l in edl) if e and e[0].isdigit())
+    bad = [k for k, (g, w) in enumerate(zip(got_v, want_v)) if (g[0], g[1], g[2]) != w] + [f"a{k}" for k, (g, w) in enumerate(zip(sorted(got_a), sorted(want_a))) if g != w]
+    if bad or len(got_v) != len(want_v) or len(got_a) != len(want_a) or got_e != sorted([(w[0], w[1], "V") for w in want_v] + [(w[0], w[1], "A") for w in want_a]):
+        sys.exit(f"edit.fcpxml/edit.edl don't read back as the cut (items {bad}): a bug in export()")
+    print(f"edit.fcpxml + edit.edl: {len(video)} picture events ({sum(1 for v in video if not v[2])} gaps for inserts), {len(audio)} dialogue pieces; read back, all match the cut to the frame")
+
+
+def hooks():
+    """edit.json "hooks": [say | phrase, ...] -> hooks/hN.mp4: that opening line, then the first "hookBody" (3) body phrases, built and
+    rendered in hooks/hN/ (src, scripts and toolkits linked) for A/B tests of the hook. A hook line can come from anywhere in the
+    recording; the body phrase that says the same line is left out, and lends the hook its cam and keyword. The idea is from krusemediallc/video-editor-agent's
+    hook-variations (no licence, so no code from it: this is ours)."""
+    ed = json.loads(Path("edit.json").read_text()); size, here = ed.get("size", "1080x1920"), Path.cwd()
+    for k, h in enumerate(ed["hooks"], 1):
+        h = h if isinstance(h, dict) else {"say": h}; same = next((p for p in ed["phrases"] if norm(p["say"]) == norm(h["say"])), {})
+        body = [p for p in ed["phrases"] if norm(p["say"]) != norm(h["say"])][: ed.get("hookBody", 3)]
+        hp = {"cam": "A", **{k: v for k, v in same.items() if k not in ("cut", "insert")}, **h, "hook": True}
+        if "cam" not in h and hp["cam"] == body[0].get("cam"):  # a different framing from the first body shot, or the join is a jump cut
+            hp["cam"] = next((c for c in json.loads(Path("src.json").read_text())["clips"] if c != body[0].get("cam")), hp["cam"])
+        d = here / "hooks" / f"h{k}"; d.mkdir(parents=True, exist_ok=True)
+        for f in [here / "src", here / "src.json", *here.glob("*.py"), *(f for f in here.glob("*.js") if f.name != "timeline.js")]:
+            if not (d / f.name).exists(): (d / f.name).symlink_to(f)
+        for f in ("index.html", "render.mjs"): (d / f).write_bytes((here / f).read_bytes())  # render.mjs loads index.html from its own folder
+        (d / "edit.json").write_text(json.dumps({**ed, "phrases": [hp] + body, "end": None, "hooks": None}, indent=1))
+        print(f"--- hook {k}: {hp['say']!r}")
+        for cmd in (["uv", "run", "edit.py", "build"], ["node", "render.mjs", "--cues"], ["uv", "run", "sfx.py"], ["node", "render.mjs", "--size", size, "--out", f"../h{k}.mp4"]):
+            sh(*cmd, cwd=d)
+    print(f"hooks/h1..h{len(ed['hooks'])}.mp4")
 
 
 def extract(path, t0, n, d, w, h, prefix=""):  # n frames from t0, cached by a key file
@@ -180,10 +288,20 @@ def review():
     for t in cuts:  # whoosh peaks lead by up to 0.1 s; booms, flashes and swell ends sit on the cut
         near = [r[1] for r in rows if -0.12 <= r[0] - t <= 0.05]
         if not near: bad += 1; print(f"  cut {t:6.2f}: NO SOUND")
-    subs = [r for r in rows if sfx.FAMILY.get(r[1]) == "sub" and r[1] != "thump"]  # thumps lead a giant word on purpose
+    subs = [r for r in rows if sfx.FAMILY.get(r[1]) == "sub" and r[1] != "thump" and "word" not in (r[3:4] or [{}])[0]]  # thumps lead a giant word on purpose; a word's own sound is placed on purpose
     off = [r for r in subs if min(abs(r[0] - t) for t in cuts) > 1.01 / FPS]
     for r in off: print(f"  {r[1]} at {r[0]:.2f} is not on a cut")
     print(f"cuts: {len(cuts)}, {len(cuts) - bad} with a sound; subs: {len(subs)}, {len(subs) - len(off)} on a cut")
+    # masked? each cue against a mix without the SFX: what its loudest 50 ms adds (hassancs91/claude-youtube-editor's /suggest-sfx,
+    # MIT: measure audibility, don't hope). Air sits 14 dB under the voice by design, so a passby in a cut's gap adds only ~1-2 dB;
+    # under 1 dB (0.5 for micro) it's masked: a keyword suck_in under unbroken speech adds ~0 at any gain
+    base = sfx.render({**cues, "sfx": [r for r in rows if sfx.FAMILY.get(r[1]) is None], "events": []}, "review/nosfx.wav").mean(0)
+    db = lambda x: 10 * np.log10((x[: len(x) // 2400 * 2400].reshape(-1, 2400) ** 2).mean(1) + 1e-10); gain = db(sfx.load("audio.wav").mean(0)) - db(base); quiet = []
+    for r in rows:
+        if sfx.FAMILY.get(r[1]) in (None, "foley") or r[1] in ("key_tap", "tick"): continue
+        k = int(r[0] * SR / 2400); add = gain[max(0, k - 6): k + 6].max()
+        if add < (0.5 if sfx.FAMILY[r[1]] == "micro" else 1): quiet.append(f"{r[1]} {r[0]:.2f} (+{add:.1f} dB)")
+    print(f"masked: {len(quiet)} cues add under 1 dB to the voice and bed" + (f": {', '.join(quiet)}" if quiet else ""))
     Path("review/times.txt").write_text(",".join(f"{max(0, t + k / FPS):.3f}" for t in cuts for k in (-2, -1, 0, 1, 2)))
     mix = sfx.load("audio.wav").mean(0); sfx.plot(mix, [(t, "|") for t in cuts] + [(r[0], r[1]) for r in rows if r[1] not in ("key_tap",)], "review/spectrogram.png")
     said = [norm(w) for p in tl["phrases"] for w in p["say"].split()]; heard = [norm(w["w"]) for w in transcribe("audio.wav")]
@@ -215,4 +333,4 @@ def pov():
 
 
 if __name__ == "__main__":
-    {"build": build, "review": review, "pov": pov}.get(sys.argv[1] if len(sys.argv) > 1 else "", lambda: sys.exit(__doc__))()
+    {"build": build, "review": review, "hooks": hooks, "pov": pov}.get(sys.argv[1] if len(sys.argv) > 1 else "", lambda: sys.exit(__doc__))()

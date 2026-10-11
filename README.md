@@ -4,7 +4,7 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 
 | Skill | What it makes | Demo |
 |---|---|---|
-| [`ugc-edit`](skills/ugc-edit) | A creator-style edit of your own footage. It takes a talking head, podcast or screen recording and cuts it on the words with an always-moving camera, hot-keyword captions (optionally behind the speaker), inserts, and a sound on every cut | [ugc-edit.html](demos/ugc-edit.html) |
+| [`ugc-edit`](skills/ugc-edit) | A creator-style edit of your own footage. It takes a talking head, podcast or screen recording and cuts it on the words with an always-moving camera, hot-keyword captions that keep off the face (optionally behind the speaker), inserts, and a sound on every cut. It drops false starts and retakes, keeps laughs, renders hook variants and exports the cut as FCPXML and EDL | [ugc-edit.html](demos/ugc-edit.html) |
 | [`type-film`](skills/type-film) | An original 10–30 s brand motion film from reference videos plus the brand's own site. Styles include Swiss type, cinematic, screen HUD, 80s vector CRT, single-take morph, line catalogue and isometric product | [type-film.html](demos/type-film.html) |
 | [`promo-video`](skills/promo-video) | A SaaS launch promo built from a product's repo or site, using its real logo, colours, fonts, UI and numbers. Renders 16:9, 1:1 and 9:16 | [promo-video.html](demos/promo-video.html) |
 | [`explainer-lesson`](skills/explainer-lesson) | A narrated, animated lesson on one hard concept, with picture, sound and voice on one clock. Looks include blueprint, chalkboard, gouache, riso, graphite stop-motion and hairline | [explainer-lesson.html](demos/explainer-lesson.html) |
@@ -39,7 +39,7 @@ Install them together. The skills share three toolkits, which they copy from eac
 - Voice: `story-video`, `explainer-lesson`, `music-video` and `ugc-edit` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`.
 - Optional:
   - `FAL_KEY` and `ELEVENLABS_API_KEY` for `music-video`.
-  - MediaPipe, which `ugc-edit` pulls in itself for type behind the speaker.
+  - MediaPipe, which `ugc-edit` pulls in itself for type behind the speaker and captions that keep off the face.
 
 ## Use it
 
@@ -75,6 +75,32 @@ The skills learn from real references; they don't copy them. Each reference was 
 ```bash
 npx skills add jakubkrehel/skills
 ```
+
+Editing skills for your own footage. `ugc-edit` took ideas from these. Each port is our own code, with a credit comment naming its source:
+
+- [browser-use/video-use](https://github.com/browser-use/video-use) (MIT): raw takes to `final.mp4` by conversation. The model picks the cuts and the takes from a packed phrase-level transcript, and the false starts are its judgement, not code. Transcription needs an ElevenLabs key. ugc-edit's one-line-per-breath transcript comes from it.
+- [kajisho5/ffmpeg-skill](https://github.com/kajisho5/ffmpeg-skill) (MIT): 42 local ffmpeg tools (silence removal, karaoke captions, 9:16 reframing, loudness, delivery checks) with no API keys. ugc-edit's EDL layout follows its timeline export.
+- [louisedesadeleer/cut-video](https://github.com/louisedesadeleer/cut-video) (MIT): tightens long recordings on forced-aligner word times and keeps laughs and comic pauses. Its rules are written for the model, not as code: ugc-edit turned the laugh test (louder than the room by 10 dB) and the false-start and retake rules into code.
+- [kurbaitaev/ghost-editor](https://github.com/kurbaitaev/ghost-editor) (MIT): talking head to reel, with the best take per sentence, captions placed around the face, and SFX and music under the voice. ugc-edit's face-safe caption placement follows its placer.
+- [hassancs91/claude-youtube-editor](https://github.com/hassancs91/claude-youtube-editor) (MIT): a long-form YouTube pipeline. Its `/suggest-sfx` puts library sounds on exact words and checks in dB that each one is heard (AssemblyAI and ElevenLabs keys). ugc-edit took sounds on words and the masked-cue check.
+- [elevenlabs/skills](https://github.com/elevenlabs/skills) (MIT): the official skills for ElevenLabs sound effects, music and Scribe transcription (which tags laughter). Use it as an optional path when a synthesised sound won't do; it needs `ELEVENLABS_API_KEY`.
+- [dmtrKovalenko/fframes](https://github.com/dmtrKovalenko/fframes) (MIT): videos written in Rust and SVG, rendered on the GPU. See below.
+
+Hook variants are an idea from [krusemediallc/video-editor-agent](https://github.com/krusemediallc/video-editor-agent). It has no licence, so none of its code is used.
+
+### fframes or render.mjs?
+
+fframes isn't wired in: its scenes are Rust functions that return SVG, and these skills draw on a canvas with shared JS toolkits, so using it would mean a port rather than an adapter. Pick by job:
+
+| | fframes | render.mjs (these skills) |
+|---|---|---|
+| Scenes | Rust structs returning SVG (`svgr!`), springs, SkSL and Shadertoy shader layers | JS canvas `draw(t)` with type.js, look.js, iso.js, footage frames and sfx.py |
+| Renders on | the GPU (Skia on Metal or Vulkan), with ffmpeg linked in | headless Chrome over CDP, frames piped to ffmpeg |
+| Speed | 128 s of video rendered in 36 s, by its README | measured here: 1080×1920 ugc-edit at ~21 fps (521 frames in 25 s) |
+| Setup | the Rust toolchain plus Homebrew libs; the first build takes about a minute (prebuilt) or ~20 minutes (from source) | Chrome and node, no `npm install` |
+| Checks for an agent | `inspect` (cut-off text, missing fonts), `strip`, `onion`, `audio analyze` | `--still`, `--loopcheck`, contact sheets, the skills' own review steps |
+
+Use fframes for a new motion piece where render time dominates: long videos, batch renders, shader looks. Use these skills for real footage, the shared toolkits, or to avoid Rust.
 
 Peers worth a look: [Leonxlnx/cinetic](https://github.com/Leonxlnx/cinetic) and [heygen-com/hyperframes-community-skills](https://github.com/heygen-com/hyperframes-community-skills).
 
