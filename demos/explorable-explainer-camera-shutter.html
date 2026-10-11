@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How does a camera shutter work?</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="prompt" content="How does a camera shutter actually work? Make me an interactive explainer I can play with: the two curtains, why the flash has a speed limit, and why fast things come out leaning in photos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one serif prose column (36rem); numbered figure panels break out to 48rem; monospace chrome frames every figure. */
+:root {
+  --bg: #141413; --panel: #191918; --grid: #262624;
+  --ink: #ecebe6; --dim: #8e8d87; --faint: #45443f; --rule: #2c2b29;
+  --serif: "Crimson Pro", "Iowan Old Style", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f2f2ef; --panel: #fafaf8; --grid: #e2e1dc;
+    --ink: #1c1c1a; --dim: #6b6a65; --faint: #bebdb7; --rule: #d9d8d2;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f2f2ef; --panel: #fafaf8; --grid: #e2e1dc;
+  --ink: #1c1c1a; --dim: #6b6a65; --faint: #bebdb7; --rule: #d9d8d2;
+  color-scheme: light;
+}
+
+body { background: var(--bg); color: var(--ink); font: 400 1.1875rem/1.65 var(--serif); padding-inline: 16px; padding-block: 0 7rem; -webkit-font-smoothing: antialiased; }
+.col { max-width: 36rem; margin-inline: auto; }
+h1 { font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.5rem); line-height: 1.05; letter-spacing: -0.015em; text-wrap: balance; margin: 5rem 0 1.1rem; }
+.dek { color: var(--dim); font-size: 1.3rem; line-height: 1.45; margin: 0 0 2.75rem; text-wrap: pretty; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 0 0 1.75rem; }
+h2 { font-weight: 400; font-size: 1.95rem; line-height: 1.2; text-wrap: balance; margin: 4.5rem 0 1rem; }
+p { margin: 0 0 1.15rem; text-wrap: pretty; }
+b, strong { font-weight: 600; }
+em { font-style: italic; }
+
+/* ---- figure panel ---- */
+.fig { max-width: 48rem; margin: 3rem auto; border: 1px solid var(--rule);
+  background: radial-gradient(circle, var(--grid) 0.8px, transparent 1.2px) 0 0 / 18px 18px, var(--panel); }
+.fig > header { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.1rem 0; font: 400 0.75rem/1.4 var(--mono); letter-spacing: 0.04em; color: var(--dim); }
+.fig > header span:first-child { color: var(--ink); }
+.stage { overflow-x: auto; }
+.stage svg { display: block; width: 100%; min-width: 34rem; height: auto; color: var(--ink);
+  fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.stage svg * { vector-effect: non-scaling-stroke; }
+.stage svg text { fill: currentColor; stroke: none; font: 400 12px var(--mono); letter-spacing: 0.02em; }
+.stage svg .sub { fill: var(--dim); font-size: 11px; }
+.stage svg .solid { fill: var(--panel); }          /* hides the lines behind a part */
+.stage svg .ink { fill: currentColor; }
+.stage svg .hatch { fill: url(#hatch); }
+.stage svg .dots { fill: url(#dots); }
+.stage svg .dash { stroke-dasharray: 3 4; }
+.stage svg .guide { stroke: var(--faint); }
+.stage svg .grid { stroke: var(--rule); }          /* chart grid lines: quieter than guides */
+.stage svg .muted { opacity: 0.22; }
+.stage svg .fade { transition: opacity 0.45s ease; }
+.stage svg .idle { color: var(--dim); }             /* an iso part that is not the picked one */
+.stage svg .pick { transition: color 0.7s cubic-bezier(.32,.72,0,1), opacity 0.7s cubic-bezier(.32,.72,0,1); }
+.stage svg .thick { stroke-width: 2.5; }
+.stage svg .blade { fill: var(--grid); }            /* shutter blades: a toned plate, so covered reads as covered */
+@media (prefers-reduced-motion: reduce) { .stage svg * { transition: none !important; } }
+.fig > footer { border-top: 1px solid var(--rule); background: var(--panel); padding: 0.95rem 1.1rem 1.05rem; display: grid; gap: 0.95rem; }
+.cap { margin: 0; max-width: 34rem; font-size: 1rem; line-height: 1.5; color: var(--dim); }
+
+/* ---- controls: plain HTML, bound by data-k / data-o ---- */
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; font: 400 0.75rem/1 var(--mono); color: var(--dim); }
+.range { display: flex; align-items: center; gap: 0.75rem; white-space: nowrap; }
+.range input { appearance: none; -webkit-appearance: none; width: 9rem; min-width: 5rem; flex: 1 1 9rem; height: 1.25rem; margin: 0; background: transparent; cursor: pointer; }
+.range input::-webkit-slider-runnable-track { height: 1px; background: var(--dim); }
+.range input::-moz-range-track { height: 1px; background: var(--dim); }
+.range input::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -5px; background: var(--panel); border: 1px solid var(--ink); }
+.range input::-moz-range-thumb { width: 9px; height: 9px; border-radius: 0; background: var(--panel); border: 1px solid var(--ink); }
+.seg { display: inline-flex; }
+.seg button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--dim); padding: 0.5rem 0.75rem; cursor: pointer; }
+.seg button + button { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+@media (max-width: 30rem) { .seg button { padding-inline: 0.55rem; } }   /* six short options still fit a phone */
+.ctl :focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+.out { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin: 0 0 0 auto; }
+.out div { display: flex; gap: 0.5rem; }
+.out dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.hint { margin-left: auto; line-height: 1.4; }
+.stage svg .hot { cursor: help; }
+.defs { position: absolute; width: 0; height: 0; color: var(--ink); }
+/* ---- demo wrapper (not part of the template) ---- */
+.demo-bar { max-width: 48rem; margin: 1.25rem auto 0; display: flex; justify-content: space-between; gap: 1rem; font: 400 0.75rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.src { margin-top: 4.5rem; border-top: 1px solid var(--rule); padding-top: 1.25rem; font-size: 1rem; line-height: 1.5; color: var(--dim); }
+.src h3 { font: 400 0.75rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); margin: 0 0 1rem; }
+.src a, .demo-foot a { color: inherit; text-underline-offset: 2px; }
+.demo-foot { max-width: 36rem; margin: 3rem auto 0; font: 400 0.75rem/1.6 var(--mono); color: var(--dim); }
+</style>
+<script>{ const t = new URLSearchParams(location.search).get("theme"); if (t) document.documentElement.dataset.theme = t; }</script>
+</head>
+<body>
+<!-- shared patterns and arrowhead; reference as url(#hatch), url(#dots), marker-end="url(#arrow)" -->
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="4" stroke="currentColor" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="dots" width="3" height="3" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="0.55" fill="currentColor"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="demo-bar"><span>claude-s · explorable-explainer</span><span>demo</span></div>
+<article>
+  <div class="col">
+    <h1>How does a camera shutter work?</h1>
+    <p class="dek">Two curtains of thin metal blades, each thrown by a spring. The exposure is not how fast they move but how long the second one waits, and at fast speeds the picture is never uncovered all at once.</p>
+    <hr>
+    <p>You have probably heard it thousands of times: the small double click when a camera takes a picture. Inside that click the camera lets light onto the sensor for an exact sliver of time, often a thousandth of a second, and then shuts it out completely.</p>
+    <p>A thousandth of a second is short. A sprinter at full speed covers about a centimetre in it. No flap big enough to cover a sensor could swing open and shut again that fast, so the camera doesn't try. Two curtains cross the sensor, one after the other, and the picture is made in the gap between them.</p>
+    <p>The numbers on this page come from one well-documented shutter, the one Nikon built into its FE2 film camera in 1983, whose curtains crossed the frame in <span data-n="cross"></span>. The mechanical shutter in a digital camera is the same machine, sitting in front of a sensor instead of film.</p>
+
+    <h2>Where is the shutter?</h2>
+    <p>Follow the light into the camera. The <b>lens</b> bends it so that every point of the scene comes back together as a point on one flat plane behind it, the focal plane. The <b>sensor</b> sits exactly there. The shutter sits a few millimetres in front of it, which is why it is called a focal-plane shutter.</p>
+    <p>The shutter itself is a thin sandwich. A metal <b>frame</b> has a window cut in it the size of the picture, 36 by 24 millimetres. In front of the window run two curtains, each made of a handful of thin blades. When the camera is ready to shoot, the <b>first curtain</b> is spread across the window like a closed blind, and the <b>second curtain</b> is folded away above it.</p>
+    <p>Below, the parts come apart along the path of the light. Drag the slider to hold them open, and point at a part to pick it out.</p>
+  </div>
+
+  <figure class="fig" id="f1">
+    <header><span>FIG_001</span><span>[ what sits in front of the sensor ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">The stack opens and closes on its own until you take the slider. The dashed lines run from the lens to the four corners of the picture. The picked part is drawn in ink with its edge hatched; the rest fade. The shutter is shown cocked, ready to fire.</p>
+      <div class="ctl">
+        <label class="range"><span>together</span><input type="range" id="f1-apart" data-k="apart" min="0" max="1" step="0.01" value="1" aria-label="how far apart"><span>apart</span></label>
+        <dl class="out"><div><dt>part</dt><dd data-o="part">–</dd></div></dl>
+        <span class="hint" data-o="hint">point at a part to pick it</span>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>Look at the sensor. The lens turns the picture upside down, so the top of the sensor holds the bottom of the scene. That detail will matter twice further down.</p>
+
+    <h2>How can a curtain make a thousandth of a second?</h2>
+    <p>Press the button and the first curtain falls, uncovering the sensor from the top down. Some time later the second curtain falls after it and covers the sensor again, also from the top down. Both take the same <span data-n="cross"></span> to cross. The shutter speed you choose sets only one thing: how long the second curtain waits before it follows.</p>
+    <p>Below, the window on the left is the shutter seen from the lens. The chart on the right plots both curtains on one clock, and its rows line up with the window's rows. The dotted band between the two lines is the time each row spends uncovered, with light falling on it.</p>
+  </div>
+
+  <figure class="fig" id="f2">
+    <header><span>FIG_002</span><span>[ two curtains, one delay ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Slowed down a few hundred times, so each run takes about three seconds. Dots are light reaching the sensor; the heavy lines are the two edges that form the slit. The speed changes on its own until you pick one. Point at the window or the chart to move the dashed row.</p>
+      <div class="ctl">
+        <div class="seg" data-k="sp" aria-label="shutter speed"><button value="125">1/125</button><button value="250">1/250</button><button value="1000">1/1000</button><button value="4000">1/4000</button></div>
+        <dl class="out">
+          <div><dt>slit</dt><dd data-o="slit">–</dd></div>
+          <div><dt>all open</dt><dd data-o="open">–</dd></div>
+          <div><dt>row</dt><dd data-o="row">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>At 1/125 s the second curtain waits so long that the whole sensor sits uncovered for <span data-n="open125"></span> before it sets off. At 1/1000 s it leaves when the first curtain has crossed less than a third of the frame, and what crosses the sensor is no longer an open window but a slit <span data-n="slit1000"></span> tall. At 1/4000 s, the FE2's fastest speed, the slit is <span data-n="slit4000"></span>.</p>
+    <p>Now move the dashed row up and down. The band is the same width at every height: each row gets exactly its exposure, just a little later than the row above. A fast shutter is not a fast door. It is a narrow slit moving at a steady speed. Minolta's Maxxum 9xi of 1992 pushed the idea to 1/12,000 s, with a slit 1.1 millimetres wide.</p>
+
+    <h2>Why does the flash have a speed limit?</h2>
+    <p>A flash is far shorter than most of these exposures. Nikon's SB-910 flashgun lasts about <span data-n="flashFull"></span> at full power and as little as 1/38,500 s at its lowest. The camera fires it at one particular instant: when the first curtain finishes crossing. For the whole picture to catch the flash, the whole window has to be uncovered at that instant.</p>
+    <p>That only happens if the second curtain waits at least one full crossing, <span data-n="cross"></span>, before it sets off. The fastest standard speed that waits that long is 1/250 s, or 4 milliseconds, which leaves the frame fully open for <span data-n="syncOpen"></span>. That is its <b>flash sync speed</b>. Below, the flash lasts <span data-n="flash"></span>, the SB-910 at a quarter of its power, and the room is otherwise dark.</p>
+  </div>
+
+  <figure class="fig" id="f3">
+    <header><span>FIG_003</span><span>[ a flash inside the slit ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Left, the curtains at the instant the flash fires, with the picture as it lands on the sensor, upside down. Middle, the flash on the curtains' clock: only the part inside the dotted band reaches the sensor. Right, the print, the right way up. Hatching is darkness.</p>
+      <div class="ctl">
+        <div class="seg" data-k="sp" aria-label="shutter speed"><button value="125">1/125</button><button value="250">1/250</button><button value="500">1/500</button><button value="1000">1/1000</button><button value="4000">1/4000</button></div>
+        <dl class="out">
+          <div><dt>all open</dt><dd data-o="open">–</dd></div>
+          <div><dt>lit by the flash</dt><dd data-o="lit">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>Go one step faster and the second curtain is already part of the way down when the flash fires. The top rows of the sensor are covered and stay dark. The lens turned the picture upside down, so in the photo the dark band sits along the bottom. At 1/4000 s only a thin strip at the top of the photo catches any of the flash at all. This is why a camera with an ordinary flash switched on usually won't let you pick a faster speed. Some flashes get around it by flickering rapidly for the whole crossing, like a very bright lamp, at the cost of much of their power.</p>
+    <p>The direction the curtains travel matters too. Leica's M3 of 1954 ran cloth curtains sideways across the long 36 mm side, taking 18 milliseconds, so its whole frame was open only at about 1/50 s and slower. Crossing the short side, 24 mm, is part of how sync speeds reached 1/250 s.</p>
+
+    <h2>What happens to something that moves?</h2>
+    <p>Every row gets the same short exposure, but not at the same moment. Whatever moves while the slit crosses is caught in a slightly different place in each row.</p>
+    <p>The most famous example is a photograph Jacques Henri Lartigue took as a teenager at the French Grand Prix, in 1912 or 1913 (the sources disagree). The car's wheel came out as an oval leaning forward, and the spectators beside the road lean back, as if the car had blown them over. He had swung the camera to follow the car while the shutter's slit crossed the picture.</p>
+    <p>Below, the picture is shown the right way up, so the slit climbs it from the bottom. Rows below the slit are already recorded; above it the scene is still moving. The slider sets how fast the camera swings to follow the car.</p>
+  </div>
+
+  <figure class="fig" id="f4">
+    <header><span>FIG_004</span><span>[ a racing car, one row at a time ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Faint: the scene now, still moving. Ink: rows the slit has already recorded; the double line is the slit. On the right, the scene at three moments and the third of the picture each one became. The speeds are illustrative, chosen so the lean is easy to see. The swing changes on its own until you take the slider.</p>
+      <div class="ctl">
+        <label class="range"><span>still</span><input type="range" id="f4-pan" data-k="pan" min="0" max="1" step="0.01" value="0.5" aria-label="how fast the camera swings to follow the car"><span>following</span></label>
+        <dl class="out">
+          <div><dt>car</dt><dd data-o="car">–</dd></div>
+          <div><dt>poles</dt><dd data-o="poles">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>With the camera still, only the car moves, so only the car leans. Follow it perfectly and the car stands up straight while the poles and the crowd lean back instead. A swing somewhere in between gives both, which is what Lartigue's picture shows.</p>
+    <p>In a modern camera the effect is much smaller. A car at 100 km/h moves about <span data-n="car"></span> while a <span data-n="cross"></span> curtain crosses the frame, so a lean shows only on very fast subjects or behind slow shutters.</p>
+
+    <h2>How do the blades get across so fast?</h2>
+    <p>Each curtain has to cross 24 mm in <span data-n="cross"></span>. That is an average of <span data-n="speed"></span>, about <span data-n="kmh"></span>, the pace of a fast cyclist, and then it has to stop at the end without bouncing back into the picture.</p>
+    <p>The trick is in how the blades are hung. In one Nikon design each curtain has four blades, and all four ride on the same two <b>arms</b>. The arms turn on <b>pivots</b> beside the window, and a <b>spring</b> wound round one pivot swings them. Each blade is pinned to both arms at the same distance from their pivots, so the two arms and the blade always make a parallelogram and the blade stays level as it moves. But each blade is pinned at a different distance. When the arms swing, the farthest blade sweeps through a long arc and the nearest barely moves.</p>
+  </div>
+
+  <figure class="fig" id="f5">
+    <header><span>FIG_005</span><span>[ four blades on two arms ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">One curtain, the first, with its cover off; the dashed rectangle is the window. The dashed arcs are the paths of the pins on the upper arm. The bars count how far down each blade has moved, out of its full travel. The geometry is simplified from Nikon's patent. The curtain fires and re-cocks on its own until you take the slider.</p>
+      <div class="ctl">
+        <label class="range"><span>cocked</span><input type="range" id="f5-u" data-k="u" min="0" max="1" step="0.01" value="0.45" aria-label="how far the curtain has run"><span>fired</span></label>
+        <dl class="out">
+          <div><dt>arms turned</dt><dd data-o="turn">–</dd></div>
+          <div><dt>slit blade</dt><dd data-o="far">–</dd></div>
+          <div><dt>inner blade</dt><dd data-o="near">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>One swing of the arms spreads four short blades into a wall taller than the window, or folds them into a stack below it. In the drawing, the far blade, the one whose edge forms the slit, moves nearly four times as far as the near one in the same moment, so it is the fastest-moving part of the shutter.</p>
+    <p>In many electronic shutters a magnet holds each cocked curtain against its spring: the camera lets go of the first, counts out the exposure, then lets go of the second. The blades are made as light as possible. Nikon's FM2 of 1982 used titanium foil etched with a honeycomb pattern; Minolta's 9xi used duralumin and carbon fibre.</p>
+
+    <h2>Does a camera without curtains still have the slit?</h2>
+    <p>Your phone has no curtains at all. Its sensor starts and stops each row's exposure electronically and reads the rows out one after another, just as the slit crossed them. The slit has moved into the chip. It is called a rolling shutter, and it can be much slower than a curtain.</p>
+    <p>A Sony a7 IV, an ordinary full-frame camera, takes about 1/15 s to read its whole sensor in silent mode. Nikon's Z9, whose sensor is built for speed, takes about 1/270 s, close to the FE2's curtains from 1983. In 2023 Sony's a9 III became the first full-frame camera with a global shutter, a sensor that exposes every row at once. It can fire a flash at any speed up to 1/80,000 s.</p>
+    <p>Below, one propeller turning at <span data-n="rpm"></span> rpm, the speed of a small plane's engine near full throttle, is photographed through four kinds of shutter at the same instant.</p>
+  </div>
+
+  <figure class="fig" id="f6">
+    <header><span>FIG_006</span><span>[ one propeller, four shutters ]</span></header>
+    <div class="stage"></div>
+    <footer>
+      <p class="cap">Slowed down 50 times, so the slow sensor takes about three seconds to read. Faint: the propeller now. Ink: rows already recorded. Sensor read times are measured values reported for the Nikon Z9 and the Sony a7 IV.</p>
+      <div class="ctl">
+        <label class="range"><span>idle</span><input type="range" id="f6-rpm" data-k="rpm" min="600" max="2700" step="100" value="2400" aria-label="propeller speed in revolutions per minute"><span>2,700 rpm</span></label>
+        <dl class="out">
+          <div><dt>propeller</dt><dd data-o="rpm">–</dd></div>
+          <div><dt>turns per second</dt><dd data-o="rps">–</dd></div>
+        </dl>
+      </div>
+    </footer>
+  </figure>
+
+  <div class="col">
+    <p>The curtain bends the blades a little. The slow sensor breaks them into pieces that were never there: by the time it reaches the top row, the propeller has turned <span data-n="slowTurns"></span>. Only the global shutter shows the propeller as it was.</p>
+    <p>So the next time a photo shows a bent propeller or a leaning car, it isn't a glitch. You are looking at the slit, and at a picture that was taken one row at a time.</p>
+
+    <section class="src">
+      <h3>Sources</h3>
+      <p>Wikipedia, <a href="https://en.wikipedia.org/wiki/Focal-plane_shutter">Focal-plane shutter</a>: Nikon FE2 (1983) curtain travel 3.3 ms across 24 mm, 1/4000 s, 1/250 s flash sync; Nikon FM2 (1982) titanium honeycomb blades; Minolta Maxxum 9xi (1992) 1/12,000 s with a 1.1 mm slit, duralumin and carbon fibre blades; Leica M3 (1954) curtains crossing 36 mm in 18 ms; vertical shutters wiping downward in the focal plane, upward in the scene.</p>
+      <p>Nikon, US patent <a href="https://patents.google.com/patent/US5475459">5,475,459</a>, <i>Blade type focal plane shutter with improved arm construction</i> (1995): four blades per curtain on a main arm and a follower arm forming a parallel link; blades folded outside the aperture when open.</p>
+      <p>Nikon SB-910 Speedlight specifications: flash duration about 1/880 s at full power, 1/2550 s at 1/4 power, 1/38,500 s at 1/128 power. Wikipedia, <a href="https://en.wikipedia.org/wiki/Rolling_shutter">Rolling shutter</a>: partial flash exposure.</p>
+      <p>Lartigue's photograph: <a href="https://www.speedholics.com/post/lartigue-the-photographer-obsessed-with-speed">Speedholics</a> and <a href="https://www.csmonitor.com/1986/0919/ulart-f2.html">The Christian Science Monitor</a> (1986).</p>
+      <p>Sensor read-out: <a href="https://photographylife.com/nikon-z9-electronic-shutter-explained">Photography Life</a> on the Nikon Z9 (about 1/270 s); forum measurements for the Sony a7 IV (about 1/15 s). Sony a9 III global shutter: <a href="https://petapixel.com/2023/11/07/sony-a9-iii-first-impressions-the-global-shutter-era-has-arrived">PetaPixel</a> (2023). Propeller: Cessna 172 type certificate data, full-throttle static speed 2,300 to 2,400 rpm.</p>
+      <p>Simplifications: curtains are drawn moving at a constant speed (real ones accelerate); the blade and arm geometry is schematic; the speeds in FIG_004 are illustrative.</p>
+    </section>
+  </div>
+</article>
+<footer class="demo-foot">Made with the explorable-explainer skill · <a href="https://github.com/Lokendrakushwah12/claude-s">github.com/Lokendrakushwah12/claude-s</a></footer>
+
+<script>
+/* ===== helpers: keep, extend when a figure needs something reusable ===== */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, a = {}, parent) {               // el('circle', {cx, cy, r, class: 'solid'}, g); a.text sets textContent
+  const n = document.createElementNS(NS, tag);
+  for (const k in a) k === 'text' ? (n.textContent = a[k]) : n.setAttribute(k, a[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function set(n, a) { for (const k in a) k === 'text' ? (n.textContent = a[k]) : n.setAttribute(k, a[k]); return n; }
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+const ease = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;        // in-out quad
+const rot = (x, y, cx, cy, deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  return [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]; };
+function phase(t, beats) {                         // where t sits in a looping sequence: phase(t, [1, .5, 2]) -> {i, p}
+  const T = beats.reduce((a, b) => a + b, 0); t = ((t % T) + T) % T; let i = 0;
+  while (i < beats.length - 1 && t > beats[i]) t -= beats[i++];
+  return { i, p: clamp(t / beats[i]) };
+}
+function label(g, text, sub, anchor = 'start') {   // build once; place with .at(px, py, tx, ty) (dot on the part, text position)
+  const G = el('g', { class: 'hot' }, g), ln = el('line', { class: 'guide' }, G), dot = el('circle', { r: 2, class: 'ink' }, G);
+  const t1 = el('text', { 'text-anchor': anchor, text }, G);
+  const t2 = sub ? el('text', { 'text-anchor': anchor, class: 'sub', text: sub }, G) : null;
+  G.at = (px, py, tx, ty) => {
+    const [lx, ly] = anchor === 'start' ? [tx - 5, ty - 4] : anchor === 'end' ? [tx + 5, ty - 4]
+      : [tx, py < ty ? ty - 15 : ty + (sub ? 19 : 6)];
+    set(ln, { x1: px, y1: py, x2: lx, y2: ly }); set(dot, { cx: px, cy: py }); set(t1, { x: tx, y: ty });
+    if (t2) set(t2, { x: tx, y: ty + 14 });
+    return G;
+  };
+  return G;
+}
+function chart(g, { x0, x1, y0, y1, xd, yd, xt = [], yt = [], xf = String, yf = String, xl, yl }) {
+  const X = v => x0 + (v - xd[0]) / (xd[1] - xd[0]) * (x1 - x0), Y = v => y0 - (v - yd[0]) / (yd[1] - yd[0]) * (y0 - y1);
+  for (const v of yt) {
+    if (v !== yd[0]) el('line', { x1: x0, x2: x1, y1: Y(v), y2: Y(v), class: 'grid' }, g);
+    el('text', { x: x0 - 8, y: Y(v) + 4, 'text-anchor': 'end', class: 'sub', text: yf(v) }, g);
+  }
+  for (const v of xt) el('text', { x: X(v), y: y0 + 16, 'text-anchor': 'middle', class: 'sub', text: xf(v) }, g);
+  el('path', { d: `M${x0} ${y1}V${y0}H${x1}` }, g);
+  if (xl) el('text', { x: x1, y: y0 + 32, 'text-anchor': 'end', class: 'sub', text: xl }, g);
+  if (yl) el('text', { x: x0, y: y1 - 10, class: 'sub', text: yl }, g);
+  return { X, Y };
+}
+const CLS = { solid: 'fill:var(--panel)', ink: 'fill:currentColor', hatch: 'fill:url(#hatch)', dots: 'fill:url(#dots)', guide: 'stroke:var(--faint)' };
+function bake(g) {                                 // a <use> clone doesn't see the page's class rules: copy them on as inline styles
+  for (const n of g.querySelectorAll('*')) {
+    const st = ['vector-effect:non-scaling-stroke', ...(n.getAttribute('class') || '').split(' ').map(c => CLS[c]).filter(Boolean)];
+    if (n.tagName === 'text') st.push('fill:currentColor;stroke:none;font-family:var(--mono)');
+    n.setAttribute('style', st.join(';') + ';' + (n.getAttribute('style') || ''));
+  }
+  return g;
+}
+function pointer(svg, e) {                         // a mouse/touch event -> [x, y] in the svg's viewBox units
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse()); return [p.x, p.y];
+}
+
+/* ---- iso camera (world: x and y on the ground plan, z up). Paint order is DOM order, far to near. ---- */
+function cam({ az = 45, el = 30, S = 1, ox = 0, oy = 0 } = {}) {
+  const a = az * Math.PI / 180, e = el * Math.PI / 180;
+  return { az, el, S, ox, oy, c: Math.cos(a), s: Math.sin(a), k: Math.sin(e), zf: Math.cos(e) };
+}
+const proj = (C, x, y, z = 0) => { const X = x * C.c - y * C.s, Y = x * C.s + y * C.c; return [C.ox + C.S * X, C.oy + C.S * (Y * C.k - z * C.zf)]; };
+function rrectRing(x0, y0, x1, y1, r = 0, n = 4) {  // a rounded-rect footprint as ground points
+  r = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2)); const out = [];
+  for (const [cx, cy, a0] of [[x1 - r, y1 - r, 0], [x0 + r, y1 - r, 90], [x0 + r, y0 + r, 180], [x1 - r, y0 + r, 270]])
+    for (let i = 0; i <= n; i++) { const a = (a0 + 90 * i / n) * Math.PI / 180; out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  return out;
+}
+const circleRing = (cx, cy, R, n = 32) => Array.from({ length: n }, (_, i) => [cx + R * Math.cos(i / n * 2 * Math.PI), cy + R * Math.sin(i / n * 2 * Math.PI)]);
+function hull(pts) {                               // convex hull, monotone chain
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), x = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const q of p) { while (lo.length > 1 && x(lo.at(-2), lo.at(-1), q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length > 1 && x(up.at(-2), up.at(-1), q) <= 0) up.pop(); up.push(q); }
+  lo.pop(); up.pop(); return lo.concat(up);
+}
+const pathD = pts => 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
+function faceMatrix(C, o, U, V) {                  // text or a decal flat on a world plane; null when the face is turned away
+  const N = [U[1] * V[2] - U[2] * V[1], U[2] * V[0] - U[0] * V[2], U[0] * V[1] - U[1] * V[0]];
+  if (N[0] * C.s * C.zf + N[1] * C.c * C.zf + N[2] * C.k <= 1e-9) return null;
+  const p0 = proj(C, ...o), pu = proj(C, o[0] + U[0], o[1] + U[1], o[2] + U[2]), pv = proj(C, o[0] + V[0], o[1] + V[1], o[2] + V[2]);
+  return `matrix(${[pu[0] - p0[0], pu[1] - p0[1], pv[0] - p0[0], pv[1] - p0[1], p0[0], p0[1]].map(v => v.toFixed(4)).join(' ')})`;
+}
+
+/* ---- the two clocks: WHERE a thing is rides a spring; WHICH thing is chosen changes on a tween ---- */
+function bezier(x1, y1, x2, y2) {
+  const f = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+  return p => { if (p <= 0) return 0; if (p >= 1) return 1; let lo = 0, hi = 1, t = p; for (let i = 0; i < 32; i++) { t = (lo + hi) / 2; f(x1, x2, t) < p ? (lo = t) : (hi = t); } return f(y1, y2, t); };
+}
+ease.lift = bezier(0.32, 0.72, 0, 1);
+function spring(s, k, target, dt, K = 100, D = 18) {   // s[k] chases target; velocity lives in s[k + 'V']
+  if (STILL.matches) return (s[k] = target);
+  const n = Math.ceil(dt / 0.004), h = dt / (n || 1); let x = s[k] ?? target, v = s[k + 'V'] || 0;
+  for (let i = 0; i < n; i++) { v += (K * (target - x) - D * v) * h; x += v * h; }
+  s[k + 'V'] = v; return (s[k] = x);
+}
+
+/* fig(id, { w, h, s, build(svg, s, out) -> refs, draw(refs, s, out), tick(s, dt) }): see the skill's template */
+const FIGS = [], STILL = matchMedia('(prefers-reduced-motion: reduce)');
+const IO = new IntersectionObserver(es => es.forEach(e => { const f = FIGS.find(f => f.root === e.target); if (f) f.on = e.isIntersecting; }), { rootMargin: '80px' });
+const num = v => v !== '' && !isNaN(v) ? +v : v;
+function fig(id, o) {
+  const root = document.getElementById(id), s = o.s || {};
+  const svg = el('svg', { viewBox: `0 0 ${o.w} ${o.h}`, role: 'img', 'aria-label': root.querySelector('header span:last-child')?.textContent.replace(/[\[\]]/g, '').trim() || id }, root.querySelector('.stage'));
+  const out = (k, v) => root.querySelectorAll(`[data-o="${k}"]`).forEach(n => n.textContent = v);
+  const ins = [...root.querySelectorAll('input[data-k]')];
+  const settle = () => { if (STILL.matches && o.tick) o.tick(s, 0); };
+  const segs = [...root.querySelectorAll('.seg[data-k]')].map(g => ({ k: g.dataset.k, bs: [...g.querySelectorAll('button')] }));
+  ins.forEach(i => {
+    const k = i.dataset.k; if (!(k in s)) s[k] = +i.value;
+    i.addEventListener('input', () => { s[k] = +i.value; s.touched = true; settle(); draw(); });
+  });
+  segs.forEach(({ k, bs }) => {
+    if (!(k in s)) s[k] = num((bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]).value);
+    bs.forEach(b => b.addEventListener('click', () => { s[k] = num(b.value); s.touched = true; settle(); draw(); }));
+  });
+  const sync = () => {
+    for (const i of ins) if (i !== document.activeElement && +i.value !== s[i.dataset.k]) i.value = s[i.dataset.k];
+    for (const { k, bs } of segs) for (const b of bs) b.setAttribute('aria-pressed', num(b.value) === s[k]);
+  };
+  const refs = o.build(svg, s, out);
+  const draw = () => { o.draw(refs, s, out); sync(); };
+  o.redraw = draw;
+  draw();
+  const f = { root, o, s, draw, on: false };
+  if (o.tick) { FIGS.push(f); IO.observe(root); }
+  return f;
+}
+let LAST = 0;
+requestAnimationFrame(function loop(t) {
+  const dt = Math.min(0.05, (t - LAST) / 1000 || 0); LAST = t;
+  if (!STILL.matches) for (const f of FIGS) if (f.on) { f.o.tick(f.s, dt); f.draw(); }
+  requestAnimationFrame(loop);
+});
+
+/* ===== constants: the prose and every readout come from these ===== */
+const FE2 = { cross: 3.3, gate: 24, wide: 36 };          // Nikon FE2 (1983): curtains cross the 24 mm frame in 3.3 ms (Wikipedia)
+const V = FE2.gate / FE2.cross;                          // 7.27 mm per ms, which is also m/s
+const msOf = d => 1000 / d;                              // a shutter speed of 1/d s, in ms
+const FLASH = 1000 / 2550, FLASH_FULL = 880;             // Nikon SB-910: 1/2550 s at 1/4 power; 1/880 s at full power
+const RPM = 2400, SLOW = 50;                             // FIG_006: propeller speed; slow-motion factor
+const SWEEPS = [['global shutter', 0, 'Sony a9 III'], ['shutter curtains', FE2.cross, 'Nikon FE2'], ['fast sensor', 3.7, 'Nikon Z9'], ['ordinary sensor', 67, 'Sony a7 IV']];   // ms to cross the frame
+const fmt = n => Math.round(n).toLocaleString('en');
+const turns = (rpm, ms) => rpm / 60 * ms / 1000 * 360;   // degrees a propeller turns in ms
+const N = { cross: `${FE2.cross} ms`, speed: `${V.toFixed(1)} m/s`, kmh: `${Math.round(V * 3.6)} km/h`,
+  open125: `${(msOf(125) - FE2.cross).toFixed(1)} ms`, slit1000: `${(V * msOf(1000)).toFixed(1)} mm`, slit4000: `${(V * msOf(4000)).toFixed(1)} mm`,
+  syncOpen: `${(msOf(250) - FE2.cross).toFixed(1)} ms`, flash: '1/2550 s', flashFull: `1/${FLASH_FULL} s`,
+  car: `${Math.round(100 / 3.6 * FE2.cross / 10)} cm`, rpm: fmt(RPM),
+  slowTurns: turns(RPM, 67) >= 900 ? 'more than two and a half times' : `${(turns(RPM, 67) / 360).toFixed(1)} times` };
+document.querySelectorAll('[data-n]').forEach(n => n.textContent = N[n.dataset.n]);
+
+/* ===== the blade linkage, shared by FIG_001, 002, 003 and 005. Front view from the lens, mm: the window is x 0..36,
+   y 0..24, y down. The FIRST curtain's four blades hang on two parallel arms that pivot below-left of the window; e is
+   the arms' angle above horizontal-left. The SECOND curtain is the same part mirrored about the window's middle. ===== */
+const LK = { px: -7, py: 25, by: 6, a: 2, hb: 10, r: [37.5, 28, 19, 10], up: 40, down: -15, right: 39 };
+const rad = d => d * Math.PI / 180;
+const armPt = (e, r, pivotY = LK.py) => [LK.px - r * Math.cos(rad(e)), pivotY - r * Math.sin(rad(e))];
+const BLEN = LK.r.map(r => LK.right - (armPt(LK.up, r)[0] - 4));       // each blade ends at x = 39 when spread
+const blades = e => LK.r.map((r, i) => { const [x, y] = armPt(e, r); return [x - 4, y - LK.a, x - 4 + BLEN[i], y - LK.a + LK.hb]; });
+const mirrorB = ([x0, y0, x1, y1]) => [x0, 24 - y1, x1, 24 - y0];
+const edgeOf = e => LK.py - LK.r[0] * Math.sin(rad(e)) - LK.a;       // top edge of the slit blade
+const eOfEdge = y => Math.asin(clamp((LK.py - LK.a - y) / LK.r[0], -1, 1)) * 180 / Math.PI;
+const L_REST = edgeOf(LK.up), L_END = edgeOf(LK.down);                 // -1.1 and 32.7 mm
+const T_REST = 24 - L_END, T_END = 24 - L_REST;                        // the second curtain's edge: -8.7 and 25.1 mm
+const bladesL = y => blades(eOfEdge(y));                               // first curtain with its slit edge at y
+const bladesT = y => blades(eOfEdge(24 - y)).map(mirrorB);             // second curtain with its slit edge at y
+const yL = t => clamp(V * t, L_REST, L_END);                           // the first curtain's edge at t ms (row 0 at t = 0)
+function yT(t, texp) {                                                 // the second curtain's edge reaches row 0 at t = texp; it is
+  const pre = Math.min(-T_REST / V, texp + 0.1), t0 = texp - pre;     // released after the first, so a short exposure hurries its run-up
+  return t < t0 ? T_REST : t < texp ? lerp(T_REST, 0, (t - t0) / pre) : Math.min(V * (t - texp), T_END);
+}
+const rectD = ([x0, y0, x1, y1], X, Y) => `M${X(x0).toFixed(1)} ${Y(y0).toFixed(1)}H${X(x1).toFixed(1)}V${Y(y1).toFixed(1)}H${X(x0).toFixed(1)}Z`;
+
+// the shutter seen from the lens, cover off: both curtains, clipped to the area around the window
+function shutterFront(svg, { k, ox, oy, clip, id }) {
+  const X = x => ox + k * x, Y = y => oy + k * y, r = { X, Y, k };
+  el('rect', { x: X(clip[0]), y: Y(clip[1]), width: k * (clip[2] - clip[0]), height: k * (clip[3] - clip[1]) }, el('clipPath', { id }, el('defs', {}, svg)));
+  r.back = el('g', {}, svg);
+  const g = el('g', { 'clip-path': `url(#${id})` }, svg);
+  const mk = () => [3, 2, 1, 0].map(i => ({ i, p: el('path', { class: 'blade' }, g) }));
+  r.T = mk(); r.eT = el('path', { class: 'thick' }, g);       // the slit-forming edge of each curtain, drawn heavy
+  r.L = mk(); r.eL = el('path', { class: 'thick' }, g);       // the first curtain runs nearer the lens
+  el('rect', { x: X(clip[0]), y: Y(clip[1]), width: k * (clip[2] - clip[0]), height: k * (clip[3] - clip[1]), class: 'guide dash' }, svg);
+  el('rect', { x: X(0), y: Y(0), width: 36 * k, height: 24 * k }, svg);
+  const wide = ([x0, y0, x1, y1]) => [clip[0] - 2, y0, clip[2] + 2, y1];   // seen through the cover's opening, the blades run edge to edge
+  const edge = y => `M${X(clip[0])} ${Y(y).toFixed(1)}H${X(clip[2])}`;
+  r.set = (yl, yt) => {
+    const BL = bladesL(yl), BT = bladesT(yt);
+    for (const b of r.L) set(b.p, { d: rectD(wide(BL[b.i]), X, Y) });
+    for (const b of r.T) set(b.p, { d: rectD(wide(BT[b.i]), X, Y) });
+    set(r.eL, { d: edge(BL[0][1]) }); set(r.eT, { d: edge(BT[0][3]) });
+  };
+  return r;
+}
+
+/* ===== FIG_001: iso, plates standing on the light path. The light runs along +x into the sensor at x = 0; the camera
+   looks from the lens side, so the DOM goes sensor (far) to lens (near), each ray segment just before its nearer part ===== */
+const FV = (x, y) => [x - 18, 12 - y];                                  // front view mm -> world (y, z)
+const fvRing = (x0, y0, x1, y1, r = 0) => rrectRing(x0, y0, x1, y1, r, 3).map(([x, y]) => FV(x, y));
+const cropB = ([x0, y0, x1, y1]) => [Math.max(x0, -9), Math.max(y0, -15), Math.min(x1, 45), Math.min(y1, 39)];
+function prismX(C, ring, x0, x1) {
+  const A = ring.map(([y, z]) => proj(C, x0, y, z)), B = ring.map(([y, z]) => proj(C, x1, y, z));
+  return { sil: pathD(hull(A.concat(B))), face: pathD(A) };
+}
+const F1P = [   // far to near; x = extent along the light when assembled (mm, the sensor face at x = 0); off = how far it moves out
+  { name: 'sensor', sub: 'picture upside down', tip: 'where the picture lands, upside down (film sits here in a film camera)', off: 0, x: [-1.5, 0], ring: fvRing(-6, -8, 42, 32, 2), mid: [0, 0] },
+  { name: 'frame', sub: '36 × 24 mm window', tip: 'its window is exactly the size of the picture', off: 32, x: [-5.6, -4.6], ring: fvRing(-10, -16, 46, 40, 2), hole: fvRing(0, 0, 36, 24), mid: [0, 0] },
+  { name: 'second curtain', sub: 'folded above', tip: 'blades folded out of the way until the exposure ends', off: 56, x: [-6.6], blades: blades(LK.down).map(mirrorB).map(cropB), mid: FV(18, -8) },
+  { name: 'first curtain', sub: 'spread across', tip: 'blades spread across the window until you press the button', off: 78, x: [-7.6], blades: blades(LK.up).map(cropB), mid: FV(18, 12) },
+  { name: 'lens', sub: 'flips the picture', tip: 'brings the scene into focus on the sensor, upside down', off: 104, x: [-52, -44], ring: circleRing(0, 0, 17, 48), mid: [0, 0] },
+];
+const CORNERS = [FV(0, 0), FV(36, 0), FV(36, 24), FV(0, 24)];
+fig('f1', {
+  w: 720, h: 460, s: { t: 0, apart: 1, gap: 1, pick: 3 },
+  build(svg, s, out) {
+    const C = cam({ az: -42, el: 20 }), pts = [];
+    for (const g of [0, 1]) F1P.forEach(p => {
+      const rings = p.ring ? [p.ring] : p.blades.map(b => fvRing(...b));
+      rings.forEach(R => R.forEach(([y, z]) => p.x.forEach(x => pts.push(proj(C, x - p.off * g, y, z))))); });
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const k = Math.min(410 / (Math.max(...xs) - Math.min(...xs)), 330 / (Math.max(...ys) - Math.min(...ys)));
+    C.S = k; C.ox = 230 - k * (Math.max(...xs) + Math.min(...xs)) / 2; C.oy = 280 - k * (Math.max(...ys) + Math.min(...ys)) / 2;
+    const r = { C, parts: [], rays: [] };
+    F1P.forEach((p, i) => {
+      if (i) r.rays.push(el('path', { class: 'guide dash' }, svg));
+      const it = { p, g: el('g', { class: 'pick' }, svg) };
+      if (p.ring) {
+        it.sil = el('path', { class: 'solid', 'fill-rule': 'evenodd' }, it.g); it.hat = el('path', { class: 'hatch pick', 'fill-rule': 'evenodd' }, it.g);
+        it.face = el('path', { class: 'solid', 'fill-rule': 'evenodd' }, it.g);
+        if (p.name === 'lens') it.crease = el('path', {}, it.g);
+        if (p.name === 'sensor') {
+          it.chip = el('path', {}, it.g);
+          it.decal = el('g', {}, it.g);                          // a house, upside down: what the lens puts on the sensor
+          el('path', { d: 'M3 3H33', class: 'guide' }, it.decal);   // the ground line, now at the top
+          el('path', { d: 'M11 3V15H25V3M9.5 15L18 22L26.5 15M16.5 3V8H19.5V3' }, it.decal);
+        }
+      } else it.bl = [3, 2, 1, 0].map(j => ({ j, p: el('path', { class: 'blade' }, it.g), h: el('path', { class: 'hatch pick' }, it.g) }));
+      r.parts.push(it);
+    });
+    r.labels = F1P.map(p => label(svg, p.name, p.sub, 'start'));
+    r.lanes = [[566, 120], [580, 46], [404, 46], [214, 46], [40, 46]];   // sensor .. lens: one lane each along the top, in the stack's order
+    F1P.forEach((p, i) => { r.labels[i].onmouseenter = () => { s.pick = i; s.touched = true; this.redraw(); }; });
+    const pickAt = e => {                                       // nearest part centre, tested on the pose the spring is heading to
+      const [x, y] = pointer(svg, e); if (y < 70) return;
+      let best = s.pick, bd = 1e9;
+      F1P.forEach((p, i) => { const xm = (p.x[0] + p.x.at(-1)) / 2 - p.off * s.apart, q = proj(C, xm, ...p.mid), d = Math.hypot(q[0] - x, q[1] - y); if (d < bd) { bd = d; best = i; } });
+      if (s.pick !== best || !s.touched) { s.pick = best; s.touched = true; this.redraw(); }
+    };
+    svg.addEventListener('pointermove', pickAt); svg.addEventListener('pointerdown', pickAt);
+    return r;
+  },
+  draw(r, s, out) {
+    const C = r.C, g = s.gap, X = p => p.x.map(x => x - p.off * g);
+    r.parts.forEach((it, i) => {
+      const p = it.p, xs = X(p);
+      if (p.ring) {
+        const P = prismX(C, p.ring, xs[0], xs.at(-1)), hole = p.hole ? pathD(p.hole.map(([y, z]) => proj(C, xs[0], y, z))) : '';
+        set(it.sil, { d: P.sil + hole }); set(it.hat, { d: P.sil + hole, opacity: i === s.pick ? 1 : 0 }); set(it.face, { d: P.face + hole });
+        if (it.crease) set(it.crease, { d: pathD(circleRing(0, 0, 12.5, 48).map(([y, z]) => proj(C, xs[0], y, z))) });
+        if (it.chip) {
+          set(it.chip, { d: pathD(fvRing(0, 0, 36, 24).map(([y, z]) => proj(C, xs[0] - 0.01, y, z))) });
+          set(it.decal, { transform: faceMatrix(C, [xs[0] - 0.01, ...FV(0, 0)], [0, 1, 0], [0, 0, -1]) || '' });
+        }
+      } else it.bl.forEach(b => {
+        const ring = fvRing(...p.blades[b.j]).map(([y, z]) => proj(C, xs[0] + 0.3 * b.j, y, z)), d = pathD(ring);
+        set(b.p, { d }); set(b.h, { d, opacity: i === s.pick ? 1 : 0 });
+      });
+      it.g.classList.toggle('idle', i !== s.pick);
+    });
+    // light: lens centre to the picture's corners, cut where each part sits
+    const xL = X(F1P[4]).reduce((a, b) => a + b) / 2, xS = 0;
+    const at = (x, c) => { const f = (x - xL) / (xS - xL); return proj(C, x, c[0] * f, c[1] * f); };
+    const planes = [X(F1P[0])[0], X(F1P[1])[0], X(F1P[2])[0], X(F1P[3])[0], X(F1P[4]).at(-1)];
+    r.rays.forEach((ray, i) => set(ray, { d: CORNERS.map(c => { const a = at(planes[i], c), b = at(planes[i + 1], c); return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`; }).join('') }));
+    // callouts: each part's top-right point, out to its own lane
+    F1P.forEach((p, i) => {
+      const xs = X(p), q = p.name === 'lens' ? proj(C, xs[0], 0, 17) : p.ring ? proj(C, xs[0], ...FV(p.name === 'sensor' ? 2 : 0, p.name === 'sensor' ? -8 : -16))
+        : proj(C, xs[0], ...FV(4, p.name === 'second curtain' ? -15 : p.blades[0][1]));
+      r.labels[i].at(q[0], q[1], ...r.lanes[i]);
+      r.labels[i].classList.toggle('idle', i !== s.pick);
+    });
+    out('part', F1P[s.pick].name); out('hint', F1P[s.pick].tip);
+  },
+  tick(s, dt) {
+    s.t += dt;
+    if (!s.touched) { s.apart = s.t % 9 < 6.4 ? 1 : 0; s.pick = [3, 2, 1, 0, 4][Math.floor(s.t / 1.8) % 5]; }
+    spring(s, 'gap', s.apart, dt);
+  },
+});
+
+/* ===== FIG_002: graph <-> object. The window on the left and a clock chart on the right share their rows ===== */
+const T1 = 12;                                                   // chart: 0..12 ms
+fig('f2', {
+  w: 720, h: 340, s: { t: 0, sp: 1000, clock: 2.1, hold: 0, row: 15 },
+  build(svg, s, out) {
+    const r = shutterFront(svg, { k: 6, ox: 40, oy: 110, clip: [-3, -8, 39, 30], id: 'f2-clip' });
+    const { X: WX, Y: WY } = r;
+    el('rect', { x: WX(0), y: WY(0), width: 36 * 6, height: 24 * 6, class: 'dots' }, r.back);   // light, wherever nothing covers the sensor
+    r.status = el('text', { x: 20, y: 24, class: 'sub' }, svg);
+    const C = chart(svg, { x0: 318, x1: 450, y0: WY(24), y1: WY(0), xd: [0, T1], yd: [24, 0], xt: [0, 4, 8, 12], yt: [0, 12, 24],
+      xf: v => v === 12 ? '12 ms' : v, yf: v => v, yl: 'mm down the sensor' });
+    r.C = C;
+    r.band = el('path', { class: 'dots' }, svg);
+    r.lineL = el('path', {}, svg); r.lineT = el('path', {}, svg);
+    r.row = el('line', { class: 'guide dash' }, svg);
+    r.exp = el('line', { class: 'thick' }, svg);
+    r.d1 = el('circle', { r: 3, class: 'ink' }, svg); r.d2 = el('circle', { r: 3, class: 'ink' }, svg);
+    r.head = el('line', { class: 'dash' }, svg); r.knob = el('path', { class: 'ink' }, svg);
+    r.labL = label(svg, 'first curtain', null, 'end'); r.labT = label(svg, 'second curtain', null, 'start');
+    r.rowT = el('text', {}, svg); r.rowS = el('text', { class: 'sub' }, svg);   // the row's own readout, at the end of its line
+    const rowAt = e => { const [, y] = pointer(svg, e); const v = (y - WY(0)) / 6; if (v >= 0 && v <= 24) { s.row = v; this.redraw(); } };
+    svg.addEventListener('pointermove', rowAt); svg.addEventListener('pointerdown', rowAt);
+    return r;
+  },
+  draw(r, s, out) {
+    const texp = msOf(s.sp), t = s.clock, { X, Y } = r.C, WY = r.Y;
+    r.set(yL(t), yT(t, texp));
+    const E = Math.min(T1, texp + FE2.cross);
+    set(r.band, { d: `M${X(0)} ${Y(0)}L${X(Math.min(texp, T1))} ${Y(0)}L${X(E)} ${Y(24 * (E - texp) / FE2.cross)}L${X(E)} ${Y(24)}L${X(FE2.cross)} ${Y(24)}Z` });
+    set(r.lineL, { d: `M${X(0)} ${Y(0)}L${X(FE2.cross)} ${Y(24)}` });
+    set(r.lineT, { d: `M${X(texp)} ${Y(0)}L${X(texp + FE2.cross)} ${Y(24)}` });
+    const ry = s.row, t1 = ry / V, t2 = texp + ry / V;
+    set(r.row, { x1: r.X(-3), x2: X(T1) + 8, y1: WY(ry), y2: WY(ry) });
+    set(r.rowT, { x: X(T1) + 16, y: WY(ry) - 1, text: `${texp.toFixed(texp < 1 ? 2 : 1)} ms of light` }); set(r.rowS, { x: X(T1) + 16, y: WY(ry) + 13, text: `row ${ry.toFixed(0)} mm, from ${t1.toFixed(2)} ms` });
+    set(r.exp, { x1: X(t1), x2: X(t2), y1: Y(ry), y2: Y(ry) });
+    set(r.d1, { cx: X(t1), cy: Y(ry) }); set(r.d2, { cx: X(t2), cy: Y(ry) });
+    const hx = X(clamp(t, 0, T1));
+    set(r.head, { x1: hx, x2: hx, y1: Y(0), y2: Y(24) + 2, opacity: t >= 0 ? 1 : 0.35 });
+    set(r.knob, { d: `M${hx - 5} ${Y(24) + 10}L${hx} ${Y(24) + 3}L${hx + 5} ${Y(24) + 10}Z` });
+    r.labL.at(X(FE2.cross * 0.92), Y(24 * 0.92), X(FE2.cross) - 14, Y(24) + 48);
+    r.labT.at(X(Math.min(texp + FE2.cross * 0.92, T1)), Y(Math.min(24 * 0.92, 24 * (T1 - texp) / FE2.cross)), Math.min(X(texp + FE2.cross) + 14, 470), Y(24) + 48);
+    const slit = V * texp, a = yL(t), b = yT(t, texp);
+    set(r.status, { text: t < 0 ? 'cocked: the first curtain covers the sensor'
+      : t < Math.min(texp, FE2.cross) ? 'first curtain falling, uncovering the sensor from the top'
+      : t < FE2.cross ? `second curtain ${texp.toFixed(texp < 1 ? 2 : 1)} ms behind: a ${slit.toFixed(1)} mm slit crossing`
+      : t < texp ? 'whole sensor uncovered; the second curtain waits'
+      : t < texp + FE2.cross ? 'second curtain falling, covering the sensor from the top'
+      : `done: every row got exactly 1/${s.sp} s` });
+    out('slit', slit >= 24 ? 'none' : `${slit.toFixed(1)} mm`);
+    out('open', texp > FE2.cross ? `${(texp - FE2.cross).toFixed(1)} ms` : 'never');
+    out('row', `${t1.toFixed(2)} → ${t2.toFixed(2)} ms`);
+  },
+  tick(s, dt) {
+    s.t += dt;
+    const texp = msOf(s.sp), end = texp + FE2.cross + 0.4, start = -0.6;
+    if (s.clock >= end) {
+      s.hold += dt;
+      if (s.hold > 1.6) { s.hold = 0; s.clock = start; if (!s.touched) s.sp = [125, 250, 1000, 4000][([125, 250, 1000, 4000].indexOf(s.sp) + 1) % 4]; }
+      return;
+    }
+    s.clock = Math.min(end, s.clock + dt * (end - start) / 2.8);    // each run takes about 2.8 s, whatever the speed
+  },
+});
+
+/* ===== FIG_003: the flash on the clock. Left, the curtains at the flash; middle, the flash as a stripe on the chart;
+   right, the print the right way up, darkened row by row where the curtains blocked the flash ===== */
+function stillLife(g) {                                          // a cube, a ball and a bottle on a table, in picture mm (36 x 24)
+  el('path', { d: 'M0 17.6H36', class: 'guide' }, g);
+  el('ellipse', { cx: 9.6, cy: 17.6, rx: 4.2, ry: 0.7, class: 'hatch' }, g);
+  el('circle', { cx: 9, cy: 13.6, r: 4, class: 'solid' }, g);
+  el('path', { d: 'M9 9.6A4 4 0 0 1 13 13.6A4 4 0 0 1 9 17.6A2.6 4 0 0 0 9 9.6Z', class: 'hatch' }, g);
+  el('path', { d: 'M15 10.4H21.4V17.6H15Z', class: 'solid' }, g);
+  el('path', { d: 'M15 10.4L17.2 8.6H23.6L21.4 10.4Z', class: 'solid' }, g);
+  el('path', { d: 'M21.4 10.4L23.6 8.6V15.8L21.4 17.6Z', class: 'hatch' }, g);
+  el('path', { d: 'M21.4 10.4L23.6 8.6V15.8L21.4 17.6Z' }, g);
+  el('path', { d: 'M26 17.6V10.2C26 8.8 27.4 8.4 27.4 7V4.2H29.2V7C29.2 8.4 30.6 8.8 30.6 10.2V17.6Z', class: 'solid' }, g);
+  el('path', { d: 'M27.4 5.2H29.2', class: 'guide' }, g);
+}
+fig('f3', {
+  w: 720, h: 316, s: { t: 0, sp: 500, ylT: 9.45 },
+  build(svg, s, out) {
+    const r = shutterFront(svg, { k: 4.6, ox: 30, oy: 116, clip: [-3, -6, 39, 30], id: 'f3-clip' });
+    stillLife(el('g', { transform: `translate(${r.X(0)} ${r.Y(24)}) scale(4.6 -4.6)` }, r.back));   // seen from the lens: upside down
+    r.status = el('text', { x: 20, y: 24, class: 'sub' }, svg);
+    const C = chart(svg, { x0: 260, x1: 432, y0: r.Y(24), y1: r.Y(0), xd: [0, 12], yd: [24, 0], xt: [0, 4, 8, 12], yt: [0, 24],
+      xf: v => v === 12 ? '12 ms' : v, yf: v => v ? '24 mm' : '0' });
+    r.C = C;
+    r.band = el('path', { class: 'dots' }, svg);
+    r.lineL = el('path', {}, svg); r.lineT = el('path', {}, svg);
+    r.flash = el('rect', { class: 'dash' }, svg); r.lit = el('path', { class: 'ink' }, svg);
+    r.labF = label(svg, 'flash', '1/2550 s', 'middle');
+    r.labL = label(svg, 'first curtain', null, 'end'); r.labT = label(svg, 'second curtain', null, 'start');
+    // the print
+    const pk = 6, px = 480, py = 104; r.pk = pk; r.px = px; r.py = py;
+    el('text', { x: px, y: py - 28, text: 'the print' }, svg); el('text', { x: px, y: py - 14, class: 'sub', text: 'the right way up' }, svg);
+    stillLife(el('g', { transform: `translate(${px} ${py}) scale(${pk})` }, svg));
+    r.dark = Array.from({ length: 48 }, (_, i) => { const g = el('g', {}, svg);
+      el('rect', { x: px, y: py + i * 0.5 * pk, width: 36 * pk, height: 0.5 * pk + 0.4, class: 'solid', stroke: 'none' }, g);
+      el('rect', { x: px, y: py + i * 0.5 * pk, width: 36 * pk, height: 0.5 * pk + 0.4, class: 'hatch', stroke: 'none' }, g); return g; });
+    el('rect', { x: px, y: py, width: 36 * pk, height: 24 * pk }, svg);
+    r.labD = label(svg, 'dark', 'no flash here', 'start');
+    return r;
+  },
+  draw(r, s, out) {
+    const texp = msOf(s.sp), { X, Y } = r.C, tf = FE2.cross, tf2 = tf + FLASH;
+    r.set(yL(tf), s.ylT);
+    const E = Math.min(12, texp + FE2.cross);
+    set(r.band, { d: `M${X(0)} ${Y(0)}L${X(Math.min(texp, 12))} ${Y(0)}L${X(E)} ${Y(24 * (E - texp) / FE2.cross)}L${X(E)} ${Y(24)}L${X(FE2.cross)} ${Y(24)}Z` });
+    set(r.lineL, { d: `M${X(0)} ${Y(0)}L${X(FE2.cross)} ${Y(24)}` });
+    set(r.lineT, { d: `M${X(texp)} ${Y(0)}L${X(texp + FE2.cross)} ${Y(24)}` });
+    set(r.flash, { x: X(tf), y: Y(0), width: X(tf2) - X(tf), height: Y(24) - Y(0) });
+    const c = t => clamp(V * (t - texp), 0, 24);                // rows above the second curtain's edge are covered
+    set(r.lit, { d: `M${X(tf)} ${Y(c(tf))}L${X(tf2)} ${Y(c(tf2))}L${X(tf2)} ${Y(24)}L${X(tf)} ${Y(24)}Z` });
+    r.labF.at(X(tf + FLASH / 2), Y(0), X(tf + FLASH / 2), Y(0) - 38);
+    r.labL.at(X(FE2.cross * 0.92), Y(24 * 0.92), X(FE2.cross) - 14, Y(24) + 48);
+    r.labT.at(X(Math.min(texp + FE2.cross * 0.92, 11.6)), Y(texp + FE2.cross * 0.92 > 11.6 ? 24 * (11.6 - texp) / FE2.cross : 24 * 0.92), Math.min(X(texp + FE2.cross) + 14, 360), Y(24) + 48);
+    // each sensor row keeps the share of the flash that arrives while it is uncovered; the print is the sensor turned over
+    let sum = 0;
+    r.dark.forEach((g, i) => {
+      const ys = 24 - (i + 0.5) * 0.5, b = clamp((Math.min(tf2, texp + ys / V) - Math.max(tf, ys / V)) / FLASH);
+      sum += b; set(g, { opacity: (1 - b).toFixed(2) });
+    });
+    const lit = sum / 48, top = r.py + 24 * r.pk * clamp(lit + (1 - lit) / 2);
+    r.labD.at(r.px + 30 * r.pk, top, r.px + 30 * r.pk - 40, r.py + 24 * r.pk + 30);
+    set(r.labD, { opacity: lit < 0.99 ? 1 : 0 });
+    set(r.status, { text: texp >= FE2.cross + FLASH ? 'flash fires as the first curtain lands: all rows open'
+      : `flash fires; second curtain already ${c(tf).toFixed(1)} mm down` });
+    out('open', texp > FE2.cross ? `${(texp - FE2.cross).toFixed(1)} ms` : 'never');
+    out('lit', `${Math.round(lit * 100)}%`);
+  },
+  tick(s, dt) {
+    s.t += dt;
+    if (!s.touched) s.sp = [125, 250, 500, 1000, 4000][Math.floor(s.t / 3.2) % 5];
+    spring(s, 'ylT', yT(FE2.cross, msOf(s.sp)), dt);
+  },
+});
+
+/* ===== FIG_004 (not in the pattern table): a picture recorded strip by strip. Each strip keeps the scene as it was
+   when the slit passed it; the slider sets how much of the car's motion the camera's swing cancels ===== */
+const P4 = { W: 432, H: 288, x: 30, y: 46, n: 144, shift: 140 };   // picture px; shift = how far the car moves while the slit climbs
+const leanDeg = v => Math.atan(v / P4.H) * 180 / Math.PI;
+fig('f4', {
+  w: 720, h: 372, s: { t: 0, tau: 0.72, pan: 0.5, hold: 0 },
+  build(svg, s, out) {
+    const defs = el('defs', {}, svg), r = { strips: [] };
+    const bg = el('g', { id: 'f4-bg' }, defs), car = el('g', { id: 'f4-car' }, defs);
+    el('path', { d: 'M-400 212H900', class: 'guide' }, bg); el('path', { d: 'M-400 274H900', class: 'guide' }, bg);
+    for (let x = -260; x < 900; x += 112) {                   // telegraph poles
+      el('path', { d: `M${x} 212V34M${x - 18} 50H${x + 18}` }, bg);
+      el('circle', { cx: x - 13, cy: 46, r: 2 }, bg); el('circle', { cx: x + 13, cy: 46, r: 2 }, bg);
+    }
+    [-205, -168, -60, -24, 70, 100, 190, 300, 330, 412, 520, 552, 640].forEach((x, i) => {   // spectators on the far verge
+      const h = 50 + (i * 7) % 10, g = el('g', {}, bg);
+      el('path', { d: `M${x - 7} ${212 - h + 13}Q${x} ${212 - h + 8} ${x + 7} ${212 - h + 13}L${x + 5} 212H${x - 5}Z`, class: 'solid' }, g);
+      el('circle', { cx: x, cy: 212 - h + 3, r: 5.5, class: 'solid' }, g);
+      if (i % 3 === 0) el('path', { d: `M${x - 7} ${212 - h - 1}H${x + 7}M${x - 4.5} ${212 - h - 1}V${212 - h - 5}H${x + 4.5}V${212 - h - 1}` }, g);
+    });
+    // the car, between its wheels at x = 0; it drives to the right
+    el('path', { d: 'M-118 214V196Q-118 182 -104 180L-30 178L-18 166H34L44 178L104 182Q112 184 112 192V214Z', class: 'solid' }, car);
+    el('path', { d: 'M112 176V216M104 182V214', class: '' }, car);
+    el('path', { d: 'M-30 178H44M-96 196H100', class: 'guide' }, car);
+    el('circle', { cx: -50, cy: 158, r: 8.5, class: 'solid' }, car); el('path', { d: 'M-58.5 156A8.5 8.5 0 0 1 -41.5 156Z', class: 'hatch' }, car);
+    el('circle', { cx: -14, cy: 154, r: 8.5, class: 'solid' }, car); el('path', { d: 'M-22.5 152A8.5 8.5 0 0 1 -5.5 152Z', class: 'hatch' }, car);
+    el('path', { d: 'M-4 170L8 160', class: '' }, car); el('ellipse', { cx: 9, cy: 159, rx: 2.5, ry: 7, transform: 'rotate(-40 9 159)' }, car);
+    el('text', { x: -80, y: 206, text: '6', style: 'font-size:15px' }, car);
+    for (const cx of [-68, 72]) {
+      el('circle', { cx, cy: 232, r: 31, class: 'solid' }, car); el('circle', { cx, cy: 232, r: 26 }, car); el('circle', { cx, cy: 232, r: 5 }, car);
+      let d = ''; for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; d += `M${(cx + 5 * Math.cos(a)).toFixed(1)} ${(232 + 5 * Math.sin(a)).toFixed(1)}L${(cx + 26 * Math.cos(a)).toFixed(1)} ${(232 + 26 * Math.sin(a)).toFixed(1)}`; }
+      el('path', { d }, car);
+    }
+    bake(bg); bake(car);
+    const { W, H, x: X0, y: Y0, n } = P4, h = H / n;
+    const cl = el('clipPath', { id: 'f4-live' }, defs); r.liveRect = el('rect', { x: X0, y: Y0, width: W, height: H }, cl);
+    const live = el('g', { class: 'idle', 'clip-path': 'url(#f4-live)', opacity: 0.55 }, svg);
+    r.liveBg = el('use', { href: '#f4-bg' }, live); r.liveCar = el('use', { href: '#f4-car' }, live);
+    for (let i = 0; i < n; i++) {
+      el('rect', { x: X0, y: Y0 + i * h - 0.2, width: W, height: h + 0.4 }, el('clipPath', { id: `f4-c${i}` }, defs));
+      const g = el('g', { 'clip-path': `url(#f4-c${i})` }, svg);
+      r.strips.push({ g, tau: 1 - (i + 0.5) / n, bg: el('use', { href: '#f4-bg' }, g), car: el('use', { href: '#f4-car' }, g) });
+    }
+    el('rect', { x: X0, y: Y0, width: W, height: H, class: 'thick' }, svg);
+    r.slit = el('path', {}, svg); r.slitTri = el('path', { class: 'ink' }, svg);
+    // three moments of the sweep, each with the third of the picture it was recorded into
+    const tk = 0.27, tw = W * tk, th = H * tk, tx = 492; r.thumbs = [];
+    ['at the end', 'halfway', 'at the start'].forEach((name, j) => {
+      const ty = Y0 + j * (H - th) / 2, g = el('g', { transform: `translate(${tx} ${ty}) scale(${tk})` }, svg);
+      el('rect', { width: W, height: H }, el('clipPath', { id: `f4-t${j}` }, defs));
+      el('rect', { y: H * j / 3, width: W, height: H / 3 }, el('clipPath', { id: `f4-b${j}` }, defs));
+      const faint = el('g', { class: 'idle', opacity: 0.4, 'clip-path': `url(#f4-t${j})` }, g), ink = el('g', { 'clip-path': `url(#f4-b${j})` }, g);
+      const T = { tau: 1 - (j + 0.5) / 3, uses: [faint, ink].flatMap(G => [el('use', { href: '#f4-bg' }, G), el('use', { href: '#f4-car' }, G)]) };
+      el('rect', { width: W, height: H }, g); el('rect', { y: H * j / 3, width: W, height: H / 3, class: 'thick' }, g);
+      el('text', { x: tx + tw + 10, y: ty + th / 2 - 2, text: name }, svg);
+      el('text', { x: tx + tw + 10, y: ty + th / 2 + 12, class: 'sub', text: ['top third', 'middle third', 'bottom third'][j] }, svg);
+      el('path', { d: `M${tx - 4} ${ty + th * (j + 0.5) / 3}L${X0 + W + 6} ${Y0 + H * (j + 0.5) / 3}`, class: 'guide', 'marker-end': 'url(#arrow)' }, svg);
+      r.thumbs.push(T);
+    });
+    r.carRef = el('path', { class: 'guide dash' }, svg); r.carLean = el('path', { class: 'thick' }, svg); r.carTxt = el('text', { class: 'sub' }, svg);
+    r.poleRef = el('path', { class: 'guide dash' }, svg); r.poleTxt = el('text', { class: 'sub', 'text-anchor': 'end' }, svg);
+    r.status = el('text', { x: 20, y: 24, class: 'sub' }, svg);
+    return r;
+  },
+  draw(r, s, out) {
+    const { W, H, x: X0, y: Y0, shift } = P4, p = s.pan;
+    const carX = tau => W / 2 - shift * (1 - p) / 2 + shift * (1 - p) * tau, bgX = tau => shift * p / 2 - shift * p * tau;
+    const tau = clamp(s.tau), ys = Y0 + H * (1 - tau);
+    for (const st of r.strips) {
+      const on = st.tau <= tau, key = on ? p : -1;
+      if (st.key === key) continue;                             // only touch a strip when it is recorded or the swing changes
+      st.key = key; set(st.g, { visibility: on ? 'visible' : 'hidden' });
+      if (on) { set(st.bg, { transform: `translate(${(X0 + bgX(st.tau)).toFixed(1)} ${Y0})` }); set(st.car, { transform: `translate(${(X0 + carX(st.tau)).toFixed(1)} ${Y0})` }); }
+    }
+    set(r.liveRect, { height: Math.max(0, ys - Y0) });
+    set(r.liveBg, { transform: `translate(${X0 + bgX(tau)} ${Y0})` }); set(r.liveCar, { transform: `translate(${X0 + carX(tau)} ${Y0})` });
+    const sliding = tau > 0 && tau < 1;
+    set(r.slit, { d: `M${X0} ${ys - 1.5}H${X0 + W}M${X0} ${ys + 1.5}H${X0 + W}`, opacity: sliding ? 1 : 0 });
+    set(r.slitTri, { d: `M${X0 - 12} ${ys - 5}L${X0 - 3} ${ys}L${X0 - 12} ${ys + 5}Z`, opacity: sliding ? 1 : 0 });
+    if (r.thumbsKey !== p) {                                       // the three moments only change with the swing
+      r.thumbsKey = p;
+      for (const T of r.thumbs) T.uses.forEach((u, i) => set(u, { transform: `translate(${(i % 2 ? carX(T.tau) : bgX(T.tau)).toFixed(1)} 0)` }));
+    }
+    // the lean, measured once the front wheel and a pole are recorded: a dashed upright and the recorded line
+    const k = shift * (1 - p), lc = leanDeg(k), lp = leanDeg(shift * p);
+    const wx = (y) => X0 + carX(1 - y / H) + 72, done = tau >= 1 - 168 / H;
+    set(r.carRef, { d: `M${wx(263).toFixed(1)} ${Y0 + 263}V${Y0 + 168}`, opacity: done ? 1 : 0 });
+    set(r.carLean, { d: `M${wx(263).toFixed(1)} ${Y0 + 263}L${wx(168).toFixed(1)} ${Y0 + 168}`, opacity: done && lc > 0.5 ? 1 : 0 });
+    set(r.carTxt, { x: wx(263) + 10, y: Y0 + 284, text: `${lc.toFixed(0)}°`, opacity: done ? 1 : 0 });
+    const pole = [-260, -148, -36, 76, 188, 300, 412, 524].map(x => x + bgX(1 - 120 / H)).find(x => x > 250 && x < W - 20) ?? null;
+    const poleDone = tau >= 1 - 40 / H && pole != null;
+    if (pole != null) { const xb = X0 + pole - 0 + (bgX(1 - 212 / H) - bgX(1 - 120 / H)); set(r.poleRef, { d: `M${xb.toFixed(1)} ${Y0 + 212}V${Y0 + 40}`, opacity: poleDone && lp > 0.5 ? 1 : 0 });
+      set(r.poleTxt, { x: xb - 6, y: Y0 + 40, text: `${lp.toFixed(0)}°`, opacity: poleDone && lp > 0.5 ? 1 : 0 }); }
+    set(r.status, { text: tau <= 0 ? 'slit at the bottom edge, about to climb' : tau < 1 ? 'slit climbing; every row below it is already recorded'
+      : lc > 0.5 && lp > 0.5 ? 'holding: the car leans forward, the poles lean back' : lc > 0.5 ? 'holding: only the car moved, so only the car leans' : 'holding: the camera kept up, so the world leans instead' });
+    out('car', `${lc.toFixed(0)}° forward`); out('poles', lp > 0.5 ? `${lp.toFixed(0)}° back` : 'upright');
+  },
+  tick(s, dt) {
+    s.t += dt;
+    if (s.tau >= 1) { s.hold += dt; if (s.hold > 2) { s.hold = 0; s.tau = 0; if (!s.touched) s.pan = [0, 0.5, 1][([0, 0.5, 1].indexOf(s.pan) + 1) % 3]; } return; }
+    s.tau = Math.min(1, s.tau + dt / 2.6);
+  },
+});
+
+/* ===== FIG_005: one curtain's linkage, front view. The arms turn about two pivots stacked 6 mm apart; every blade is
+   pinned to both arms at the same radius, so arm, arm and blade form a parallelogram and the blade stays level ===== */
+fig('f5', {
+  w: 720, h: 392, s: { t: 0, u: 0.45 },
+  build(svg, s, out) {
+    const k = 5, X = x => 250 + k * x, Y = y => 92 + k * y, r = { X, Y };
+    r.status = el('text', { x: 20, y: 24, class: 'sub' }, svg);
+    el('rect', { x: X(0), y: Y(0), width: 36 * k, height: 24 * k, class: 'guide dash' }, svg);
+    LK.r.forEach(rr => {                                         // the paths of the pins on the drive arm
+      const pts = []; for (let e = LK.down; e <= LK.up + 0.01; e += 2.75) pts.push(armPt(e, rr).map((v, j) => j ? Y(v) : X(v)));
+      el('path', { d: 'M' + pts.map(p => p.map(v => v.toFixed(1)).join(' ')).join('L'), class: 'guide dash' }, svg);
+    });
+    r.bl = [3, 2, 1, 0].map(i => ({ i, p: el('path', { class: 'blade' }, svg), h: i ? null : el('path', { class: 'hatch' }, svg) }));
+    r.spring = el('path', {}, svg);
+    r.arms = [0, 1].map(() => el('path', { class: 'solid' }, svg));
+    r.pins = LK.r.flatMap(() => [el('circle', { r: 1.1 * k, class: 'solid' }, svg), el('circle', { r: 1.1 * k, class: 'solid' }, svg)]);
+    [0, LK.by].forEach(dy => { el('circle', { cx: X(LK.px), cy: Y(LK.py + dy), r: 2.2 * k, class: 'solid' }, svg); el('circle', { cx: X(LK.px), cy: Y(LK.py + dy), r: 2, class: 'ink' }, svg); });
+    r.lab = { slit: label(svg, 'slit blade', null, 'start'), arms: label(svg, 'two arms', null, 'middle'),
+      spring: label(svg, 'spring', null, 'middle'), pivots: label(svg, 'pivots', null, 'middle') };
+    // bars: how far down each blade has moved, against its full travel
+    const bx = 584, bk = 3.4; r.bars = LK.r.map((rr, i) => {
+      const y = 108 + i * 50, full = rr * (Math.sin(rad(LK.up)) - Math.sin(rad(LK.down)));
+      el('text', { x: bx, y: y - 8, class: i ? 'sub' : '', text: i ? `blade ${i + 1}` : 'slit blade' }, svg);
+      el('rect', { x: bx, y, width: full * bk, height: 9, class: 'guide' }, svg);
+      return { bar: el('rect', { x: bx, y, height: 9, class: i ? 'hatch' : 'ink' }, svg), val: el('text', { x: bx + 34 * bk, y: y - 8, class: 'sub', 'text-anchor': 'end' }, svg), bk };
+    });
+    el('text', { x: bx, y: 62, text: 'moved down, mm' }, svg);
+    return r;
+  },
+  draw(r, s, out) {
+    const { X, Y } = r, edge = lerp(L_REST, L_END, s.u), e = eOfEdge(edge), B = blades(e);
+    for (const b of r.bl) { const d = rectD(B[b.i], X, Y); set(b.p, { d }); if (b.h) set(b.h, { d }); }
+    const dir = [-Math.cos(rad(e)), -Math.sin(rad(e))], nrm = [-dir[1], dir[0]], w = 1.3;
+    [0, LK.by].forEach((dy, j) => {                              // each arm: a slim bar from its pivot past the farthest pin
+      const P = [LK.px, LK.py + dy], L = LK.r[0] + 3, a = [P[0] - 3 * dir[0], P[1] - 3 * dir[1]], b = [P[0] + L * dir[0], P[1] + L * dir[1]];
+      set(r.arms[j], { d: pathD([[a[0] + w * nrm[0], a[1] + w * nrm[1]], [b[0] + w * nrm[0], b[1] + w * nrm[1]], [b[0] - w * nrm[0], b[1] - w * nrm[1]], [a[0] - w * nrm[0], a[1] - w * nrm[1]]].map(([x, y]) => [X(x), Y(y)])) });
+    });
+    LK.r.forEach((rr, i) => { const pa = armPt(e, rr), pb = armPt(e, rr, LK.py + LK.by);
+      set(r.pins[2 * i], { cx: X(pa[0]), cy: Y(pa[1]) }); set(r.pins[2 * i + 1], { cx: X(pb[0]), cy: Y(pb[1]) }); });
+    // a torsion spring wound round the drive arm's pivot: it unwinds as the curtain fires
+    const coils = lerp(2.6, 1.7, s.u), sp = [];
+    for (let a = 0; a <= coils * 2 * Math.PI; a += 0.15) { const rr = 2.6 + 0.9 * a / (2 * Math.PI), aa = a + rad(e) + Math.PI; sp.push([X(LK.px + rr * Math.cos(aa)), Y(LK.py - rr * Math.sin(aa))]); }
+    set(r.spring, { d: 'M' + sp.map(p => p.map(v => v.toFixed(1)).join(' ')).join('L') });
+    const [ax, ay] = armPt(e, 24, LK.py + LK.by), sb = B[0];
+    r.lab.slit.at(X(sb[2]), Y(sb[1]), X(LK.right) + 22, Y(sb[1]) + 4);   // its own lane, clear of every blade's end
+    r.lab.arms.at(X(ax), Y(ay), 64, 374);
+    r.lab.spring.at(X(LK.px - 4.4), Y(LK.py + 1.2), 160, 374);
+    r.lab.pivots.at(X(LK.px), Y(LK.py + LK.by), 252, 374);
+    const moved = LK.r.map(rr => rr * (Math.sin(rad(LK.up)) - Math.sin(rad(e))));
+    r.bars.forEach((b, i) => { set(b.bar, { width: Math.max(0, moved[i] * b.bk) }); set(b.val, { text: `${moved[i].toFixed(1)}` }); });
+    set(r.status, { text: s.u < 0.01 ? 'cocked: blades spread across the window, spring wound'
+      : s.u > 0.99 ? `fired: blades folded below; the slit blade moved ${moved[0].toFixed(1)} mm`
+      : (s.dir ?? 1) > 0 ? 'firing: the far blade outruns the near ones' : 're-cocking: the blades spread out again' });
+    out('turn', `${(LK.up - e).toFixed(0)}°`); out('far', `${moved[0].toFixed(1)} mm`); out('near', `${moved[3].toFixed(1)} mm`);
+  },
+  tick(s, dt) {
+    s.t += dt; if (s.touched) return;
+    const { i, p } = phase(s.t, [1.2, 0.9, 1.8, 1.6]);            // cocked, fire, hold the payoff, re-cock
+    const u = [0, ease(p), 1, 1 - ease(p)][i]; s.dir = u >= (s.u ?? 0) ? 1 : -1; s.u = u;
+  },
+});
+
+/* ===== FIG_006: parallel lanes. The same propeller at the same instant, read out by four shutters; each lane keeps every
+   row at the angle the propeller had when that row was read ===== */
+const L6 = { W: 196, H: 130, at: [[24, 72], [244, 72], [24, 290], [244, 290]] };
+fig('f6', {
+  w: 720, h: 464, s: { t: 0, tau: 2.1, rpm: RPM, hold: 0 },
+  build(svg, s, out) {
+    const defs = el('defs', {}, svg), prop = el('g', { id: 'f6-prop' }, defs);
+    const blade = 'M-4.5 -8L-6 -30Q-5.6 -48 -3.6 -54Q0 -59 3.6 -54Q5.6 -48 6 -30L4.5 -8Z';
+    el('path', { d: blade, class: 'ink' }, prop); el('path', { d: blade, class: 'ink', transform: 'rotate(180)' }, prop);   // filled, so a single row of it still reads
+    el('circle', { r: 9, class: 'solid' }, prop); el('circle', { r: 2.2, class: 'ink' }, prop); bake(prop);
+    const r = { lanes: [] }, { W, H } = L6;
+    r.status = el('text', { x: 20, y: 24, class: 'sub' }, svg);
+    SWEEPS.forEach(([name, ms, who], li) => {
+      const [x, y] = L6.at[li], L = { ms, x, y, strips: [] };
+      el('text', { x, y: y - 24, text: name }, svg); el('text', { x, y: y - 10, class: 'sub', text: ms ? `${ms} ms · ${who}` : `all rows at once · ${who}` }, svg);
+      el('circle', { cx: x + W / 2, cy: y + H / 2, r: 57, class: 'guide dash' }, svg);
+      const cl = el('clipPath', { id: `f6-l${li}` }, defs); L.liveRect = el('rect', { x, y, width: W, height: H }, cl);
+      L.live = el('use', { href: '#f6-prop' }, el('g', { class: 'idle', 'clip-path': `url(#f6-l${li})` }, svg));   // clip on a parent: a clip on the use would turn with it
+      for (let j = 0; j < H; j++) {
+        el('rect', { x, y: y + j - 0.15, width: W, height: 1.3 }, el('clipPath', { id: `f6-c${li}-${j}` }, defs));
+        L.strips.push({ f: 1 - (j + 0.5) / H, u: el('use', { href: '#f6-prop' }, el('g', { 'clip-path': `url(#f6-c${li}-${j})` }, svg)) });
+      }
+      el('rect', { x, y, width: W, height: H, class: 'thick' }, svg);
+      L.slit = el('path', {}, svg); L.turn = el('text', { x, y: y + H + 18, class: 'sub' }, svg);
+      r.lanes.push(L);
+    });
+    r.key = [label(svg, 'faint', 'the propeller now', 'start'), label(svg, 'ink', 'rows already read', 'start')];
+    return r;
+  },
+  draw(r, s, out) {
+    const { W, H } = L6, rps = s.rpm / 60, tms = s.tau * 1000 / SLOW, th0 = 24;
+    const ang = ms => th0 + 360 * rps * ms / 1000;
+    let slowY = null;
+    r.lanes.forEach((L, li) => {
+      const f = L.ms ? clamp(tms / L.ms) : 1, cx = L.x + W / 2, cy = L.y + H / 2, ys = L.y + H * (1 - f);
+      for (const st of L.strips) {
+        const on = st.f <= f + 1e-9;
+        set(st.u, { visibility: on ? 'visible' : 'hidden' });
+        if (on) set(st.u, { transform: `translate(${cx} ${cy}) rotate(${ang(st.f * L.ms).toFixed(2)})` });
+      }
+      set(L.liveRect, { height: Math.max(0, ys - L.y) });
+      set(L.live, { transform: `translate(${cx} ${cy}) rotate(${ang(Math.min(tms, L.ms || 0)).toFixed(2)})`, opacity: f < 1 ? 0.5 : 0 });
+      set(L.slit, { d: `M${L.x} ${ys}H${L.x + W}`, opacity: f > 0 && f < 1 ? 1 : 0 });
+      const deg = turns(s.rpm, L.ms);
+      set(L.turn, { text: L.ms ? `propeller turns ${deg >= 360 ? (deg / 360).toFixed(1) + ' times' : deg.toFixed(0) + '°'} meanwhile` : 'propeller does not move' });
+      if (li === 3) slowY = ys;
+    });
+    const L = r.lanes[3];
+    r.key[0].at(L.x + W - 20, L.y + 14, L.x + W + 34, L.y + 10);
+    r.key[1].at(L.x + W - 20, L.y + H - 14, L.x + W + 34, L.y + H - 8);
+    set(r.key[0], { opacity: tms < L.ms ? 1 : 0.25 });
+    set(r.status, { text: tms <= 0 ? 'about to read the first row' : tms < 3.7 ? 'curtain and fast sensor reading; ordinary barely started'
+      : tms < 67 ? `ordinary sensor still reading, row by row: ${(tms).toFixed(0)} of 67 ms` : 'holding: same propeller, same instant, four pictures' });
+    out('rpm', `${fmt(s.rpm)} rpm`); out('rps', `${(rps).toFixed(0)}`);
+  },
+  tick(s, dt) {
+    s.t += dt; const end = 67 * SLOW / 1000;
+    if (s.tau >= end) { s.hold += dt; if (s.hold > 2.2) { s.hold = 0; s.tau = -0.6; } return; }
+    s.tau = Math.min(end, s.tau + dt);
+  },
+});
+</script>
+</body>
+</html>
