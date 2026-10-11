@@ -100,7 +100,9 @@ dialog::backdrop { background: rgba(20, 20, 18, .6); backdrop-filter: blur(6px);
 #pl-body { display: grid; gap: 18px; }
 .side .tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .side .tag { font-size: 13px; border: 1px solid var(--rule); border-radius: 999px; padding: 4px 11px; color: var(--fg); background: var(--panel); cursor: default; }
-button.tag { cursor: pointer; font: inherit; font-size: 13px; } button.tag[aria-pressed="true"] { background: var(--fg); color: var(--panel); border-color: var(--fg); }
+/* cut switcher: a dropdown over the stage's top-left corner, only when a demo has more than one cut */
+.cutsel { position: absolute; top: 16px; left: 16px; z-index: 2; appearance: none; -webkit-appearance: none; font: 500 13px/1 var(--sans); color: var(--fg); background: rgba(255,255,255,.94) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23111113' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 10px center / 12px no-repeat; border: 1px solid var(--rule); border-radius: 999px; padding: 8px 30px 8px 13px; box-shadow: 0 1px 2px rgba(17,17,19,.06), 0 4px 12px rgba(17,17,19,.06); cursor: pointer; }
+.cutsel:hover { border-color: var(--faint); }
 .side .lab { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--dim); margin-bottom: 8px; }
 .side .pl-btn { font: 500 13px var(--sans); color: var(--dim); background: none; border: 0; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
 .side .pbox { position: relative; background: var(--raise); border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.6; max-height: 9.6em; overflow: hidden; }
@@ -236,6 +238,7 @@ footer p { margin: 0; } footer b { font-weight: 500; }
 
 <dialog id="player" aria-labelledby="pl-title">
   <div class="stage" id="pl-stage"></div>
+  <select class="cutsel" id="pl-cutsel" aria-label="Cut" hidden></select>
   <aside class="side">
     <div class="sh"><img class="av" id="pl-av" alt=""><div class="who"><b id="pl-skill"></b><small>claude-s skill</small></div><a id="player-open" class="out" target="_blank" rel="noopener">Open page ↗</a><button class="x" id="player-close" aria-label="Close">×</button></div>
     <h2 id="pl-title"></h2>
@@ -434,7 +437,7 @@ function resCard(s) {   // the details (what it makes, the prompt, its reference
   const img = `demos/posters/${s.demo || s.id}.jpg`;
   return `<article class="rcard" id="skill-${s.id}" data-skills="${s.id}">
     ${s.demo ? `<button class="thumb" data-play="${s.demo}" aria-label="Play the ${s.id} demo"><img class="bg" src="${img}" alt="" loading="lazy"><img src="${img}" alt="" loading="lazy"><span class="go"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8 10.4 6 3 10.2Z"/></svg></span></button>` : '<div class="thumb soon">Demo coming soon</div>'}
-    <div class="rrow"><img class="av" src="${img}" alt=""><a class="rname" href="${GH}${s.id}" target="_blank" rel="noopener">${s.id}</a><span class="pills">${s.voice ? '<span class="pill">Voiced</span>' : ''}<span class="pill">Skill</span></span></div>
+    <div class="rrow">${s.demo ? `<img class="av" src="${img}" alt="">` : '<span class="av"></span>'}<a class="rname" href="${GH}${s.id}" target="_blank" rel="noopener">${s.id}</a><span class="pills">${s.voice ? '<span class="pill">Voiced</span>' : ''}<span class="pill">Skill</span></span></div>
     <p class="rtitle">${esc(s.demo ? s.title : s.makes)}</p></article>`;
 }
 
@@ -535,7 +538,10 @@ const parse = id => pages.get(id) || pages.set(id, fetch(`demos/${id}.html`).the
   const d = new DOMParser().parseFromString(html, 'text/html');
   const sec = h => { const h2 = [...d.querySelectorAll('h2')].find(x => x.textContent === h); return h2 ? [...h2.parentElement.querySelectorAll('li')].map(li => li.textContent) : []; };
   const vids = await Promise.all([...d.querySelectorAll('video')].map(v => fetch(v.getAttribute('src')).then(r => r.blob()).then(URL.createObjectURL)));
-  return { vids, prompt: d.querySelector('blockquote')?.textContent || '', did: sec('What the skill did'), sound: sec('Sound') };
+  const shape = r => [['9:16', 9 / 16], ['3:4', 3 / 4], ['1:1', 1], ['4:3', 4 / 3], ['16:9', 16 / 9]].reduce((a, b) => Math.abs(Math.log(b[1] / r)) < Math.abs(Math.log(a[1] / r)) ? b : a)[0];
+  const labels = await Promise.all(vids.map((u, k) => new Promise(ok => { const v = document.createElement('video'); v.preload = 'metadata'; v.src = u;
+    v.onloadedmetadata = () => ok(`Cut ${k + 1} · ${shape(v.videoWidth / v.videoHeight)} · ${Math.round(v.duration)} s`); v.onerror = () => ok(`Cut ${k + 1}`); })));
+  return { vids, labels, prompt: d.querySelector('blockquote')?.textContent || '', did: sec('What the skill did'), sound: sec('Sound') };
 })).get(id);
 let cur = 0, ticket = 0;
 const cut = (src, autoplay) => {
@@ -550,14 +556,14 @@ async function openDemo(i, autoplay = true) {
   $('#player-open').href = `demos/${s.demo}.html`;
   $('#pl-tags').innerHTML = s.meta.split(' · ').map(m => `<span class="tag">${esc(m)}</span>`).join('') + (s.voice ? '<span class="tag">voiced</span>' : '');
   $('#pl-body').innerHTML = ''; $('#pl-meta').innerHTML = '';
-  stage.innerHTML = '<span class="wait">Loading…</span>';
+  stage.innerHTML = '<span class="wait">Loading…</span>'; $('#pl-cutsel').hidden = true;
   if (!dlg.open) dlg.showModal();
   const pg = await parse(s.demo); if (t !== ticket) return;   // a newer demo was picked while this one loaded
   if (!pg.vids.length) stage.innerHTML = `<iframe src="demos/${s.demo}.html" title="${esc(s.title)}"></iframe>`;   // interactive pages run in the stage
   else cut(pg.vids[0], autoplay);
+  const sel = $('#pl-cutsel'); sel.innerHTML = pg.labels.map((l, k) => `<option value="${k}">${l}</option>`).join(''); sel.hidden = pg.vids.length < 2;
   const list = (h, xs) => xs.length ? `<section><div class="lab">${h}</div><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>` : '';
-  $('#pl-body').innerHTML = (pg.vids.length > 1 ? `<section><div class="lab">Cuts</div><div class="tags" id="pl-cuts">${pg.vids.map((_, k) => `<button class="tag" data-cut="${k}" aria-pressed="${!k}">Cut ${k + 1}</button>`).join('')}</div></section>` : '')
-    + (pg.prompt ? `<section><div class="lab">Prompt <button class="pl-btn" id="pl-copy">Copy</button></div><div class="pbox" id="pl-pbox">${esc(pg.prompt)}</div><button class="more" id="pl-more">Show all</button></section>` : '')
+  $('#pl-body').innerHTML = (pg.prompt ? `<section><div class="lab">Prompt <button class="pl-btn" id="pl-copy">Copy</button></div><div class="pbox" id="pl-pbox">${esc(pg.prompt)}</div><button class="more" id="pl-more">Show all</button></section>` : '')
     + list('What the skill did', pg.did) + list('Sound', pg.sound);
   const pb = $('#pl-pbox'); if (pb && pb.scrollHeight <= pb.clientHeight + 2) { pb.classList.add('open'); $('#pl-more').remove(); }
   const refs = fedBy(s.id);
@@ -566,16 +572,15 @@ async function openDemo(i, autoplay = true) {
 document.addEventListener('click', e => {
   const p = e.target.closest('[data-play]'); if (p) return openDemo(DEMOS.findIndex(s => s.demo === p.dataset.play));
   if (e.target.closest('#player a[href^="#"]')) dlg.close();   // a reference link leaves the player for the wall
-  const c = e.target.closest('[data-cut]');
-  if (c) { pages.get(DEMOS[cur].demo).then(pg => cut(pg.vids[+c.dataset.cut], true)); document.querySelectorAll('[data-cut]').forEach(b => b.setAttribute('aria-pressed', b === c)); }
   if (e.target.id === 'pl-more') { $('#pl-pbox').classList.add('open'); e.target.remove(); }
   if (e.target.id === 'pl-copy') navigator.clipboard.writeText($('#pl-pbox').textContent).then(() => { e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1500); });
 });
+$('#pl-cutsel').addEventListener('change', e => pages.get(DEMOS[cur].demo).then(pg => cut(pg.vids[+e.target.value], true)));
 $('#pl-prev').addEventListener('click', () => openDemo(cur - 1));
 $('#pl-next').addEventListener('click', () => openDemo(cur + 1));
 $('#player-close').addEventListener('click', () => dlg.close());
 dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });   // a click on the backdrop
-dlg.addEventListener('keydown', e => { if (e.target.closest('video')) return; if (e.key === 'ArrowRight') openDemo(cur + 1); if (e.key === 'ArrowLeft') openDemo(cur - 1); });
+dlg.addEventListener('keydown', e => { if (e.target.closest('video, select')) return; if (e.key === 'ArrowRight') openDemo(cur + 1); if (e.key === 'ArrowLeft') openDemo(cur - 1); });
 dlg.addEventListener('close', () => { ticket++; stage.innerHTML = ''; });   // stops playback
 
 // X posts render through X's own embed (no reference media is stored here). Loaded lazily; do-not-track on.
