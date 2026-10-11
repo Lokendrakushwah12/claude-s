@@ -82,6 +82,7 @@ node render.mjs --size 1080x1920 --out final-9x16.mp4  # only as a real re-layou
 For several products (a list of repos or URLs, or `~/Movies/promos/queue/<slug>/brief.md`), run one background subagent per product, at most 3 at a time, each with the full text of this file, its paths and the formats to ship. Each reports the `final*.mp4` paths, the brand elements it found, what it had to guess and its weak spots. Finish with one contact sheet per video and a summary table.
 
 ## Limits
+- **Render time is the bottleneck?** For a NEW piece that doesn't need this skill's templates or toolkits (no footage, no type.js/look.js/sfx.py devices) and is long, batch-rendered or shader-heavy, [fframes](https://github.com/dmtrKovalenko/fframes) (MIT; Rust + SVG on the GPU) renders far faster than headless Chrome. Ask the user first: it needs the Rust toolchain (`rustup`, plus a first build of about a minute prebuilt or ~20 min from source), then `npx skills add https://fframes.studio` installs its own skill, which you then follow. Otherwise stay on render.mjs. Trade-offs: the README's "fframes or render.mjs?" table.
 - Canvas 2D; `iso.js` for isometric solids and the flat → oblique lift.
 - No voiceover by default. For narration, use the `story-video` skill's Chatterbox run inside `python3 ~/.cache/claude-s/ttslock.py`, then pass it as `vo` (sfx.py ducks the music and levels every SFX against it).
 - Don't use other companies' logos or customers' names as endorsements unless they appear on the product's own public site.

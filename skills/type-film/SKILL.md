@@ -110,6 +110,7 @@ Only ship 9:16 or 1:1 if asked. Those formats need a re-layout, not a crop.
 - **`examples/claude-s-hud-iso.js`:** the demo (`demos/type-film.html`): screen HUD + isometric product + a monochrome morph, no music. A prompt whose keys' pitches rise above it as a skyline, `seek(t)` on a red field over the film's own timeline, a contact sheet of its own frames, sounds that draw their real waveforms as they play, the skills growing to their SKILL.md lengths and folding into the mark, and a caret loop. Its numbers and waveforms come from the repo via `examples/claude-s-gen_data.py`.
 
 ## Limits
+- **Render time is the bottleneck?** For a NEW piece that doesn't need this skill's templates or toolkits (no footage, no type.js/look.js/sfx.py devices) and is long, batch-rendered or shader-heavy, [fframes](https://github.com/dmtrKovalenko/fframes) (MIT; Rust + SVG on the GPU) renders far faster than headless Chrome. Ask the user first: it needs the Rust toolchain (`rustup`, plus a first build of about a minute prebuilt or ~20 min from source), then `npx skills add https://fframes.studio` installs its own skill, which you then follow. Otherwise stay on render.mjs. Trade-offs: the README's "fframes or render.mjs?" table.
 - Canvas 2D only. Fake 3D comes from layers, strips and camera scale; `iso.js` adds orthographic solids with per-face Lambert light, but no perspective.
 - Motion blur costs render time: `--subframes 4` takes 4 screenshots per frame.
 - Music is synthesised unless the user supplies a licensed track (`VIDEO.music`).

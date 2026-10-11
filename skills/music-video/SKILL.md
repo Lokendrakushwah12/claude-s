@@ -92,6 +92,7 @@ Open `lyrics.js`, fix any mis-heard words against `lyrics.txt` and keep the timi
 **6. Final:** run `node render.mjs --out final.mp4`, then check it with `ffprobe` (the duration should equal the song) and look at the last contact sheet. Report the path, the length, the style in one line, and the weak spots.
 
 ## Limits
+- **Render time is the bottleneck?** For a NEW piece that doesn't need this skill's templates or toolkits (no footage, no type.js/look.js/sfx.py devices) and is long, batch-rendered or shader-heavy, [fframes](https://github.com/dmtrKovalenko/fframes) (MIT; Rust + SVG on the GPU) renders far faster than headless Chrome. Ask the user first: it needs the Rust toolchain (`rustup`, plus a first build of about a minute prebuilt or ~20 min from source), then `npx skills add https://fframes.studio` installs its own skill, which you then follow. Otherwise stay on render.mjs. Trade-offs: the README's "fframes or render.mjs?" table.
 - **claude-s can't synthesise singing.** A sung video needs the user's song (or an ElevenLabs Music track, after asking). Otherwise it's spoken word over a synthesised bed; say which one up front.
 - Lip-sync isn't automatic. Suggest singing with mouth shapes keyed to word times (`LYRICS[].words`) and cutting away during long vowels.
 - Canvas 2D has no real 3D. Fake it with scale, parallax layers and perspective-drawn grids.

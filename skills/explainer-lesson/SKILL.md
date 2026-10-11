@@ -173,6 +173,7 @@ node narrate.mjs --mix <slug>.mp4
 - **Stop-motion offsets sound from picture:** sounds land on the exact clock while the picture steps at 12 fps, so a hit can lead its drawing by up to 83 ms. Put cues on the 12 fps grid if it matters.
 
 ## Limits
+- **Render time is the bottleneck?** For a NEW piece that doesn't need this skill's templates or toolkits (no footage, no type.js/look.js/sfx.py devices) and is long, batch-rendered or shader-heavy, [fframes](https://github.com/dmtrKovalenko/fframes) (MIT; Rust + SVG on the GPU) renders far faster than headless Chrome. Ask the user first: it needs the Rust toolchain (`rustup`, plus a first build of about a minute prebuilt or ~20 min from source), then `npx skills add https://fframes.studio` installs its own skill, which you then follow. Otherwise stay on render.mjs. Trade-offs: the README's "fframes or render.mjs?" table.
 - 16:9 only: the lesson is laid out in 960×540 units. A vertical cut needs its own layout.
 - Canvas 2D: depth comes from iso.js (orthographic: `lift`, `ISO.slab`) or from layers, scale and shading. There's no perspective camera.
 - Chatterbox adds an inaudible watermark, is slow (see above), and its model is a few GB on first use.
