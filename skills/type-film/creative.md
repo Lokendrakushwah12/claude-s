@@ -50,7 +50,7 @@ Each technique from a reference must mean something in the subject's world. The 
 ## 8. Write the logline last
 Write it after the invention exists: one sentence a stranger could repeat.
 
-## Worked example (the aura-edit demo, `demos/aura-edit.html`)
+## Worked example (the aura-edit Pulse demo)
 - **Subject:** 3.4 s of a medical student in a white coat on a stairwell.
 - **Killed:**
   - slow-mo walk with a "DOCTOR" title;
