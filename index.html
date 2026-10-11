@@ -3,14 +3,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>claude-s references and results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 <style>
 /* Layout: one column; a sticky tab bar switches between the reference wall and the results grid; skill chips cross-link the two. */
 :root {
   --bg: #f5f4f0; --panel: #ffffff; --raise: #ecebe6; --fg: #1a1a18; --dim: #66655f; --faint: #b9b8b1; --rule: #dcdbd5;
-  --accent: #d9481c; --track: #ececea; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --sans: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif; color-scheme: light;   /* light only, by request */
+  --accent: #d9481c; --track: #ececea; --mono: "Inter", -apple-system, system-ui, sans-serif;   /* Inter only, by request: the old mono labels use it too */
+  --sans: "Inter", -apple-system, system-ui, sans-serif; color-scheme: light;   /* light only, by request */
 }
 * { box-sizing: border-box; }
+button, input, select, textarea, code, kbd, pre { font-family: inherit; }   /* form controls and code default to system/monospace faces */
+*, *::before, *::after { font-optical-sizing: none !important; font-variation-settings: "opsz" 32 !important; }   /* Inter at opsz 32 everywhere; !important because every `font:` shorthand below resets it */
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); padding-inline: 16px; padding-block: 0 80px; }
 a { color: inherit; }
 .wrap { max-width: 1200px; margin-inline: auto; }
