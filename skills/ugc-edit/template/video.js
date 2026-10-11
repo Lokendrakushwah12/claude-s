@@ -13,6 +13,7 @@
 //   focus: true     the shot opens from a 14 px blur (hooks);  rack: true  it blurs out over its last 0.15 s
 //   laugh: "type"   a kept laugh is typed huge across the frame, a letter every 2 frames (needs the laugh in the phrase's piece)
 //   caption: "word" one word on screen at a time, hard on and off (a reel's calm body); top-level "captions": "word" sets it for all
+//   top-level "captions": "reel"  the aesthetic reel style in reel.js (mixed-type words at the top, stickers, frames, hookTitle)
 // Phones and code (2026-10-11b refs: phone mockups, code on screen; lib.js phone3d / codeBlock, a real 3D phone through Three.js):
 //   app inserts sit in a 3D phone by default (device: "card" = the flat card): it rises in (or the takeover card lands on its screen),
 //        drifts, a touch disc taps the button, and the toast lifts out of the phone as a crisp card while the phone defocuses;

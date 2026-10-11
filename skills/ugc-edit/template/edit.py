@@ -167,7 +167,7 @@ def build():
     parts.append(np.zeros(round((dur - pieces[-1]["out1"]) * SR)))
     write("dialogue.raw.wav", np.concatenate(parts))
     sh("ffmpeg", "-loglevel", "error", "-y", "-i", "dialogue.raw.wav", "-af", "acompressor=threshold=0.1:ratio=3:attack=5:release=120", "dialogue.wav"); Path("dialogue.raw.wav").unlink()
-    tl = {"size": f"{Wd}x{Hd}", "fps": FPS, "duration": round(dur, 3), "preset": ed.get("preset", "creator"), "brand": ed.get("brand", {}), "bed": ed.get("bed", "auto"), "captions": ed.get("captions"),
+    tl = {"size": f"{Wd}x{Hd}", "fps": FPS, "duration": round(dur, 3), "preset": ed.get("preset", "creator"), "brand": ed.get("brand", {}), "bed": ed.get("bed", "auto"), "captions": ed.get("captions"), "hookTitle": ed.get("hookTitle"),
           "shots": shots, "phrases": P, "words": [{"w": words[i]["w"], "t": out_t[i]} for i in sorted(out_t)]}
     Path("timeline.json").write_text(json.dumps(tl, indent=1)); Path("timeline.js").write_text("window.EDIT = " + json.dumps(tl) + ";\n")
     export(tl, pieces, src, Path.cwd().name)
@@ -326,13 +326,15 @@ def review():
     tl, cues = json.loads(Path("timeline.json").read_text()), json.loads(Path("cues.json").read_text())
     rows = sorted(([] if cues.get("sfx") in (None, "none") else cues["sfx"]) + sfx.autocue(cues.get("events") or []), key=lambda r: r[0])
     cuts = [s["out0"] for s in tl["shots"][1:]]; Path("review").mkdir(exist_ok=True); bad = 0
-    for t in cuts:  # whoosh peaks lead by up to 0.1 s; booms, flashes and swell ends sit on the cut
+    fk = lambda s: s["phrase"] is not None and tl["phrases"][s["phrase"]].get("frame")  # reel captions: a plain jump cut is silent on purpose
+    want = cuts if tl.get("captions") != "reel" else [b["out0"] for a, b in zip(tl["shots"], tl["shots"][1:]) if b["kind"] != "cam" or a["kind"] != "cam" or fk(a) != fk(b)]
+    for t in want:  # whoosh peaks lead by up to 0.1 s; booms, flashes and swell ends sit on the cut
         near = [r[1] for r in rows if -0.12 <= r[0] - t <= 0.05]
         if not near: bad += 1; print(f"  cut {t:6.2f}: NO SOUND")
     subs = [r for r in rows if sfx.FAMILY.get(r[1]) == "sub" and r[1] != "thump" and "word" not in (r[3:4] or [{}])[0]]  # thumps lead a giant word on purpose; a word's own sound is placed on purpose
     off = [r for r in subs if min(abs(r[0] - t) for t in cuts) > 1.01 / FPS]
     for r in off: print(f"  {r[1]} at {r[0]:.2f} is not on a cut")
-    print(f"cuts: {len(cuts)}, {len(cuts) - bad} with a sound; subs: {len(subs)}, {len(subs) - len(off)} on a cut")
+    print(f"cuts: {len(want)}, {len(want) - bad} with a sound; subs: {len(subs)}, {len(subs) - len(off)} on a cut")
     # masked? each cue against a mix without the SFX: what its loudest 50 ms adds (hassancs91/claude-youtube-editor's /suggest-sfx,
     # MIT: measure audibility, don't hope). Air sits 14 dB under the voice by design, so a passby in a cut's gap adds only ~1-2 dB;
     # under 1 dB (0.5 for micro) it's masked: a keyword suck_in under unbroken speech adds ~0 at any gain
