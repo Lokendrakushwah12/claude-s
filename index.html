@@ -9,7 +9,8 @@
 /* Layout: one column; a sticky tab bar switches between the reference wall and the results grid; skill chips cross-link the two. */
 :root {
   --bg: #f5f4f0; --panel: #ffffff; --raise: #ecebe6; --fg: #1a1a18; --dim: #66655f; --faint: #b9b8b1; --rule: #dcdbd5;
-  --accent: #d9481c; --track: #ececea; --mono: "Inter", -apple-system, system-ui, sans-serif;   /* Inter only, by request: the old mono labels use it too */
+  --accent: #d9481c; --track: #ececea;
+  --b-grey: #edeef0; --b-grey-fg: #5c6067; --b-green: #dcf5e3; --b-green-fg: #1d6b3a; --b-yellow: #fff3c4; --b-yellow-fg: #8f5f00; --b-red: #fde2e1; --b-red-fg: #b42318; --mono: "Inter", -apple-system, system-ui, sans-serif;   /* Inter only, by request: the old mono labels use it too */
   --sans: "Inter", -apple-system, system-ui, sans-serif; color-scheme: light;   /* light only, by request */
 }
 * { box-sizing: border-box; }
@@ -33,10 +34,14 @@ h1 { margin: 0; font-weight: 600; font-size: clamp(30px, 5vw, 48px); line-height
 .tab .n { font: 500 12px var(--mono); opacity: .6; }
 @media (prefers-reduced-motion: reduce) { .tab-pill, .tab { transition: none; } }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font: 500 12px/1 var(--mono); padding: 7px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--fg); cursor: pointer; text-decoration: none; white-space: nowrap; }
-.chip:hover { border-color: var(--faint); }
-.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.chip.ref { color: var(--dim); }
+/* badges and pills: a soft tint, no border, a small icon before the label (grey = neutral, green = on, yellow = reference) */
+.chip, .badge { display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--sans); padding: 6px 10px 6px 9px; border: 0; border-radius: 7px; background: var(--b-grey); color: var(--b-grey-fg); text-decoration: none; white-space: nowrap; }
+.chip::before, .badge::before { content: ""; width: 11px; height: 11px; flex: none; background: currentColor; -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; }
+.chip { --ic: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2012%2012%27%3E%3Ccircle%20cx%3D%276%27%20cy%3D%276%27%20r%3D%274%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.6%27/%3E%3C/svg%3E"); cursor: pointer; transition: background .2s, color .2s; }
+.chip:hover { background: #e3e4e7; }
+.chip[aria-pressed="true"] { --ic: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2012%2012%27%3E%3Cpath%20d%3D%27M3%201.8%2010.4%206%203%2010.2Z%27/%3E%3C/svg%3E"); background: var(--b-green); color: var(--b-green-fg); }
+.chip.ref { --ic: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2012%2012%27%3E%3Cpath%20d%3D%27M6%202.6C3.3%202.6%201.4%204.7.8%206c.6%201.3%202.5%203.4%205.2%203.4s4.6-2.1%205.2-3.4C10.6%204.7%208.7%202.6%206%202.6Zm0%205.4a2%202%200%201%201%200-4%202%202%200%200%201%200%204Z%27/%3E%3C/svg%3E"); background: var(--b-yellow); color: var(--b-yellow-fg); }
+.chip.ref:hover { background: #ffeca3; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 section[hidden] { display: none; }
 .intro { color: var(--dim); margin: 22px 0 14px; max-width: 70ch; }
@@ -66,8 +71,8 @@ h2 { font-size: 13px; font-family: var(--mono); font-weight: 500; letter-spacing
 .skill a { text-decoration: none; }
 .skill a:hover { text-decoration: underline; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
-.badge { font: 11px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--raise); color: var(--dim); }
-.badge.voice { color: var(--accent); }
+.badge { --ic: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2012%2012%27%3E%3Ccircle%20cx%3D%276%27%20cy%3D%276%27%20r%3D%274.4%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.4%27/%3E%3Cpath%20d%3D%27M6%203.6V6l1.7%201.1%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.4%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E"); }
+.badge.voice { --ic: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2012%2012%27%3E%3Crect%20x%3D%274%27%20y%3D%27.8%27%20width%3D%274%27%20height%3D%276.6%27%20rx%3D%272%27/%3E%3Cpath%20d%3D%27M2.4%205.6a3.6%203.6%200%200%200%207.2%200M6%209.3v2%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.3%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E"); background: var(--b-green); color: var(--b-green-fg); }
 .links { display: flex; gap: 14px; flex-wrap: wrap; }
 dialog { width: min(1100px, 96vw); height: min(92vh, 1000px); padding: 0; border: 1px solid var(--rule); border-radius: 12px; background: var(--bg); color: var(--fg); }
 dialog::backdrop { background: rgba(0,0,0,.7); }
