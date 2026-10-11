@@ -6,12 +6,9 @@
 <style>
 /* Layout: one column; a sticky tab bar switches between the reference wall and the results grid; skill chips cross-link the two. */
 :root {
-  --bg: #0e0e0d; --panel: #161614; --raise: #1d1d1a; --fg: #ecebe6; --dim: #8e8d87; --faint: #4a4944; --rule: #2a2a27;
-  --accent: #ff6a3d; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --sans: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif; color-scheme: dark;
-}
-@media (prefers-color-scheme: light) {
-  :root { --bg: #f5f4f0; --panel: #ffffff; --raise: #ecebe6; --fg: #1a1a18; --dim: #66655f; --faint: #b9b8b1; --rule: #dcdbd5; --accent: #d9481c; color-scheme: light; }
+  --bg: #f5f4f0; --panel: #ffffff; --raise: #ecebe6; --fg: #1a1a18; --dim: #66655f; --faint: #b9b8b1; --rule: #dcdbd5;
+  --accent: #d9481c; --track: #ececea; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif; color-scheme: light;   /* light only, by request */
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); padding-inline: 16px; padding-block: 0 80px; }
@@ -22,10 +19,15 @@ header { padding-block: 48px 20px; display: grid; gap: 10px; }
 h1 { margin: 0; font-size: clamp(30px, 5vw, 48px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; }
 .lede { margin: 0; max-width: 62ch; color: var(--dim); }
 .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--rule); padding-block: 12px; display: grid; gap: 10px; }
-.tabs { display: flex; gap: 6px; }
-.tab { font: 600 14px/1 var(--sans); padding: 10px 16px; border-radius: 999px; border: 1px solid var(--rule); background: transparent; color: var(--dim); cursor: pointer; }
-.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-.tab .n { font: 500 12px var(--mono); opacity: .7; margin-left: 6px; }
+.tabs { position: relative; display: inline-flex; width: fit-content; padding: 4px; border-radius: 999px; background: var(--track); }
+.tab-pill { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; border-radius: 999px; background: var(--panel);
+  box-shadow: 0 1px 2px rgba(20, 20, 18, .08), 0 2px 8px rgba(20, 20, 18, .06); transition: transform .32s cubic-bezier(.32, .72, 0, 1), width .32s cubic-bezier(.32, .72, 0, 1); }
+.tab-pill.instant { transition: none; }
+.tab { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; font: 500 15px/1 var(--sans); padding: 10px 18px; border: 0; border-radius: 999px; background: transparent; color: var(--dim); cursor: pointer; transition: color .25s; }
+.tab svg { width: 18px; height: 18px; flex: none; }
+.tab[aria-selected="true"] { color: var(--fg); }
+.tab .n { font: 500 12px var(--mono); opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .tab-pill, .tab { transition: none; } }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font: 500 12px/1 var(--mono); padding: 7px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--fg); cursor: pointer; text-decoration: none; white-space: nowrap; }
 .chip:hover { border-color: var(--faint); }
@@ -82,8 +84,9 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule);
 
   <div class="bar">
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tab-reference" aria-controls="reference" data-tab="reference">Reference<span class="n" id="n-ref"></span></button>
-      <button class="tab" role="tab" id="tab-result" aria-controls="result" data-tab="result">Result<span class="n" id="n-res"></span></button>
+      <span class="tab-pill instant" aria-hidden="true"></span>
+      <button class="tab" role="tab" id="tab-reference" aria-controls="reference" data-tab="reference"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z"/></svg>Reference<span class="n" id="n-ref"></span></button>
+      <button class="tab" role="tab" id="tab-result" aria-controls="result" data-tab="result"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M8.5 6.2v11.6c0 .7.8 1.2 1.4.8l8.6-5.8c.6-.4.6-1.2 0-1.6L9.9 5.4c-.6-.4-1.4.1-1.4.8Z"/></svg>Result<span class="n" id="n-res"></span></button>
     </div>
     <div class="chips" id="filter" aria-label="Filter by skill"></div>
   </div>
@@ -278,9 +281,14 @@ function applyFilter() {
   $('#n-ref').textContent = nr; $('#n-res').textContent = ns;
   document.querySelectorAll('#filter .chip').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.f || null) === filter)));
 }
+function slidePill() {   // the white pill slides under the selected tab and takes its width
+  const on = document.querySelector('.tab[aria-selected="true"]'), pill = $('.tab-pill'); if (!on || !pill) return;
+  pill.style.transform = `translateX(${on.offsetLeft}px)`; pill.style.width = `${on.offsetWidth}px`;
+}
 function show(tab) {
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
   $('#reference').hidden = tab !== 'reference'; $('#result').hidden = tab !== 'result';
+  slidePill();
 }
 function flash(el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600); }
 function route() {
@@ -308,7 +316,7 @@ const loadX = () => twttrP ??= new Promise((ok, bad) => {
   const sc = document.createElement('script'); sc.src = 'https://platform.twitter.com/widgets.js'; sc.async = true;
   sc.onload = () => window.twttr.ready(ok); sc.onerror = bad; document.head.appendChild(sc);
 });
-const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+const dark = () => false;   // the page is light only
 const fail = el => { el.className = 'embed fail'; el.textContent = 'The post couldn’t load here (X needs the page served over http). Use “Open original” below.'; };
 const io = new IntersectionObserver(es => es.forEach(e => {
   if (!e.isIntersecting) return; const el = e.target; io.unobserve(el); el.classList.add('wait');
@@ -318,5 +326,7 @@ const io = new IntersectionObserver(es => es.forEach(e => {
 document.querySelectorAll('.embed[data-tweet]').forEach(el => io.observe(el));
 
 applyFilter(); route();
+requestAnimationFrame(() => requestAnimationFrame(() => $('.tab-pill').classList.remove('instant')));   // first placement doesn't slide in
+new ResizeObserver(slidePill).observe($('.tabs')); document.fonts?.ready.then(slidePill);   // counts and fonts change tab widths
 </script>
 </html>
