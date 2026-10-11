@@ -8,8 +8,8 @@
 <style>
 /* Layout: one column; a sticky tab bar switches between the reference wall and the results grid; skill chips cross-link the two. */
 :root {
-  --bg: #f5f4f0; --panel: #ffffff; --raise: #ecebe6; --fg: #1a1a18; --dim: #66655f; --faint: #b9b8b1; --rule: #dcdbd5;
-  --accent: #d9481c; --track: #ececea;
+  --bg: #ffffff; --panel: #ffffff; --raise: #f4f4f5; --fg: #111113; --dim: #6b6b70; --faint: #b4b4b9; --rule: #e6e6e9;
+  --accent: #f2541b; --track: #f2f2f3;
   --b-grey: #edeef0; --b-grey-fg: #5c6067; --b-green: #dcf5e3; --b-green-fg: #1d6b3a; --b-yellow: #fff3c4; --b-yellow-fg: #8f5f00; --b-red: #fde2e1; --b-red-fg: #b42318; --mono: "Inter", -apple-system, system-ui, sans-serif;   /* Inter only, by request: the old mono labels use it too */
   --sans: "Inter", -apple-system, system-ui, sans-serif; color-scheme: light;   /* light only, by request */
 }
@@ -19,11 +19,17 @@ button, input, select, textarea, code, kbd, pre { font-family: inherit; }   /* f
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); padding-inline: 16px; padding-block: 0 80px; }
 a { color: inherit; }
 .wrap { max-width: 1200px; margin-inline: auto; }
-header { padding-block: 48px 20px; display: grid; gap: 10px; }
+/* landing: a quiet top nav, an airy hero, then the tabs */
+.topnav { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-block: 20px; font-size: 14px; }
+.topnav a { text-decoration: none; color: var(--dim); } .topnav a:hover { color: var(--fg); }
+.topnav .brand { color: var(--fg); font-weight: 500; } .topnav nav { display: flex; gap: 24px; }
+header { padding-block: clamp(72px, 15vh, 150px) clamp(64px, 13vh, 130px); display: grid; gap: 12px; justify-items: start; }
+.new { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; font-weight: 500; text-decoration: none; }
+.new svg { width: 16px; height: 16px; color: var(--accent); flex: none; } .new .arr { transition: transform .2s; } .new:hover .arr { transform: translateX(3px); }
 .k { font: 500 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
-h1 { margin: 0; font-weight: 600; font-size: clamp(30px, 5vw, 48px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; }
-.lede { margin: 0; max-width: 62ch; color: var(--dim); }
-.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--rule); padding-block: 12px; display: grid; gap: 10px; }
+h1 { margin: 0; font-weight: 500; font-size: clamp(28px, 3.6vw, 34px); line-height: 1.15; letter-spacing: -.02em; text-wrap: balance; }
+.lede { margin: 0; max-width: 72ch; color: var(--dim); font-size: 17px; line-height: 1.5; }
+.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-block: 12px; display: grid; gap: 12px; }
 .tabs { position: relative; display: inline-flex; width: fit-content; padding: 4px; border-radius: 999px; background: var(--track); }
 .tab-pill { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; border-radius: 999px; background: var(--panel);
   box-shadow: 0 1px 2px rgba(20, 20, 18, .08), 0 2px 8px rgba(20, 20, 18, .06); transition: transform .32s cubic-bezier(.32, .72, 0, 1), width .32s cubic-bezier(.32, .72, 0, 1); }
@@ -152,14 +158,43 @@ button.tag { cursor: pointer; font: inherit; font-size: 13px; } button.tag[aria-
 /* three tabs with icons and counts are ~440px; on a phone drop the icons so the bar fits 375 */
 @media (max-width: 640px) { .tab { padding: 10px 12px; gap: 6px; } .tab svg { display: none; } }
 @media (max-width: 640px) { #filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; } }
-footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--dim); font: 12px var(--mono); }
+/* filter chips: outlined pills with a count for the open tab; black when picked, faded when that tab has none */
+#filter .chip { border: 1px solid var(--rule); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 8px 15px; font-size: 14px; gap: 0; }
+#filter .chip::before { display: none; }
+#filter .chip .c { margin-left: 6px; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+#filter .chip:hover { border-color: var(--faint); }
+#filter .chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: #fff; } #filter .chip[aria-pressed="true"] .c { color: #fffa; }
+#filter .chip.zero:not([aria-pressed="true"]) { color: var(--faint); border-color: #f0f0f2; } #filter .chip.zero .c { color: inherit; }
+/* results: a gallery tile, the poster on top and one line of who and what under it */
+#results { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 32px 20px; }
+.rcard { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; padding: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--raise); cursor: pointer; }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.thumb img.bg { object-fit: cover; filter: blur(22px) saturate(1.1); transform: scale(1.25); opacity: .9; }
+.thumb img:not(.bg) { transition: transform .5s cubic-bezier(.2, .7, .2, 1); } .thumb:hover img:not(.bg) { transform: scale(1.03); }
+.thumb .go { position: absolute; right: 10px; bottom: 10px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.92); display: grid; place-items: center; opacity: 0; transition: opacity .2s; }
+.thumb:hover .go, .thumb:focus-visible .go { opacity: 1; } .thumb .go svg { width: 14px; height: 14px; margin-left: 2px; }
+.thumb.soon { cursor: default; display: grid; place-items: center; color: var(--dim); font-size: 14px; }
+.rcard.flash .thumb { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.rrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rrow .av { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; background: var(--raise); flex: none; }
+.rrow .rname { font-size: 15px; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rrow .rname:hover { text-decoration: underline; }
+.rrow .pills { margin-left: auto; display: flex; gap: 6px; flex: none; }
+.pill { font-size: 12px; line-height: 1; color: var(--dim); border: 1px solid var(--rule); border-radius: 999px; padding: 4px 8px; }
+.rtitle { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.45; }
+.side .desc { margin: -6px 0 0; color: var(--dim); font-size: 14px; line-height: 1.55; }
+.side dd .feeds { gap: 4px; }
+footer { margin-top: 72px; padding-top: 28px; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--dim); }
+footer nav { display: flex; gap: 18px; margin-bottom: 8px; } footer nav a, footer b a { color: var(--fg); text-decoration: none; } footer nav a:hover, footer b a:hover { text-decoration: underline; }
+footer p { margin: 0; } footer b { font-weight: 500; }
 </style>
 
 <div class="wrap">
+  <div class="topnav"><a class="brand" href="#reference">claude-s</a><nav><a href="#result">Results</a><a href="https://github.com/Lokendrakushwah12/claude-s#install" target="_blank" rel="noopener">Install</a><a href="https://github.com/Lokendrakushwah12/claude-s" target="_blank" rel="noopener">GitHub ↗</a></nav></div>
   <header>
-    <div class="k">claude-s · video skills for Claude</div>
-    <h1>What each skill learned, and what it made</h1>
-    <p class="lede">References are the videos and pages the skills learned from; each one lists the techniques taken and the skills that took them. Results are the test renders each skill made, linked back to its references. Learnings are the lessons from building them. Pick a skill to see only its side of all three.</p>
+    <h1>claude-s</h1>
+    <p class="lede">Video skills for Claude Opus 5.5: the references they learned from, the videos they made, and what building them taught us.</p>
+    <a class="new" href="#learnings"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M2 4h12M2 8h12M2 12h12"/><circle cx="5" cy="4" r="1.6" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/><circle cx="11" cy="8" r="1.6" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="12" r="1.6" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/></svg>New: how claude-s got built, as an illustrated timeline <span class="arr">→</span></a>
   </header>
 
   <div class="bar">
@@ -192,7 +227,11 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule);
     <div id="learn"></div>
   </section>
 
-  <footer>github.com/Lokendrakushwah12/claude-s · MIT</footer>
+  <footer>
+    <div><nav><a href="#result">Results</a><a href="#learnings">Learnings</a><a href="https://github.com/Lokendrakushwah12/claude-s#install" target="_blank" rel="noopener">Install</a><a href="https://github.com/Lokendrakushwah12/claude-s" target="_blank" rel="noopener">GitHub</a></nav>
+    <p>References belong to their creators, linked on each entry. Skills are MIT.</p></div>
+    <p>Made by <b><a href="https://github.com/Lokendrakushwah12" target="_blank" rel="noopener">@Lokendrakushwah12</a></b></p>
+  </footer>
 </div>
 
 <dialog id="player" aria-labelledby="pl-title">
@@ -200,6 +239,7 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule);
   <aside class="side">
     <div class="sh"><img class="av" id="pl-av" alt=""><div class="who"><b id="pl-skill"></b><small>claude-s skill</small></div><a id="player-open" class="out" target="_blank" rel="noopener">Open page ↗</a><button class="x" id="player-close" aria-label="Close">×</button></div>
     <h2 id="pl-title"></h2>
+    <p class="desc" id="pl-desc"></p>
     <div class="tags" id="pl-tags"></div>
     <div id="pl-body"></div>
     <dl id="pl-meta"></dl>
@@ -390,17 +430,12 @@ function refCard(r) {
     <p class="took">${esc(r.took)}</p>
     <div class="feeds"><span class="lab">Feeds</span>${chips}</div>${link}</article>`;
 }
-function resCard(s) {
-  const refs = fedBy(s.id), chips = refs.length ? refs.map(r => `<a class="chip ref" href="#ref-${r.n}" data-ref="${r.n}">#${r.n} ${esc(r.who)}</a>`).join('')
-    : '<span class="empty">A tool: it takes references apart for the others</span>';
-  return `<article class="card" id="skill-${s.id}" data-skills="${s.id}">
-    ${s.demo ? `<button class="poster" data-play="${s.demo}" data-title="${esc(s.title)}" aria-label="Play the ${s.id} demo"><img src="demos/posters/${s.demo}.jpg" alt="" loading="lazy"><span class="play">▶ Play demo</span></button>` : ''}
-    <div class="skill"><a href="${GH}${s.id}" target="_blank" rel="noopener">${s.id}</a></div>
-    <p class="took">${esc(s.makes)}</p>
-    <h3 class="title">${esc(s.title)}</h3>
-    <div class="badges"><span class="badge">${esc(s.meta)}</span>${s.voice ? '<span class="badge voice">voiced</span>' : ''}</div>
-    <div class="feeds"><span class="lab">Learned from</span>${chips}</div>
-    <div class="links">${s.demo ? `<a class="out" href="demos/${s.demo}.html" target="_blank" rel="noopener">Open demo page ↗</a>` : ''}<a class="out" href="${GH}${s.id}/SKILL.md" target="_blank" rel="noopener">Read SKILL.md ↗</a></div></article>`;
+function resCard(s) {   // the details (what it makes, the prompt, its references) live in the player's side panel
+  const img = `demos/posters/${s.demo || s.id}.jpg`;
+  return `<article class="rcard" id="skill-${s.id}" data-skills="${s.id}">
+    ${s.demo ? `<button class="thumb" data-play="${s.demo}" aria-label="Play the ${s.id} demo"><img class="bg" src="${img}" alt="" loading="lazy"><img src="${img}" alt="" loading="lazy"><span class="go"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8 10.4 6 3 10.2Z"/></svg></span></button>` : '<div class="thumb soon">Demo coming soon</div>'}
+    <div class="rrow"><img class="av" src="${img}" alt=""><a class="rname" href="${GH}${s.id}" target="_blank" rel="noopener">${s.id}</a><span class="pills">${s.voice ? '<span class="pill">Voiced</span>' : ''}<span class="pill">Skill</span></span></div>
+    <p class="rtitle">${esc(s.demo ? s.title : s.makes)}</p></article>`;
 }
 
 $('#refs-batch2').innerHTML = REFS2.map(refCard).join('');
@@ -456,12 +491,17 @@ $('#learn').innerHTML = AR + `<div class="tl">${CH.map(ch => `<section class="tl
   <p class="lrow"><b>Happened</b><span>${esc(it.h)}</span></p><p class="lrow"><b>Changed</b><span>${esc(it.c)}</span></p>
   <span class="metric">${esc(it.m)}</span>${it.s.length ? `<div class="feeds">${it.s.map(f => `<a class="chip" href="#skill-${f}" data-go="${f}">${f}</a>`).join('')}</div>` : ''}</div>
   <figure>${it.v.img ? `<img src="learnings/${it.v.img}" alt="${esc(it.v.cap)}" loading="lazy">` : DG[it.v.svg]()}<figcaption>${esc(it.v.cap)}</figcaption></figure></article>`).join('')}</section>`).join('')}</div>`;
-$('#filter').innerHTML = `<button class="chip" data-f="" aria-pressed="true">All skills</button>` + SKILLS.map(s => `<button class="chip" data-f="${s.id}" aria-pressed="false">${s.id}</button>`).join('');
+$('#filter').innerHTML = `<button class="chip" data-f="" aria-pressed="true">All skills<span class="c"></span></button>` + SKILLS.map(s => `<button class="chip" data-f="${s.id}" aria-pressed="false">${s.id}<span class="c"></span></button>`).join('');
+const tabNow = () => document.querySelector('.tab[aria-selected="true"]')?.dataset.tab || 'reference';
+function countChips() {   // each chip counts what the open tab holds for that skill
+  const items = { reference: ALL.map(r => r.feeds), result: SKILLS.map(s => [s.id]), learnings: CH.flatMap(c => c.items.map(i => i.s)) }[tabNow()];
+  document.querySelectorAll('#filter .chip').forEach(b => { const f = b.dataset.f, n = f ? items.filter(x => x.includes(f)).length : items.length; b.querySelector('.c').textContent = n; b.classList.toggle('zero', !n); });
+}
 
 function applyFilter() {
   let nr = 0, ns = 0;
   document.querySelectorAll('#reference .card').forEach(c => { const on = !filter || c.dataset.skills.split(' ').includes(filter); c.hidden = !on; nr += on; });
-  document.querySelectorAll('#results .card').forEach(c => { const on = !filter || c.dataset.skills === filter; c.hidden = !on; ns += on; });
+  document.querySelectorAll('#results .rcard').forEach(c => { const on = !filter || c.dataset.skills === filter; c.hidden = !on; ns += on; });
   let nl = 0;
   document.querySelectorAll('#learn .tl-item').forEach(li => { const sk = li.dataset.skills; const on = !filter || !sk || sk.split(' ').includes(filter); li.hidden = !on; nl += on; });
   document.querySelectorAll('#learn .lgroup').forEach(g => { g.hidden = !g.querySelector('.tl-item:not([hidden])'); });   // a group with nothing left hides its heading
@@ -475,7 +515,7 @@ function slidePill() {   // the white pill slides under the selected tab and tak
 function show(tab) {
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
   $('#reference').hidden = tab !== 'reference'; $('#result').hidden = tab !== 'result'; $('#learnings').hidden = tab !== 'learnings';
-  slidePill();
+  slidePill(); countChips();
 }
 function flash(el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600); }
 function route() {
@@ -506,7 +546,7 @@ const cut = (src, autoplay) => {
 };
 async function openDemo(i, autoplay = true) {
   cur = (i + DEMOS.length) % DEMOS.length; const s = DEMOS[cur], t = ++ticket;
-  $('#pl-skill').textContent = s.id; $('#pl-av').src = `demos/posters/${s.demo}.jpg`; $('#pl-title').textContent = s.title;
+  $('#pl-skill').textContent = s.id; $('#pl-av').src = `demos/posters/${s.demo}.jpg`; $('#pl-title').textContent = s.title; $('#pl-desc').textContent = s.makes;
   $('#player-open').href = `demos/${s.demo}.html`;
   $('#pl-tags').innerHTML = s.meta.split(' · ').map(m => `<span class="tag">${esc(m)}</span>`).join('') + (s.voice ? '<span class="tag">voiced</span>' : '');
   $('#pl-body').innerHTML = ''; $('#pl-meta').innerHTML = '';
@@ -520,11 +560,12 @@ async function openDemo(i, autoplay = true) {
     + (pg.prompt ? `<section><div class="lab">Prompt <button class="pl-btn" id="pl-copy">Copy</button></div><div class="pbox" id="pl-pbox">${esc(pg.prompt)}</div><button class="more" id="pl-more">Show all</button></section>` : '')
     + list('What the skill did', pg.did) + list('Sound', pg.sound);
   const pb = $('#pl-pbox'); if (pb && pb.scrollHeight <= pb.clientHeight + 2) { pb.classList.add('open'); $('#pl-more').remove(); }
-  const refs = fedBy(s.id).length;
-  $('#pl-meta').innerHTML = `<dt>Model</dt><dd>Opus 5.5</dd><dt>Format</dt><dd>${esc(s.meta)}</dd>${refs ? `<dt>Learned from</dt><dd>${refs} reference${refs > 1 ? 's' : ''}</dd>` : ''}<dt>Skill</dt><dd><a class="out" href="${GH}${s.id}/SKILL.md" target="_blank" rel="noopener">SKILL.md ↗</a></dd>`;
+  const refs = fedBy(s.id);
+  $('#pl-meta').innerHTML = `<dt>Model</dt><dd>Opus 5.5</dd><dt>Format</dt><dd>${esc(s.meta)}</dd>${refs.length ? `<dt>Learned from</dt><dd><div class="feeds">${refs.map(r => `<a class="chip ref" href="#ref-${r.n}">#${r.n} ${esc(r.who)}</a>`).join('')}</div></dd>` : ''}<dt>Skill</dt><dd><a class="out" href="${GH}${s.id}/SKILL.md" target="_blank" rel="noopener">SKILL.md ↗</a></dd>`;
 }
 document.addEventListener('click', e => {
   const p = e.target.closest('[data-play]'); if (p) return openDemo(DEMOS.findIndex(s => s.demo === p.dataset.play));
+  if (e.target.closest('#player a[href^="#"]')) dlg.close();   // a reference link leaves the player for the wall
   const c = e.target.closest('[data-cut]');
   if (c) { pages.get(DEMOS[cur].demo).then(pg => cut(pg.vids[+c.dataset.cut], true)); document.querySelectorAll('[data-cut]').forEach(b => b.setAttribute('aria-pressed', b === c)); }
   if (e.target.id === 'pl-more') { $('#pl-pbox').classList.add('open'); e.target.remove(); }
