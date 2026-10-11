@@ -103,6 +103,7 @@ dialog::backdrop { background: rgba(20, 20, 18, .6); backdrop-filter: blur(6px);
 /* cut switcher: a dropdown over the stage's top-left corner, only when a demo has more than one cut */
 .cutsel { position: absolute; top: 16px; left: 16px; z-index: 2; appearance: none; -webkit-appearance: none; font: 500 13px/1 var(--sans); color: var(--fg); background: rgba(255,255,255,.94) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23111113' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 10px center / 12px no-repeat; border: 1px solid var(--rule); border-radius: 999px; padding: 8px 30px 8px 13px; box-shadow: 0 1px 2px rgba(17,17,19,.06), 0 4px 12px rgba(17,17,19,.06); cursor: pointer; }
 .cutsel:hover { border-color: var(--faint); }
+.cutsel { max-width: min(460px, calc(100% - 32px)); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .side .lab { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--dim); margin-bottom: 8px; }
 .side .pl-btn { font: 500 13px var(--sans); color: var(--dim); background: none; border: 0; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
 .side .pbox { position: relative; background: var(--raise); border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.6; max-height: 9.6em; overflow: hidden; }
@@ -533,41 +534,52 @@ $('#filter').addEventListener('click', e => { const b = e.target.closest('[data-
 window.addEventListener('hashchange', route);
 
 const dlg = $('#player'), stage = $('#pl-stage'), DEMOS = SKILLS.filter(s => s.demo);
-const pages = new Map();   // demo id -> parsed page; each embedded video becomes a blob URL once, so seeking stays cheap
+const pages = new Map();   // page id -> its cuts; each embedded video becomes a blob URL once, so seeking stays cheap
+const shape = r => [['9:16', 9 / 16], ['3:4', 3 / 4], ['1:1', 1], ['4:3', 4 / 3], ['16:9', 16 / 9]].reduce((a, b) => Math.abs(Math.log(b[1] / r)) < Math.abs(Math.log(a[1] / r)) ? b : a)[0];
+const fmtOf = u => new Promise(ok => { const v = document.createElement('video'); v.preload = 'metadata'; v.src = u;
+  v.onloadedmetadata = () => ok(`${Math.round(v.duration)} s · ${shape(v.videoWidth / v.videoHeight)}`); v.onerror = () => ok(''); });
+// A page's cuts. New examples are <article class="cut" data-title> blocks with their own prompt and notes; older videos
+// carry data-title and share the page's prompt and notes; a page with no video is one interactive cut.
 const parse = id => pages.get(id) || pages.set(id, fetch(`demos/${id}.html`).then(r => r.text()).then(async html => {
   const d = new DOMParser().parseFromString(html, 'text/html');
-  const sec = h => { const h2 = [...d.querySelectorAll('h2')].find(x => x.textContent === h); return h2 ? [...h2.parentElement.querySelectorAll('li')].map(li => li.textContent) : []; };
-  const vids = await Promise.all([...d.querySelectorAll('video')].map(v => fetch(v.getAttribute('src')).then(r => r.blob()).then(URL.createObjectURL)));
-  const shape = r => [['9:16', 9 / 16], ['3:4', 3 / 4], ['1:1', 1], ['4:3', 4 / 3], ['16:9', 16 / 9]].reduce((a, b) => Math.abs(Math.log(b[1] / r)) < Math.abs(Math.log(a[1] / r)) ? b : a)[0];
-  const labels = await Promise.all(vids.map((u, k) => new Promise(ok => { const v = document.createElement('video'); v.preload = 'metadata'; v.src = u;
-    v.onloadedmetadata = () => ok(`Cut ${k + 1} · ${shape(v.videoWidth / v.videoHeight)} · ${Math.round(v.duration)} s`); v.onerror = () => ok(`Cut ${k + 1}`); })));
-  return { vids, labels, prompt: d.querySelector('blockquote')?.textContent || '', did: sec('What the skill did'), sound: sec('Sound') };
+  const lis = (h, own) => [...d.querySelectorAll('h2')].filter(x => x.textContent === h && x.closest('article.cut') === own).flatMap(x => [...x.parentElement.querySelectorAll('li')].map(li => li.textContent));
+  const cuts = await Promise.all([...d.querySelectorAll('video')].map(async v => {
+    const own = v.closest('article.cut'), src = await fetch(v.getAttribute('src')).then(r => r.blob()).then(URL.createObjectURL);
+    const q = own ? own.querySelector('blockquote') : [...d.querySelectorAll('blockquote')].find(b => !b.closest('article.cut'));
+    return { src, page: id, title: own?.dataset.title || v.dataset.title || '', prompt: q?.textContent || '', did: lis('What the skill did', own), sound: lis('Sound', own), fmt: await fmtOf(src) };
+  }));
+  if (!cuts.length) cuts.push({ page: id, iframe: true, title: d.title, prompt: d.querySelector('meta[name="prompt"]')?.content || d.querySelector('blockquote')?.textContent || '', did: [], sound: [], fmt: 'interactive page' });
+  return cuts;
 })).get(id);
-let cur = 0, ticket = 0;
-const cut = (src, autoplay) => {
-  stage.innerHTML = `<video controls playsinline src="${src}"></video>`;
-  const v = stage.firstChild; v.onloadedmetadata = () => v.style.setProperty('--r', v.videoWidth / v.videoHeight);
-  if (autoplay) v.play().catch(() => {});
-  return v;
-};
+let cur = 0, ticket = 0, cuts = [];
+function showCut(k, autoplay) {   // the stage, the panel's title, tags, prompt and notes all follow the picked cut
+  const s = DEMOS[cur], c = cuts[k];
+  if (c.iframe) stage.innerHTML = `<iframe src="demos/${c.page}.html" title="${esc(c.title)}"></iframe>`;   // interactive pages run in the stage
+  else {
+    stage.innerHTML = `<video controls playsinline src="${c.src}"></video>`;
+    const v = stage.firstChild; v.onloadedmetadata = () => v.style.setProperty('--r', v.videoWidth / v.videoHeight);
+    if (autoplay) v.play().catch(() => {});
+  }
+  $('#player-open').href = `demos/${c.page}.html`; $('#pl-title').textContent = c.title || s.title;
+  $('#pl-tags').innerHTML = c.fmt.split(' · ').filter(Boolean).map(m => `<span class="tag">${esc(m)}</span>`).join('') + (cuts.length > 1 ? `<span class="tag">${k + 1} of ${cuts.length}</span>` : '');
+  const list = (h, xs) => xs.length ? `<section><div class="lab">${h}</div><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>` : '';
+  $('#pl-body').innerHTML = (c.prompt ? `<section><div class="lab">Prompt <button class="pl-btn" id="pl-copy">Copy</button></div><div class="pbox" id="pl-pbox">${esc(c.prompt)}</div><button class="more" id="pl-more">Show all</button></section>` : '')
+    + list('What the skill did', c.did) + list('Sound', c.sound);
+  const pb = $('#pl-pbox'); if (pb && pb.scrollHeight <= pb.clientHeight + 2) { pb.classList.add('open'); $('#pl-more').remove(); }
+  $('#pl-cutsel').value = k;
+}
 async function openDemo(i, autoplay = true) {
   cur = (i + DEMOS.length) % DEMOS.length; const s = DEMOS[cur], t = ++ticket;
   $('#pl-skill').textContent = s.id; $('#pl-av').src = `demos/posters/${s.demo}.jpg`; $('#pl-title').textContent = s.title; $('#pl-desc').textContent = s.makes;
-  $('#player-open').href = `demos/${s.demo}.html`;
-  $('#pl-tags').innerHTML = s.meta.split(' · ').map(m => `<span class="tag">${esc(m)}</span>`).join('') + (s.voice ? '<span class="tag">voiced</span>' : '');
-  $('#pl-body').innerHTML = ''; $('#pl-meta').innerHTML = '';
+  $('#player-open').href = `demos/${s.demo}.html`; $('#pl-tags').innerHTML = ''; $('#pl-body').innerHTML = '';
   stage.innerHTML = '<span class="wait">Loading…</span>'; $('#pl-cutsel').hidden = true;
-  if (!dlg.open) dlg.showModal();
-  const pg = await parse(s.demo); if (t !== ticket) return;   // a newer demo was picked while this one loaded
-  if (!pg.vids.length) stage.innerHTML = `<iframe src="demos/${s.demo}.html" title="${esc(s.title)}"></iframe>`;   // interactive pages run in the stage
-  else cut(pg.vids[0], autoplay);
-  const sel = $('#pl-cutsel'); sel.innerHTML = pg.labels.map((l, k) => `<option value="${k}">${l}</option>`).join(''); sel.hidden = pg.vids.length < 2;
-  const list = (h, xs) => xs.length ? `<section><div class="lab">${h}</div><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>` : '';
-  $('#pl-body').innerHTML = (pg.prompt ? `<section><div class="lab">Prompt <button class="pl-btn" id="pl-copy">Copy</button></div><div class="pbox" id="pl-pbox">${esc(pg.prompt)}</div><button class="more" id="pl-more">Show all</button></section>` : '')
-    + list('What the skill did', pg.did) + list('Sound', pg.sound);
-  const pb = $('#pl-pbox'); if (pb && pb.scrollHeight <= pb.clientHeight + 2) { pb.classList.add('open'); $('#pl-more').remove(); }
   const refs = fedBy(s.id);
-  $('#pl-meta').innerHTML = `<dt>Model</dt><dd>Opus 5.5</dd><dt>Format</dt><dd>${esc(s.meta)}</dd>${refs.length ? `<dt>Learned from</dt><dd><div class="feeds">${refs.map(r => `<a class="chip ref" href="#ref-${r.n}">#${r.n} ${esc(r.who)}</a>`).join('')}</div></dd>` : ''}<dt>Skill</dt><dd><a class="out" href="${GH}${s.id}/SKILL.md" target="_blank" rel="noopener">SKILL.md ↗</a></dd>`;
+  $('#pl-meta').innerHTML = `<dt>Model</dt><dd>Opus 5.5</dd>${refs.length ? `<dt>Learned from</dt><dd><div class="feeds">${refs.map(r => `<a class="chip ref" href="#ref-${r.n}">#${r.n} ${esc(r.who)}</a>`).join('')}</div></dd>` : ''}<dt>Skill</dt><dd><a class="out" href="${GH}${s.id}/SKILL.md" target="_blank" rel="noopener">SKILL.md ↗</a></dd>`;
+  if (!dlg.open) dlg.showModal();
+  const all = (await Promise.all([s.demo, ...(s.extra || [])].map(parse))).flat(); if (t !== ticket) return;   // a newer demo was picked while this one loaded
+  cuts = all;
+  const sel = $('#pl-cutsel'); sel.innerHTML = cuts.map((c, k) => `<option value="${k}">${esc(c.title || `Cut ${k + 1}`)} · ${esc(c.fmt)}</option>`).join(''); sel.hidden = cuts.length < 2;
+  showCut(0, autoplay);
 }
 document.addEventListener('click', e => {
   const p = e.target.closest('[data-play]'); if (p) return openDemo(DEMOS.findIndex(s => s.demo === p.dataset.play));
@@ -575,7 +587,7 @@ document.addEventListener('click', e => {
   if (e.target.id === 'pl-more') { $('#pl-pbox').classList.add('open'); e.target.remove(); }
   if (e.target.id === 'pl-copy') navigator.clipboard.writeText($('#pl-pbox').textContent).then(() => { e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1500); });
 });
-$('#pl-cutsel').addEventListener('change', e => pages.get(DEMOS[cur].demo).then(pg => cut(pg.vids[+e.target.value], true)));
+$('#pl-cutsel').addEventListener('change', e => showCut(+e.target.value, true));
 $('#pl-prev').addEventListener('click', () => openDemo(cur - 1));
 $('#pl-next').addEventListener('click', () => openDemo(cur + 1));
 $('#player-close').addEventListener('click', () => dlg.close());
