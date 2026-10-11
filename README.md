@@ -30,7 +30,7 @@ Install them together. The skills share three toolkits, which they copy from eac
 | Template | Shared files | What they do |
 |---|---|---|
 | `music-video/template` | `render.mjs`, `lib.js`, `toon.js` | the frame-exact renderer (`--still`, `--subframes` motion blur, `--smooth` 60 fps with a real shutter and `VIDEO.blur` windows, `--motioncheck` judder test, `--loopcheck`), the easing and timing helpers, `smoothText` for slow-moving type, 3D through Three.js (`gl3d`, a lit `phone3d` whose screen is any drawing), a typing `codeBlock`, and `toon.js` character acting |
-| `promo-video/template` | `sfx.py`, `promo.js` | 57 synthesised sounds, beds, voice ducking, sound levels by family, and `autocue` for edits |
+| `promo-video/template` | `sfx.py`, `promo.js` | 59 synthesised sounds, beds, voice ducking, sound levels by family, and `autocue` for edits |
 | `type-film/template` | `type.js`, `look.js`, `iso.js`, `filmlook.sh` | about 70 type and motion devices (including aura hits: speed ramps, punches, impact frames), film and screen looks, isometric solids, an ffmpeg film-look pass, and `creative.md`, the method the skills follow to get past derivative ideas |
 
 ## Requirements

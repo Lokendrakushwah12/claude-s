@@ -16,6 +16,8 @@ there from VIDEO) OR inside bed (a bed with no bpm plays no music and just carri
   sfx        [[t, name], [t, name, gain], [t, name, gain, {params}], ...]. "none" or [] = no SFX
   events     [{t, kind, ...}] -> autocue() rows, appended to sfx
   music      a licensed track. It sits on the music bus with the bed (ducks, low-passes, tape-stops with it)
+  music_fade seconds the track fades out over at the film's end, 1.5 by default; 0 = no fade (a synthesised score passed
+             as music). Top level or in bed (VIDEO.bed.music_fade: render.mjs --cues doesn't copy it to the top level)
   vo         'voice.wav' or [[t, 'clip.wav'], ...]: mixed in, high-passed at 80 Hz. The music ducks under it and every
              SFX is set by LEVEL for its family
   drone      true or {hum: 50, whine: 7812, gain: 1}: room tone (mains hum, CRT whine, hiss). Without a bed this is the
@@ -917,7 +919,8 @@ def _render(cues, out, audition):
     (md, mv), (dd, dv), (sd, sv), (rd, rv) = (BUS[b] for b in ("mus", "duck", "sfx", "room"))
     music = md + dd * side + reverb(mv + dv * side)
     if cues.get("music"):
-        m = load(cues["music"])[:, :N]; music[:, : m.shape[1]] += m * 0.8 * np.clip((N - np.arange(m.shape[1])) / (1.5 * SR), 0, 1)
+        m, fade = load(cues["music"])[:, :N], opt("music_fade", 1.5)  # 0: a synthesised score passed as music plays to the end
+        music[:, : m.shape[1]] += m * 0.8 * (np.clip((N - np.arange(m.shape[1])) / (fade * SR), 0, 1) if fade else 1)
     for at, dur in sorted(TAPE): tape(music, at, dur)
     if vo is not None and music.any():  # music LEVEL music under the voice while it speaks, LEVEL duck dB up in the pauses
         p = frames(music); music *= ref * 10 ** ((LEVEL["music"] + LEVEL["duck"]) / 20) / np.sqrt(p[p > p.max() * 1e-4].mean()) * duck_gain(act)

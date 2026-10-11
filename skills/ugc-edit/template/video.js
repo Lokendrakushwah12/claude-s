@@ -612,8 +612,11 @@ const SOUNDS = {
 };
 function sounds() {
   const ev = [], sfx = [];
-  E.shots.forEach(s => { if (s.insert?.kind === 'rec' && s.cursor) { // when each logged click shows on the output clock
-    s.clicks = []; for (const c0 of s.cursor.clicks) for (let f = Math.round(s.out0 * FPS); f < s.out1 * FPS; f++) if (recSrc(s, f / FPS) >= c0) { const m = s.cursor.moves[Math.round(c0 * FPS)] || s.cursor.moves.at(-1); if (f > s.out0 * FPS) s.clicks.push({ t: f / FPS, at: [m.x, m.y] }); break; } } });
+  E.shots.forEach(s => { if (s.insert?.kind === 'rec' && s.cursor) { // when each logged click shows on the output clock: on frame f when the
+    // source passes it between f - 1 and f, phrase by phrase, as the source can jump (a hook from later in the recording, a cut back)
+    s.clicks = []; for (const i of s.phrases) { const p = E.phrases[i], src = f => recSrc(s, clamp(f / FPS, p.start, p.end - 1e-6)); // its own end: a click on its last frame counts
+      for (let f = Math.round(p.start * FPS) + 1; f <= Math.round(p.end * FPS); f++) for (const c0 of s.cursor.clicks)
+        if (src(f - 1) < c0 && c0 <= src(f) && !s.clicks.some(k => k.rec === c0 && Math.abs(k.t - f / FPS) < 0.1)) { const m = s.cursor.moves[Math.round(c0 * FPS)] || s.cursor.moves.at(-1); s.clicks.push({ t: f / FPS, at: [m.x, m.y], rec: c0 }); } } } });
   if (PRESET.cutSounds) {
     E.shots.forEach((s, i) => {
       const a = E.shots[i - 1], ph = E.phrases[s.phrase], t = s.out0; if (!a) return;

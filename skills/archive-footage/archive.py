@@ -95,10 +95,10 @@ def classify(lic, year=None, federal=False):
     l = (lic or "").lower().strip()
     if year and int(year) <= PD_LINE:
         return "pd-age", "age"
+    if federal:  # a US federal work has no copyright to license, whatever the archive's label says
+        return "pd", "federal"
     if re.search(r"publicdomain|\bcc0\b|^pd\b|^pd-|public domain", l):
         return "pd", "label"
-    if federal:
-        return "pd", "federal"
     if re.search(r"by-nc|by-nd|-nc\b|-nd\b|-nc-|-nd-|\bnc\b|\bnd\b", l):
         return "restricted", "label"
     if "by-sa" in l or re.search(r"\bby sa\b", l):
@@ -178,7 +178,7 @@ def commons(title):
     ii = commons_query(titles=title)[0]["imageinfo"][0]
     m = cmeta(ii)
     return {"lic": m.get("License") or m.get("LicenseShortName"), "year": year_of(m.get("DateTimeOriginal")), "date": m.get("DateTimeOriginal"),
-            "title": m.get("ObjectName") or title[5:], "creator": m.get("Artist"), "federal": False, "copies": [], "media": ii["url"],
+            "title": m.get("ObjectName") or title[5:], "creator": m.get("Artist"), "federal": False, "copies": [ii["url"]], "media": ii["url"],
             "evidence": f"Commons extmetadata for {title}: License={m.get('License')}, LicenseShortName={m.get('LicenseShortName')}"}
 
 
@@ -213,8 +213,9 @@ def verify(r):
                              "of its own films); check before commercial use.")
     if v["cls"] == "pd-age" and v["lic"] and classify(v["lic"])[0] != "pd":
         v["warnings"].append(f"The archive labels it {v['lic']}. The age rule is US-only; follow the label outside the US.")
-    if v.get("sponsor") or (v.get("creator") and re.search(r"\b(Inc|Co|Company|Corporation|Corp|Ltd|Motors)\b\.?", v["creator"])):
-        v["warnings"].append(f"Made or sponsored by {v.get('sponsor') or v['creator']}: logos may be on screen; don't imply endorsement.")
+    by = v.get("sponsor") or v.get("creator")  # a US government sponsor has no brand to endorse
+    if by and (v.get("sponsor") or re.search(r"\b(Inc|Co|Company|Corporation|Corp|Ltd|Motors)\b\.?", by)) and not FEDERAL.search(by):
+        v["warnings"].append(f"Made or sponsored by {by}: logos may be on screen; don't imply endorsement.")
     if v.get("mia_label") == "public_domain" and v["cls"] == "unverified":
         v["warnings"].append("MIA says public_domain, but the original archive doesn't back it up.")
     return v
@@ -305,7 +306,8 @@ def probe(url, must=True):
 def seek(url, t):
     """Fast seek to 5 s early, then decode to t. A plain input -ss on MPEG-2 over HTTP starts the video up to 0.4 s late."""
     pre = min(max(t, 0), 5)
-    return ["-ss", f"{max(t, 0) - pre:.3f}", "-user_agent", UA, "-i", url, "-ss", f"{pre:.3f}"]
+    ua = ["-user_agent", UA] if str(url).startswith(("http://", "https://")) else []  # ffmpeg rejects it for a local file
+    return ["-ss", f"{max(t, 0) - pre:.3f}", *ua, "-i", url, "-ss", f"{pre:.3f}"]
 
 
 def frames(url, t, dur):
@@ -478,6 +480,7 @@ def selftest():
         (("CC BY 3.0", None, False), "by"),
         (("cc-by-nc-sa-2.0", 2010, False), "restricted"), (("http://creativecommons.org/licenses/by-nd/3.0/", None, False), "restricted"),
         (("CC BY-NC 4.0", None, True), "pd"),  # a federal work can't be licensed away; federal wins over a bad label
+        (("http://creativecommons.org/licenses/publicdomain/", 1937, True), "pd"),  # archive.org RiverThe1937 (USDA)
         (("pd", 1955, False), "pd"), (("cc0", None, False), "pd"), (("Public domain", None, False), "pd"),
     ]
     for args, want in cases:
@@ -486,6 +489,8 @@ def selftest():
     assert year_of("ca. 1920s") == 1929 and year_of("1930s") == 1939 and year_of("1979-08-12") == 1979 and year_of("n.d.") is None
     assert classify("http://creativecommons.org/licenses/publicdomain/", year_of("ca. 1920s"))[0] == "pd-age"  # archive.org FarmerMi1920
     assert classify("http://creativecommons.org/licenses/publicdomain/", year_of("1930s"))[0] == "pd"
+    assert classify("http://creativecommons.org/licenses/publicdomain/", 1937, True) == ("pd", "federal")  # not the label-only warning
+    assert "-user_agent" in seek("https://x/a.mp4", 9) and "-user_agent" not in seek("src-cache/a.mpg", 9)
     assert allowed("pd") and allowed("pd-age") and allowed("by")
     assert not allowed("by-sa") and allowed("by-sa", allow_sa=True)
     assert not allowed("unverified") and allowed("unverified", checked="renewal search, none found")

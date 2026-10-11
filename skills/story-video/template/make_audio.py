@@ -44,6 +44,8 @@ CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]  # Am F C G, o
 # 32 dB under the voice at 1/1). At 2.5/0.6 the arp sits ~17 dB under the voice and the groove ~10 dB: a lift at the drop
 SECTIONS = [[0, "arp", 2.5], [DROP, "groove", 0.6]]
 
-sfx.render({"duration": n / FPS, "sfx": rows,
-            "vo": [[at + 0.05, m["voice"]] for at, m in zip(starts, manifest) if m["voice"]],  # cut 50 ms before the word
-            "bed": {"bpm": BPM, "chords": CHORDS, "sections": SECTIONS}}, str(HERE / "audio.wav"))
+cues = {"duration": n / FPS, "sfx": rows,
+        "vo": [[at + 0.05, m["voice"]] for at, m in zip(starts, manifest) if m["voice"]],  # cut 50 ms before the word
+        "bed": {"bpm": BPM, "chords": CHORDS, "sections": SECTIONS}}
+(HERE / "cues.json").write_text(json.dumps(cues))  # what `uv run sfx.py --plot` reads for its labels
+sfx.render(cues, str(HERE / "audio.wav"))

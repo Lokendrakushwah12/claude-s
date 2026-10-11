@@ -41,7 +41,7 @@ Before you plan the piece, run the creative method in `~/.claude/skills/type-fil
    uv run --with pillow fetch_assets.py intro=1 move=0 ...
    ```
    It searches Openverse for CC0, public-domain and CC BY images only. Unsplash photos mirrored on Wikimedia come first because they're CC0 and full-resolution; the rest are Flickr, which tops out at 1024 px. It warns under 1600 px. Credits go to `CREDITS.md`, and CC BY images need them in the video description. Short concrete queries work best ("new york city", not "manhattan skyline at dusk from brooklyn"). Files the user drops into `assets/<slug>.jpg` override any search.
-4. In `narrate.py`, set `EMOTION` for the key beats. `exaggeration` 0.5 is neutral, 0.8 is warm, 1.0–1.2 is the peak. A lower `cfg_weight` gives a slower, more deliberate delivery. Every slug not listed uses `DEFAULT` (0.65).
+4. In `narrate.py`, set `EMOTION` for the key beats. `exaggeration` 0.5 is neutral, 0.8 is warm, 1.0–1.2 is the peak. A lower `cfg_weight` gives a slower, more deliberate delivery. Every slug not listed uses `DEFAULT` (0.65). Higher `exaggeration` also reads faster: at `cfg_weight` 0.4 takes ran 4–6 words/s in testing, so for a slower read lower the exaggeration and/or the `cfg_weight` (0.2–0.3 read at 2.4–4.5 words/s).
 5. Build it:
    ```bash
    cd ~/Movies/<slug> && ./run.sh

@@ -309,7 +309,29 @@ function loudness(ch) {
   return lk(mean(abs.filter((z) => lk(z) > rel)));
 }
 
-/** Master loudness of the MP4 (LUFS), under a -1 dBFS ceiling. */
+/**
+ * True peak per sample (ITU-R BS.1770 style, 4x oversampled) across channels: the larger of |x| and the 3 points between
+ * each sample and the next, read off a 12-tap Hann-windowed sinc. A sample ceiling misses these inter-sample peaks.
+ */
+function truePeak(ch) {
+  const H = [0.25, 0.5, 0.75].map((f) => Array.from({ length: 12 }, (_, k) => {
+    const t = f + 5 - k; // from tap k (sample i - 5 + k) to the point i + f
+    return (Math.sin(Math.PI * t) / (Math.PI * t)) * (0.5 + 0.5 * Math.cos((Math.PI * t) / 6));
+  }));
+  const n = ch[0].length, p = new Float32Array(n);
+  for (const x of ch) for (let i = 0; i < n; i++) {
+    let m = Math.abs(x[i]);
+    for (const h of H) {
+      let s = 0;
+      for (let k = 0; k < 12; k++) { const j = i - 5 + k; if (j >= 0 && j < n) s += x[j] * h[k]; }
+      m = Math.max(m, Math.abs(s));
+    }
+    p[i] = Math.max(p[i], m);
+  }
+  return p;
+}
+
+/** Master loudness of the MP4 (LUFS), under a -1.5 dBTP true-peak ceiling. */
 const LUFS = -14;
 
 /**
@@ -338,13 +360,14 @@ async function soundtrack(lesson, load) {
     src.start(c.at);
   }
   const buf = await ac.startRendering(), n = buf.length, ch = [buf.getChannelData(0), buf.getChannelData(1)];
-  // Master: a static gain to LUFS, then a look-ahead limiter at -1 dBFS (0.89) so the AAC encode never clips. Every
-  // sample over the ceiling pulls the gain down to fit across +-40 ms; a 40 ms moving average of that smooths it,
-  // and still never lets a sample through over the ceiling (each average only covers minima that include it)
-  const g0 = 10 ** ((LUFS - loudness(ch)) / 20), R = 960, lim = new Float32Array(n).fill(1);
+  // Master: a static gain to LUFS, then a look-ahead true-peak limiter at -1.5 dBTP (0.84): the AAC encode adds up to
+  // ~0.5 dB, so the MP4 stays under -1 dBTP (sfx.py's ceiling). A -1 dBFS *sample* ceiling let one render reach -0.9 dBTP.
+  // Every sample whose true peak is over the ceiling pulls the gain down to fit across +-40 ms; a 40 ms moving average of
+  // that smooths it, and still never lets a peak through over the ceiling (each average only covers minima that include it)
+  const g0 = 10 ** ((LUFS - loudness(ch)) / 20), R = 960, lim = new Float32Array(n).fill(1), tp = truePeak(ch), C = 10 ** (-1.5 / 20);
   for (let i = 0; i < n; i++) {
-    const p = Math.max(Math.abs(ch[0][i]), Math.abs(ch[1][i])) * g0;
-    if (p > 0.89) for (let j = Math.max(0, i - 2 * R); j <= Math.min(n - 1, i + 2 * R); j++) lim[j] = Math.min(lim[j], 0.89 / p);
+    const p = tp[i] * g0;
+    if (p > C) for (let j = Math.max(0, i - 2 * R); j <= Math.min(n - 1, i + 2 * R); j++) lim[j] = Math.min(lim[j], C / p);
   }
   const sum = new Float64Array(n + 1);
   for (let i = 0; i < n; i++) sum[i + 1] = sum[i] + lim[i];

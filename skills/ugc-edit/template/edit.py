@@ -270,7 +270,8 @@ def extract(path, t0, n, d, w, h, prefix=""):  # n frames from t0, cached by a k
     d = Path(d); d.mkdir(parents=True, exist_ok=True); key = d / f".key{prefix}"; k = json.dumps([str(path), round(t0, 4), n, w, h])
     if key.exists() and key.read_text() == k: return
     for f in d.glob(f"{prefix}[0-9]*.jpg"): f.unlink()
-    sh("ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, t0):.4f}", "-i", path, "-frames:v", n, "-vf", f"fps={FPS},scale={w}:{h}:flags=lanczos" + (",format=gray" if prefix else ""), "-q:v", 2, d / f"{prefix}%04d.jpg")
+    # JPEGs decode as BT.601 (browsers, the canvas): convert from the clip's own matrix, or BT.709 footage shifts (#F2541B -> 225,72,31)
+    sh("ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, t0):.4f}", "-i", path, "-frames:v", n, "-vf", f"fps={FPS},scale={w}:{h}:flags=lanczos:in_color_matrix=auto:out_color_matrix=bt601" + (",format=gray" if prefix else ""), "-q:v", 2, d / f"{prefix}%04d.jpg")
     key.write_text(k)
 
 

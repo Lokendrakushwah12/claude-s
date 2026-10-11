@@ -153,7 +153,7 @@ node render.mjs --still <same times> --query theme=dark                     # da
 open index.html                                                             # play it with sound and narration
 node render.mjs --out <slug>.mp4                                            # the soundtrack is mixed in automatically
 ffprobe -v error -show_entries stream=codec_type,duration -of csv=p=0 <slug>.mp4
-ffmpeg -hide_banner -nostats -i <slug>.mp4 -af ebur128=peak=true -f null - 2>&1 | tail -12   # I ≈ −14 LUFS, peak ≤ −1 dBFS
+ffmpeg -hide_banner -nostats -i <slug>.mp4 -af ebur128=peak=true -f null - 2>&1 | tail -12   # I ≈ −14 LUFS, true peak ≤ −1 dBFS
 ffmpeg -loglevel error -y -i <slug>.mp4 -vf "fps=1/3,scale=480:-1,tile=6x6" -frames:v 1 contact.jpg
 node narrate.mjs --mix <slug>.mp4
 ```
@@ -161,7 +161,7 @@ node narrate.mjs --mix <slug>.mp4
 - Look at every still in both themes: overlaps, clipped text, a label sitting on a line, a colour you can't read, anything below y = 420 that matters.
 - Ask the user to play it once with sound (the MP4, or `index.html` in Chrome). Every cue should land on its visual, and every sentence should finish before the next caption. Sync is exact by construction; what a listen catches is a bad take or a cue that sounds wrong for its moment.
 - The MP4's video and audio durations should match (within a frame or two), and the contact sheet should show no dead stretches.
-- The soundtrack is mastered to −14 LUFS under a −1 dBFS ceiling. That fixes the whole film, not its balance: check a breath against a spoken passage (cut each window out of `audio.wav` and run it through `ebur128`). The breath should come up but stay a few LU under the voice.
+- The soundtrack is mastered to −14 LUFS under a −1.5 dBTP true-peak ceiling (the AAC encode adds up to 0.5 dB). That fixes the whole film, not its balance: check a breath against a spoken passage (cut each window out of `audio.wav` and run it through `ebur128`). The breath should come up but stay a few LU under the voice.
 - `--mix` should hear every line, complete and under its own caption. A word on the edge of two captions can be filed under the wrong one, because Whisper's word times run about 0.3 s early.
 - Keep renders in the lesson's folder under `~/Movies/explainer-lessons/`, next to the source, so later changes are a re-render.
 
@@ -174,7 +174,7 @@ node narrate.mjs --mix <slug>.mp4
 - **Dead frames between beats:** the first chapter's machines faded out before the house started drawing, leaving an empty frame. Start the next beat 0.3–0.5 s before the last one has gone.
 - **Ghosts under the end card:** the end card is 92% opaque, so the recap showed through it as faint text behind the title. Fade content out before the end card arrives.
 - **An empty hook:** the first 3 s showed the title over nothing. Bring the first picture in under the title.
-- **A hot master:** the first mix peaked at −0.2 dBFS. The soundtrack now has a −1 dBFS ceiling; the example lands at −14.4 LUFS, with the voice about 10 LU above the effects.
+- **A hot master:** the first mix peaked at −0.2 dBFS. The soundtrack now has a true-peak ceiling (a −1 dBFS *sample* ceiling still let an AAC render reach −0.9 dBTP); the example lands at −14.4 LUFS, with the voice about 10 LU above the effects.
 - **Chatterbox slows down over a run:** the example's first lines took 10–30 s each and its last ones about 3 minutes, with no change in the text. Budget 15–20 minutes for a dozen lines, and start narrating before you polish the pictures.
 - **Progress-bar spam:** Chatterbox prints a tqdm bar per token. `narrate.mjs` sets `TQDM_DISABLE=1`.
 - **Fast takes, stretched beats:** the hash-table lesson's takes ran at about 4.3 words a second, faster than the 3.2 a second a caption needs to be read. Reading time set every slot, and the warp stretched each beat by up to 19 %, so every picture landed late on its word. Size each slot to max(reading, clip + 0.35 s), then place beats on the word times.

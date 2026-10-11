@@ -185,3 +185,5 @@ Keep the file. Republishing the same path in the same conversation updates the s
 - **A ground label hid under a block** in the first iso sketch. Labels go in screen space at a projected point, painted last.
 - **A six-button `.seg` overflowed** a phone's footer and pushed the readouts off the panel. The buttons tighten under 30rem now; keep their labels to one short word.
 - **Local preview runs in quirks mode** because the page has no doctype (the publish adds one). The template's layout doesn't depend on it. If something looks off only locally, check the published page before "fixing" it.
+- **`<use>` copies lost their fills and hairlines** in Chrome: the page's class rules (`.solid`, `.ink`, `.guide`, `vector-effect: non-scaling-stroke`) don't reach the clone. Bake them onto the source as inline styles before it's referenced.
+- **A clip on a rotated `<use>` cut the wrong area:** the clip path is read in the `<use>`'s rotated coordinates. Put the clip on a parent `<g>` instead.

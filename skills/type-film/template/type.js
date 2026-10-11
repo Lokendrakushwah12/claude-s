@@ -572,12 +572,16 @@ function pen(c, pts, head, o = {}) {
   c.restore();
 }
 // Echo smear: n copies of a drawing trailing behind it along (dx, dy), fading (swaps, fast moves). fn(c, ox, oy) draws one copy.
-// even: true makes n equal copies centred on the position, summed so it stays opaque (true motion blur; whip uses it).
+// even: true makes n equal copies centred on the position, averaged so it stays opaque (true motion blur; whip uses it).
 function smear(c, fn, dx, dy, o = {}) {
   const { n = 8, alpha = 0.6, even = false } = o;
   if (!even) { for (let k = n - 1; k >= 1; k--) { c.save(); c.globalAlpha *= alpha * (1 - k / n); fn(c, (-dx * k) / (n - 1), (-dy * k) / (n - 1)); c.restore(); } return fn(c, 0, 0); }
-  const [cv, s] = scratch('smear'); s.setTransform(c.getTransform()); s.globalCompositeOperation = 'lighter'; s.globalAlpha = 1 / n;
-  for (let k = 0; k < n; k++) fn(s, dx * (k / (n - 1) - 0.5), dy * (k / (n - 1) - 0.5));
+  // each copy is drawn alone, then added at 1/n: drawn straight into the 'lighter' sum, a copy's own layers added up to white
+  const [cv, s] = scratch('smear'), [cv1, s1] = scratch('smear1'); s.globalCompositeOperation = 'lighter'; s.globalAlpha = 1 / n;
+  for (let k = 0; k < n; k++) {
+    s1.setTransform(1, 0, 0, 1, 0, 0); s1.clearRect(0, 0, cv1.width, cv1.height); s1.setTransform(c.getTransform());
+    s1.save(); fn(s1, dx * (k / (n - 1) - 0.5), dy * (k / (n - 1) - 0.5)); s1.restore(); s.drawImage(cv1, 0, 0);
+  }
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(cv, 0, 0); c.restore();
 }
 // Onion skin: the same moving thing drawn at earlier times, fading (ghosts behind a rider, a spark). fn(c, t) draws it at time t.
@@ -805,10 +809,11 @@ function shake(c, t, hits, o = {}) {
 // A deck of n cards cycling every `hold` frames from t0 (wraps, unlike cutIndex): the stills strobe, one card per 2-3 frames at 24 fps.
 const deck = (t, t0, n, hold = 3, fps = 24) => ((Math.floor(((t - t0) * fps) / hold + 1e-6) % n) + n) % n;
 // Masked type: the word as a window onto fill(ctx) (footage, another scene), drawn through the glyphs. o is word()'s options;
-// o.knock: true inverts it (the picture with the word cut out). fill draws in the same transform as c.
+// o.knock: true inverts it (the picture with the word cut out). fill draws in the same transform as c, on its own canvas first:
+// drawn straight under source-in, each layer of it replaced the last (a blended in-between footage frame left the word dim).
 function maskWord(c, str, x, y, fill, o = {}) {
-  const [cv, s] = scratch('maskWord'), m = c.getTransform(); s.setTransform(m); word(s, str, x, y, { ...o, color: '#000', alpha: 1 });
-  s.globalCompositeOperation = o.knock ? 'source-out' : 'source-in'; s.setTransform(m); fill(s);
+  const [cv, s] = scratch('maskWord'), [fv, f] = scratch('maskWordFill'), m = c.getTransform(); s.setTransform(m); word(s, str, x, y, { ...o, color: '#000', alpha: 1 });
+  f.setTransform(m); fill(f); s.setTransform(1, 0, 0, 1, 0, 0); s.globalCompositeOperation = o.knock ? 'source-out' : 'source-in'; s.drawImage(fv, 0, 0);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha *= o.alpha ?? 1; c.drawImage(cv, 0, 0); c.restore();
 }
 

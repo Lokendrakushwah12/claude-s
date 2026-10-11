@@ -29,7 +29,7 @@ Run it from the project folder: `A=~/.claude/skills/archive-footage/archive.py`.
    ```
    - `--in` is seconds into the shot (mia) or the film (ia, commons). It warns if `--dur` runs into the next shot.
    - **Output:** square pixels at 30 fps and native size; it deinterlaces only frames that are flagged interlaced. `--size 1920x1080` scale-crops to fill. `--fps 30000/1001` matches story-video's cards.
-   - **`--best`** probes the original archive's copies and uses the biggest one whose frames line up with your pick (correlation > 0.9 within ±2 s). Use it for Prelinger: MIA serves some of those films at 320x240, while the archive.org MPEG-2 displays at 640x480.
+   - **`--best`** probes the original archive's copies and uses the biggest one whose frames line up with your pick (correlation > 0.9 within ±2 s). Use it for Prelinger: MIA serves some of those films at 320x240, while the archive.org MPEG-2 displays at 640x480. It also checks the Commons original of a Commons film (Out West: 960x720 against MIA's 320x240).
    - **Output files:** `assets/archive/<name>.mp4` and `<name>.json` (provenance: where it was found, the upstream page, the licence evidence, warnings and the credit line).
    - **Look at the frames** before using them: `ffmpeg -i assets/archive/<name>.mp4 -vf fps=2,scale=320:-1,tile=6x1 -frames:v 1 check.jpg`
    - A later `get <id>` works with any id from `search/seen.json`; an idx always means the last search.
