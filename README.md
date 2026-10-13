@@ -18,12 +18,6 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 
 Each demo page is self-contained, with the video and its sound embedded. Download it and open it in a browser.
 
-## Other skills
-
-| Skill | What it does |
-|---|---|
-| [`human-voice`](skills/human-voice) | Drafts Slack messages, emails and status updates you send under your own name: structured the way the reader asked, then rewritten in your voice by a fresh subagent, with a line left for you to type. Reads your personal profile from `~/.claude/human-voice/profile.md`, which stays out of the repo. `pangram-evidence.md` has the research on what does and doesn't pass AI detection |
-
 ## Install
 
 ```bash
