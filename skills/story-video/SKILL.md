@@ -80,6 +80,9 @@ Re-roll (below) every `??` line that isn't just whisper's spelling (digits, homo
 - Chatterbox adds an inaudible AI watermark to its audio.
 - The fonts and the `say` fallback assume macOS. On other platforms, change the font paths and always narrate with Chatterbox.
 
+## Hindi, Hinglish and other languages
+`narrate.py` here reads English with Chatterbox. For a Hindi or Hinglish voice-over, use type-film's template `lines.py` / `narrate.py` / `assemble.py` (its SKILL.md, "Narrated films"): Kokoro reads Hindi fast and cleanly, the voice line is written all in Devanagari while the captions stay in Roman Hinglish, and every take is transcribed and trimmed if it runs on.
+
 ## Problems seen so far
 - **Garbled takes pass a length check.** 5 of 19 first takes were wrong ("Hours. Gone." came back as "Algolers gone!" at 1.56 s). `check_voices.py` catches them. If a line fails twice, rephrase it: "in an ICU in Leeds" kept coming back as "and an…", while "ICU nurse, Leeds." was right first time.
 - **Invented brand names get mangled** ("Nightrota" became "Nitroda"). Spell them out in `SAY`.

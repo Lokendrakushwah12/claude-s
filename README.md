@@ -38,7 +38,7 @@ Install them together. The skills share three toolkits, which they copy from eac
 - macOS, with Google Chrome in `/Applications` (set `CHROME=` to use another path).
 - `node` 18+, `ffmpeg` and `uv`. 3D scenes load Three.js from jsdelivr at render time, so they need a network connection. `render.mjs` drives Chrome over raw CDP, so there's no `npm install`; Python steps pull their own packages through `uv`.
 - `yt-dlp` for `x-video-frames`.
-- Voice: `story-video`, `explainer-lesson`, `music-video`, `ugc-edit` and `faceless-video` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`.
+- Voice: `story-video`, `explainer-lesson`, `music-video`, `ugc-edit` and `faceless-video` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`. Narrated `type-film`s use [Kokoro](https://github.com/hexgrad/kokoro) (82M, Apache-2.0) by default: fast, and it reads Hindi cleanly (`brew install espeak-ng`; `uv` pulls the rest). For a Hindi voice with Chatterbox, its multilingual model is another ~3 GB.
 - Optional:
   - `FAL_KEY` and `ELEVENLABS_API_KEY` for `music-video`.
   - MediaPipe, which `ugc-edit` pulls in itself for type behind the speaker and captions that keep off the face.
@@ -107,6 +107,8 @@ fframes isn't wired in: its scenes are Rust functions that return SVG, and these
 | Checks for an agent | `inspect` (cut-off text, missing fonts), `strip`, `onion`, `audio analyze` | `--still`, `--loopcheck`, contact sheets, the skills' own review steps |
 
 Use fframes for a new motion piece where render time dominates: long videos, batch renders, shader looks. Use these skills for real footage, the shared toolkits, or to avoid Rust.
+
+Before a video, the research: [ScrapeCreators/social-media-research-skills](https://github.com/ScrapeCreators/social-media-research-skills) (MIT) finds a creator's outlier posts, mines comments and pulls hooks from transcripts across TikTok, Reels, Shorts and X. It needs a ScrapeCreators API key. Feed an outlier it finds to `x-video-frames` to take it apart.
 
 Peers worth a look: [Leonxlnx/cinetic](https://github.com/Leonxlnx/cinetic) and [heygen-com/hyperframes-community-skills](https://github.com/heygen-com/hyperframes-community-skills).
 
