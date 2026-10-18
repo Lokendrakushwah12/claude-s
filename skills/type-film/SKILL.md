@@ -74,13 +74,13 @@ Mix freely. Details and credits are in `references.md`.
 - **Shape morphs:** resample both outlines to 200 points (`shapePts`, `morphPts`), run them on a spring, and trail 3–4 echo outlines (`onion`) or concentric contours.
 
 ## 4. Build
-- **Motion:** `spr track cam shotCam`, `ISO.spring`/`ISO.tween`. lib.js's `spring` takes both forms (`spring(p)` and `spring(p, 8)`); use `track()` for summed closed-form springs. Stop-motion: `boil(t, 12, 3)` gives 3 drawings looping 4 times a second; lib.js also has `stepT jitter flickerGain sketch`.
+- **Motion:** `spr track cam shotCam`, a pinhole 3D camera `cam3d proj MM` and its moves `dollyZoom orbitCam crane dutch`, `ISO.spring`/`ISO.tween`. lib.js's `spring` takes both forms (`spring(p)` and `spring(p, 8)`); use `track()` for summed closed-form springs. Stop-motion: `boil(t, 12, 3)` gives 3 drawings looping 4 times a second; lib.js also has `stepT jitter flickerGain sketch`.
 - **Type:** `word ui rise riseChars scramble typed words hotWord glowIn inlineWord shimmer selectHL textOnPath`, `hitWord chromaWord fitStack inkBox weightWave`; captions `leadIn karaoke`.
 - **Particles and shapes:** `pointCloud textPts mixPts drawCloud` (trail for streaks, focus for bokeh), `shapePts morphPts drawPts`, `squashDot` for a fast prop.
 - **HUD and fields:** `glyphHud trackers cornerTicks pixelField slotList counterRoll tumbleTiles asciiImage ecg waveBars expCount`.
 - **Line, paper, containers:** `drawOn pen smear onion slip tape callout pins player slitReveal morphMatch shutterButton sparkHop skeletonFlash screenInsert`.
-- **Surfaces and objects:** `grid hl glass keylight dust marks grain arrow check marquee ring3d orbit tunnel guides barcode flap chain bend pointer`; from promo.js `pill counter rrect glow`.
-- **Timing:** `flash softcut whip dof glitchBox cutIndex flipFrames pasted rewind drawAt bpmPulse`, `iris` (the next shot opens from a point, so a prop becomes the cut), `litGround`. `drawAt(c, t, self)` draws the film at another time, inside a cell or a rewind.
+- **Surfaces and objects:** `grid hl glass keylight dust marks grain arrow check marquee ring3d orbit tunnel guides barcode flap chain bend pointer`, flat layers and a grid floor through the 3D camera `cards floor3d`, look.js photo passes `lensFlare doubleExposure tealOrange fisheye`; from promo.js `pill counter rrect glow`.
+- **Timing:** `flash softcut whip dof focusPull glitchBox cutIndex flipFrames pasted rewind drawAt bpmPulse`, `iris` (the next shot opens from a point, so a prop becomes the cut), `litGround`. `drawAt(c, t, self)` draws the film at another time, inside a cell or a rewind.
 - **Hits (beat-led edits, shared with aura-edit):** `retime` (a speed curve's exact integral), `punch shake deck maskWord`, `ecg(..., {beats})`; look.js `impactFrame zoomBlur lightSweep blockSwap crush` and the `aura` preset.
 - **Sound from the picture:** build cues from the constants the scenes read: `typeCues(t0, str, gap, f0, df)`, `scrambleCues(t0, str, g, {per, settle})`, one array of times shared by a scene and its cues. `VIDEO.drone`, `lufs`, `lp`, `bed.mutes` pass through `render.mjs --cues` to sfx.py (its docstring lists every sound and its params).
 

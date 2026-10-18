@@ -760,6 +760,76 @@ function dof(c, y = H / 2, band = 0.08 * H, o = {}) {
   c.restore();
 }
 
+// ---- 3D camera: a pinhole over flat layers (the cam/proj model follows motion-prompt's camera pack, MIT, Shohei Ohtaki) ----
+// World units are yours (metres read well): y up, +z away from a camera at yaw 0. A camera is plain data; each move is a pure
+// function of p 0..1 that returns one (eased in-out), so moves chain with prog() and track(). Draw through it with proj, cards, floor3d.
+const MM = mm => (mm * Math.hypot(W, H)) / 43.27; // 35 mm-equivalent focal length -> px, on the diagonal so 9:16 and 16:9 agree
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], unit3 = a => { const l = Math.hypot(...a) || 1; return a.map(v => v / l); };
+// Camera at pos looking at look. o: mm (35) or f (px, wins), roll (rad, + tips the horizon clockwise), cx cy (centre). Not straight down.
+function cam3d(pos, look, o = {}) {
+  const { mm = 35, roll = 0, cx = W / 2, cy = H / 2 } = o, d = unit3(look.map((v, i) => v - pos[i])), r0 = unit3([d[2], 0, -d[0]]);
+  const u0 = [d[1] * r0[2] - d[2] * r0[1], d[2] * r0[0] - d[0] * r0[2], d[0] * r0[1] - d[1] * r0[0]], cr = Math.cos(roll), sr = Math.sin(roll);
+  return { pos, d, f: o.f ?? MM(mm), cx, cy, r: r0.map((v, i) => v * cr + u0[i] * sr), u: u0.map((v, i) => v * cr - r0[i] * sr) };
+}
+// World point -> [x, y, scale (px per world unit there), depth], or null behind the near plane.
+function proj(k, p, near = 0.05) {
+  const q = [p[0] - k.pos[0], p[1] - k.pos[1], p[2] - k.pos[2]], z = dot3(q, k.d); if (z < near) return null;
+  const s = k.f / z; return [k.cx + s * dot3(q, k.r), k.cy - s * dot3(q, k.u), s, z];
+}
+// Dolly zoom (Vertigo): the camera travels d0 -> d1 from target while f scales with distance, so the subject at target holds its
+// size and the background stretches (d0 < d1: it recedes; swap for the push-in squeeze). o: target, d0 (3), d1 (10), mm (at d0, 24), dy.
+function dollyZoom(p, o = {}) {
+  const { target = [0, 1, 0], d0 = 3, d1 = 10, mm = 24, dy = 0 } = o, d = lerp(d0, d1, ease.inOut(clamp(p)));
+  return cam3d([target[0], target[1] + dy, target[2] - d], target, { ...o, f: (MM(mm) * d) / d0 });
+}
+// Orbit (named apart from the orbit-rings helper): an arc around target at radius r and height y, angle a0 -> a1 (rad, 0 = from -z).
+function orbitCam(p, o = {}) {
+  const { target = [0, 1, 0], r = 6, a0 = -0.6, a1 = 0.6, y = 1.6 } = o, a = lerp(a0, a1, ease.inOut(clamp(p)));
+  return cam3d([target[0] + r * Math.sin(a), y, target[2] - r * Math.cos(a)], target, o);
+}
+// Crane: the camera rises y0 -> y1 at distance d (pushing in by push) and keeps target framed, so it pitches down as it climbs.
+function crane(p, o = {}) {
+  const { target = [0, 1, 0], d = 8, y0 = 0.4, y1 = 7, push = 0 } = o, e = ease.inOut(clamp(p));
+  return cam3d([target[0], lerp(y0, y1, e), target[2] - d + push * e], target, o);
+}
+// Dutch: the horizon rolls 0 -> roll rad (0.2–0.35 reads as unease) while the camera pushes push units along its view.
+function dutch(p, o = {}) {
+  const { pos = [0, 1.6, -6], look = [0, 1.2, 0], roll = 0.3, push = 1 } = o, e = ease.inOut(clamp(p)), d = unit3(look.map((v, i) => v - pos[i]));
+  return cam3d(pos.map((v, i) => v + d[i] * push * e), look, { ...o, roll: roll * e });
+}
+// Flat layers through the camera, far to near: [{ at: [x, y, z] (centre), w, h (world units), yaw (rad), color, draw(c, pw, ph) }].
+// draw() is plain 2D code in a pw x ph px box (res px per world unit, 200), mapped affinely onto the card's projected corners:
+// true parallax and scale; inside a card the perspective is affine, which holds while it is small or faces the lens.
+// o.focus (distance) + o.aperture (lens opening, world units; 0.03–0.1) blur each card by its defocus.
+function cards(c, k, list, o = {}) {
+  const { res = 200, focus, aperture = 0 } = o;
+  list.map(q => [q, proj(k, q.at)]).filter(a => a[1]).sort((a, b) => b[1][3] - a[1][3]).forEach(([q, m]) => {
+    const cy = Math.cos(q.yaw || 0), sy = Math.sin(q.yaw || 0), P = (a, b) => proj(k, [q.at[0] + (a * cy * q.w) / 2, q.at[1] + (b * q.h) / 2, q.at[2] + (a * sy * q.w) / 2]);
+    const tl = P(-1, 1), tr = P(1, 1), bl = P(-1, -1), pw = q.w * res, ph = q.h * res; if (!tl || !tr || !bl) return;
+    c.save(); c.transform((tr[0] - tl[0]) / pw, (tr[1] - tl[1]) / pw, (bl[0] - tl[0]) / ph, (bl[1] - tl[1]) / ph, tl[0], tl[1]);
+    const b = focus ? (aperture * k.f * Math.abs(1 / m[3] - 1 / focus)) / 2 : 0; if (b > 0.3) c.filter = `blur(${b.toFixed(1)}px)`;
+    if (q.color) { c.fillStyle = q.color; c.fillRect(0, 0, pw, ph); } q.draw && q.draw(c, pw, ph); c.restore();
+  });
+}
+// Ground grid on the plane y: lines every cell units over ±span around at, clipped at the near plane. o: y cell span at color lw alpha.
+function floor3d(c, k, o = {}) {
+  const { y = 0, cell = 1, span = 20, at = [0, 0, 0], color = '#ffffff', lw = 2 * S, alpha = 0.3, near = 0.1 } = o, z = p => dot3([p[0] - k.pos[0], p[1] - k.pos[1], p[2] - k.pos[2]], k.d);
+  const seg = (a, b) => { const za = z(a), zb = z(b); if (za < near && zb < near) return; if (za < near) a = a.map((v, i) => lerp(v, b[i], (near - za) / (zb - za))); else if (zb < near) b = b.map((v, i) => lerp(v, a[i], (near - zb) / (za - zb)));
+    const A = proj(k, a, near * 0.99), B = proj(k, b, near * 0.99); c.moveTo(A[0], A[1]); c.lineTo(B[0], B[1]); };
+  c.save(); c.strokeStyle = color; c.globalAlpha *= alpha; c.lineWidth = lw; c.beginPath();
+  for (let v = -span; v <= span; v += cell) { seg([at[0] + v, y, at[2] - span], [at[0] + v, y, at[2] + span]); seg([at[0] - span, y, at[2] + v], [at[0] + span, y, at[2] + v]); }
+  c.stroke(); c.restore();
+}
+// Rack focus between two planes, each drawn on its own layer: drawNear(ctx), drawFar(ctx). The focus pulls far -> near (from: 'near'
+// for near -> far) over [t0, t0 + dur], eased in-out; the defocused plane blurs to `blur` px and breathes (scales) by `breathe`.
+function focusPull(c, t, drawNear, drawFar, o = {}) {
+  const { t0 = 0, dur = 0.7, blur = 16 * S, from = 'far', breathe = 0.015 } = o, e = ease.inOut(clamp((t - t0) / dur)), p = from === 'far' ? e : 1 - e;
+  for (const [fn, b, key] of [[drawFar, p, 'pullFar'], [drawNear, 1 - p, 'pullNear']]) {
+    const [cv, s] = scratch(key); s.setTransform(c.getTransform()); fn(s); const z = 1 + breathe * b;
+    c.save(); c.setTransform(z, 0, 0, z, (W * (1 - z)) / 2, (H * (1 - z)) / 2); if (b * blur > 0.3) c.filter = `blur(${(b * blur).toFixed(1)}px)`; c.drawImage(cv, 0, 0); c.restore();
+  }
+}
+
 // ---- timing ----
 // Sound from the picture's own constants, as sfx.py cues [t, name, gain, {params}]. Same numbers in, so sound can't drift.
 // typeCues: a pitched thock per typed glyph, stepping df Hz per glyph. Pass the gap the picture types at (1 / cps).

@@ -283,6 +283,48 @@ function lensBand(c, k = 1, o = {}) {
   c.globalAlpha = clamp(k); fill(c, 'source-over', ground, 1); c.drawImage(b, 0, 0); c.restore();
 }
 
+// ---- photo: lens and darkroom looks over the finished frame (ideas from motion-prompt's photo pack, MIT, Shohei Ohtaki) ----
+// Lens flare from a light at (x, y) (0..1 of the frame), strength p: a bloom on the source, ghost discs along the line through the
+// frame centre (the lens's internal reflections, mirrored across it) and an anamorphic streak. o: color, tints (ghosts), streak (of W).
+const GHOSTS = [[-0.55, 0.06, 0.35], [-0.2, 0.025, 0.5], [0.25, 0.09, 0.22], [0.5, 0.035, 0.45], [0.85, 0.14, 0.14], [1.2, 0.05, 0.3]]; // [position (-1 source, 0 centre), radius (of min side), alpha]
+function lensFlare(c, x, y, p, o = {}) {
+  if (p <= 0) return; const { color = '#fff2dc', tints = ['#ff9a3c', '#57c7ff', '#a07bff'], streak = 1.2 } = o, [w, h, s] = begin(c), m = Math.min(w, h), lx = x * w, ly = y * h;
+  const disc = (px, py, r, col, a, x0 = 0.6) => { const g = c.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, col); g.addColorStop(x0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); c.globalAlpha = clamp(a); c.fillStyle = g; c.beginPath(); c.arc(px, py, r, 0, 7); c.fill(); };
+  c.globalCompositeOperation = 'lighter';
+  disc(lx, ly, 0.45 * m, color, 0.35 * p, 0); disc(lx, ly, 0.06 * m, '#ffffff', p, 0.3);
+  GHOSTS.forEach(([g, r, a], i) => disc(w / 2 + (w / 2 - lx) * g, h / 2 + (h / 2 - ly) * g, r * m, tints[i % tints.length], a * p * 0.6, 0.75));
+  c.translate(lx, ly); c.scale(streak * w * 0.5, 7 * s); disc(0, 0, 1, color, 0.55 * p, 0); c.scale(1, 0.3); disc(0, 0, 1, '#ffffff', 0.8 * p, 0.1);
+  c.restore();
+}
+// Double exposure: drawB(ctx, w, h) paints a second, opaque picture, blended over the frame: o.mask 'luma' multiplies it in, so B fills
+// the frame's brights (a light subject on dark); 'inv' screens it, so B fills the darks (a silhouette on light); a function (ctx, w, h)
+// that fills a shape screens B through that shape only. o.k strength.
+function doubleExposure(c, drawB, o = {}) {
+  const { k = 1, mask = 'luma' } = o; if (!k) return; const [w, h] = begin(c), [b, x] = buf('dexB', w, h);
+  drawB(x, w, h); if (typeof mask === 'function') { x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'destination-in'; mask(x, w, h); }
+  c.globalCompositeOperation = mask === 'luma' ? 'multiply' : 'screen'; c.globalAlpha = clamp(k); c.drawImage(b, 0, 0); c.restore();
+}
+// Teal & orange split-tone: a gradient map (shadows teal, highlights and skin orange) overlaid on the frame. amt 0..1 (0.5 is plenty).
+function tealOrange(c, amt = 0.5, o = {}) {
+  if (!amt) return; const { teal = '#00737a', orange = '#ffa04a' } = o, [w, h] = begin(c), [a, x] = buf('toHi', w, h), [b, y] = buf('toLo', w, h);
+  x.filter = 'grayscale(1)'; x.drawImage(c.canvas, 0, 0); x.filter = 'none'; fill(x, 'multiply', orange, 1);
+  y.filter = 'grayscale(1) invert(1)'; y.drawImage(c.canvas, 0, 0); y.filter = 'none'; fill(y, 'multiply', teal, 1);
+  x.globalCompositeOperation = 'lighter'; x.drawImage(b, 0, 0);
+  c.globalCompositeOperation = 'overlay'; c.globalAlpha = clamp(amt); c.drawImage(a, 0, 0); c.restore();
+}
+// Fisheye: barrel distortion, the centre magnified 1 / (1 - k) with the corners pinned. A mesh of cell-px blits from a copy (each
+// cell straight, so long lines step slightly at the edges; smaller cells cost more draws). k 0.15–0.45.
+function fisheye(c, k = 0.3, cell = 12) {
+  if (!k) return; const [w, h, s] = begin(c), src = snap(c), R = Math.hypot(w, h) / 2, n = Math.max(4, Math.round(cell * s));
+  const g = (px, py) => 1 - k * (1 - ((px - w / 2) ** 2 + (py - h / 2) ** 2) / (R * R)), mx = (px, py) => w / 2 + (px - w / 2) * g(px, py), my = (px, py) => h / 2 + (py - h / 2) * g(px, py);
+  fill(c, 'source-over', '#000', 1);
+  for (let y = 0; y < h; y += n) for (let x = 0; x < w; x += n) {
+    const x1 = Math.min(w, x + n), y1 = Math.min(h, y + n), xm = (x + x1) / 2, ym = (y + y1) / 2, a = mx(x, ym), t = my(xm, y);
+    c.drawImage(src, a, t, mx(x1, ym) - a, my(xm, y1) - t, x, y, x1 - x, y1 - y);
+  }
+  c.restore();
+}
+
 // ---- presets ----
 // Strengths per pass; k scales them all. Off unless asked for: LOOK.none is the default for every skill.
 const LOOK = {
@@ -308,6 +350,7 @@ function applyLook(c, t, src, L = {}) {
 }
 // Assigned, not declared, so a page's own names win. applyLook only where free: explainer-lesson's kit.js has its own.
 Object.assign(window, { weave, grade, halation, flicker, vignette, filmGrain, filmDust, soft, dofBand, rgbSplit, bloom, halftone, screenDoor, crtMask,
-  LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, crush, impactFrame, zoomBlur, lightSweep, blockSwap, lensBand, LOOK });
+  LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, crush, impactFrame, zoomBlur, lightSweep, blockSwap, lensBand,
+  lensFlare, doubleExposure, tealOrange, fisheye, LOOK });
 LOOK.apply = applyLook; if (typeof window.applyLook !== 'function') window.applyLook = applyLook;
 })();
