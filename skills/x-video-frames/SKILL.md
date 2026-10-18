@@ -32,6 +32,13 @@ Needs `yt-dlp` and `ffmpeg` (both in /opt/homebrew/bin; `brew install yt-dlp ffm
 
 If the post has several videos, yt-dlp saves each one as a separate playlist item. Use `-o "$D/video_%(playlist_index)s.mp4"` and handle each file separately.
 
+## Gate a finished film
+Before any film made with these skills is handed over:
+```bash
+uv run ~/.claude/skills/x-video-frames/filmgate.py film.mp4 [--allow-blue-purple "reason"] [--json gate.json]
+```
+Exit 2 (red) blocks delivery: a mid-film blank run of 0.3 s or more (judged by edges, so a dark frame with fine lines passes), or blue-purple on 30 %+ of frames. Yellow only asks for a look: fast motion under 0.06 (huashu's judged films: approved ≥ 0.068, rejected ≤ 0.021) or 8+ push-ins a minute. Cuts and dissolves are found and left out of the motion numbers. Ported from huashu-art-motion's `film_gate.py` (MIT, alchaincyf); its thresholds aren't re-calibrated on our films yet, so motion stays yellow-only. Measured: the Fanout reference 0.102 and green; the MBBS reel 0.025, and red for 0.6 s of empty frame until fixed.
+
 ## Deconstruct a reference
 
 Use this when a reference has to be taken apart rather than just looked at: type-film step 1, "make one like this", "how is this edited", "what are the sounds". It runs the measurements the 2026-10-10 research agents each rebuilt by hand, the same way every time.

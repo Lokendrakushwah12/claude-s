@@ -107,7 +107,8 @@ for s in <transition times>; do ffmpeg -loglevel error -y -ss $s -t 0.7 -i <slug
 ```
    Plus stills on any event shorter than 0.5 s (a 2 fps sheet misses a 3-frame flash), and a spectrogram with the cuts marked (`sfx.plot(mono, [(t, label)], 'spec.png')`) to check every sound against its picture event.
 4. **Score each 1–10:** hook in the first 2 s, readability at phone size, motion, variety, brand accuracy, sound sync, **originality**. For originality, put your contact sheet beside each reference's sheet: any shot that reads as "their shot" scores 4 or less and gets redesigned.
-5. **Fresh critic:** spawn one subagent that didn't make the film. Give it concept.md with the banned list, the sheet, strips, spectrogram, stills and the reference sheets, and ask for scores, the 5 worst problems, and "which shot could you have predicted from the brief alone?". It sees what you've stopped seeing.
+5. **Fresh critic:** spawn one subagent that didn't make the film. Give it concept.md with the banned list, the sheet, strips, spectrogram, stills and the reference sheets, and ask for scores, the 5 worst problems, and "which shot could you have predicted from the brief alone?". It sees what you've stopped seeing. When scores disagree, the lower of yours and the critic's wins (huashu-art-motion measured self-scores about 10 points above independent ones).
+6. **Delivery gate:** `uv run ~/.claude/skills/x-video-frames/filmgate.py <slug>.mp4`. Red means no delivery: a mid-film blank run of 0.3 s or more, or a blue-purple film (30 %+ of frames). On its first run it caught the MBBS reel going empty for 0.6 s in the silence before the end card: hold the last picture through a `gap`, don't clear it. Yellow is a reason to look, not to block: fast motion under 0.06 (that reel read 0.025, slow handwriting), or 8+ push-ins a minute.
 
 Fix the 3 worst problems; do at least 2 rounds, until every score is 8+.
 

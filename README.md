@@ -14,7 +14,7 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 | [`story-video`](skills/story-video) | A narrated kinetic-typography story (founder story, recap): a card per phrase, an expressive Chatterbox voice, ducked music, a sub on every hard cut | [story-video.html](demos/story-video.html) |
 | [`explorable-explainer`](skills/explorable-explainer) | An interactive "how does X work" essay with line-art and isometric figures you scrub and pick, published as a claude.ai Artifact | [explorable-explainer.html](demos/explorable-explainer.html) |
 | [`archive-footage`](skills/archive-footage) | Public-domain archival clips (countdowns, grain plates, old streets) with each licence verified at the original archive, and credits written for you | [archive-footage.html](demos/archive-footage.html) |
-| [`x-video-frames`](skills/x-video-frames) | Frames from an x.com video. `deconstruct.py` takes any reference apart: cuts, spectrogram, SFX events, beats, ducking, words, camera drift | [x-video-frames.html](demos/x-video-frames.html) |
+| [`x-video-frames`](skills/x-video-frames) | Frames from an x.com video. `deconstruct.py` takes any reference apart: cuts, spectrogram, SFX events, beats, ducking, words, camera drift. `filmgate.py` blocks delivery of a finished film with blank frames or a blue-purple palette, and flags one where almost nothing moves | [x-video-frames.html](demos/x-video-frames.html) |
 
 Each demo page is self-contained, with the video and its sound embedded. Download it and open it in a browser.
 
@@ -109,6 +109,10 @@ fframes isn't wired in: its scenes are Rust functions that return SVG, and these
 Use fframes for a new motion piece where render time dominates: long videos, batch renders, shader looks. Use these skills for real footage, the shared toolkits, or to avoid Rust.
 
 Before a video, the research: [ScrapeCreators/social-media-research-skills](https://github.com/ScrapeCreators/social-media-research-skills) (MIT) finds a creator's outlier posts, mines comments and pulls hooks from transcripts across TikTok, Reels, Shorts and X. It needs a ScrapeCreators API key. Feed an outlier it finds to `x-video-frames` to take it apart.
+
+Motion vocabulary and checks from two MIT skills (credited in [`type-film/references.md`](skills/type-film/references.md)):
+- [alchaincyf/huashu-art-motion](https://github.com/alchaincyf/huashu-art-motion): 35 art-style recipes for canvas animation. `filmgate.py` is a trimmed port of its delivery gate, and type-film's "every shot keeps moving" rules come from its style guide.
+- [showheyohtaki/motion-prompt](https://github.com/showheyohtaki/motion-prompt): a clickable dictionary of 120 named motions (camera moves, transitions, UI, photo looks), each with a spec and canvas code. Pick a move by sight there, then ask for it by name.
 
 Peers worth a look: [Leonxlnx/cinetic](https://github.com/Leonxlnx/cinetic) and [heygen-com/hyperframes-community-skills](https://github.com/heygen-com/hyperframes-community-skills).
 

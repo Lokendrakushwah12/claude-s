@@ -58,6 +58,13 @@ A persistent prop works the same way: one object from the subject that becomes a
 ## 6. Give every borrowed technique a meaning
 Each technique from a reference must mean something in the subject's world. The pre-drop silence becomes a flatline; a speed ramp becomes a held breath; a block swap becomes a cell dividing. If a technique is there only because the reference had it, cut it.
 
+## 6b. Every shot keeps moving
+From huashu-art-motion's style rules (MIT, alchaincyf), which match what our sheets show:
+- One main action per shot plus 2–4 small motif loops from the subject's world, each visible within the shot's time on screen (a lamp's halo spreading, a clock hand, steam). A shot that only holds reads as a slide.
+- Run a figure's ongoing actions on film time `t`, not shot time, or they restart at every cut ("she raised the cup five times").
+- Never re-randomise the whole frame at a low frame rate: it reads as flicker (frame difference 18–20, bigger than a cut). Boil only line art; step the clock (`stepT`) only where the style is stop-motion.
+- Push in, then pull out or pan away. One push-in per shot, shot after shot, is the "every shot zooms" habit `filmgate.py` flags at 8 a minute.
+
 ## 7. Check for novelty against the sheets
 - Tile your stills next to every reference's contact sheet. Any shot that reads as theirs scores 4 or less and gets redesigned.
 - Then ask the fresh critic (SKILL.md step 5) one extra question: "which shot could you have predicted from the brief alone?" Redesign that one too.

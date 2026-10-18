@@ -15,6 +15,10 @@ Contents: the first three films (Whop, portfolio reel, Nexus), then the 2026-10-
 Then the 2026-10-11 batch's aura edits and motion craft (24, 31 + systms.ai, 47, 48, 49, 34, 35): the aura grammar lives in aura-edit.
 Then the 2026-10-11b batch: every kinetic-type, shape and particle film on prompt-motion.com (41), with the nine that fed this skill.
 
+**Glossaries and other skills (2026-10-18), via @Voxyz_ai.** Not films; read them for names, specs and checks.
+- [showheyohtaki/motion-prompt](https://github.com/showheyohtaki/motion-prompt) (MIT, Shohei Ohtaki): 120 named motions in five packs (motion graphics, camera and transitions, UI, landing page, photo looks), each a deterministic canvas loop with a numeric spec. Use it as a glossary when a user names a move we don't have. Its timing rule is ours too: a play-once move holds with `u = min(t, uHold)`, and a fixed slot stretches the hold, not the motion. Missing here so far: a 3D camera (dolly vs zoom, dolly zoom, orbit, crane, Dutch roll), liquid (metaball) transitions, a card flip, and photo looks (lens flare, double exposure, teal-and-orange, fisheye, high/low key).
+- [alchaincyf/huashu-art-motion](https://github.com/alchaincyf/huashu-art-motion) (MIT): 35 art-style recipes for canvas animation (Van Gogh's three stroke passes over regional palettes is its benchmark) and 9 explainer grammars. TAKEN: the delivery gate (`x-video-frames/filmgate.py`), the motion rules in creative.md 6b, and "the lower score wins" in the critic step. LEAVE: its gallery room (window, cat, girl with a cup).
+
 ---
 
 ## Whop brand film, @az_andrian
