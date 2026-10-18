@@ -743,6 +743,59 @@ function softcut(c, t, tCut, drawA, drawB, o = {}) {
   const { frames = 2, fps = 30 } = o, p = clamp(((t - tCut) * fps + 1) / (frames + 1));
   if (p < 1) drawA(c); if (p > 0) { c.save(); c.globalAlpha *= p; drawB(c); c.restore(); }
 }
+// ---- fast-cut transitions (measured on three creator/vlog reels, 2026-10-18). Same pattern as softcut: drawA/drawB paint opaque full frames ----
+// n-copy average: fn(u) draws one copy for u in 0..1; copy i at alpha 1/(i+1) leaves every copy equally weighted (a shutter, not a trail).
+const blurCopies = (c, n, fn) => { for (let i = 0; i < n; i++) { c.save(); c.globalAlpha *= 1 / (i + 1); fn(n > 1 ? i / (n - 1) : 0); c.restore(); } };
+// Matte cut: the subject's silhouette fills solid white for `pre` frames before the cut and holds over B for `post` frames, so the shape
+// bridges the shots (a hand over the lens, a title, a building). o.mask(c, side) adds the silhouette path (side 0 over A, 1 over B).
+// o: pre 3, post 3, fps 30, color '#fff', grow (scale of the shape by its last frame, about o.at = [x, y]). Sound: swoosh at tCut - pre, flash_hit on tCut.
+function matteCut(c, t, tCut, drawA, drawB, o = {}) {
+  const { pre = 3, post = 3, fps = 30, color = '#ffffff', grow = 0.04, at = [W / 2, H / 2] } = o, f = (t - tCut) * fps, side = t < tCut ? 0 : 1;
+  (side ? drawB : drawA)(c); if (f < -pre || f >= post || !o.mask) return;
+  const s = 1 + grow * clamp((f + pre) / (pre + post)); c.save(); c.translate(at[0], at[1]); c.scale(s, s); c.translate(-at[0], -at[1]);
+  c.beginPath(); o.mask(c, side); c.fillStyle = color; c.fill(); c.restore();
+}
+// Window cut: B arrives as a frame-in-frame on black, hopping through `steps` ([x, y, w, h] as fractions of W/H) on held frames, then fills.
+// o: steps, hold 3 (frames per step), fps 24, ground '#000', fit (true scales B into the window; false, the default, crops it in place).
+// Sound: a click or blip_pop per hop; passby under the whole run.
+function windowCut(c, t, tCut, drawA, drawB, o = {}) {
+  const { steps = [[0.38, 0.6, 0.24, 0.22], [0, 0.66, 1, 0.34], [0.12, 0.1, 0.76, 0.8]], hold = 3, fps = 24, ground = '#000', fit = false } = o;
+  if (t < tCut) return drawA(c); const k = Math.floor(((t - tCut) * fps + 1e-6) / hold); if (k >= steps.length) return drawB(c);
+  const [x, y, w, h] = steps[k].map((v, i) => v * (i % 2 ? H : W)); c.save(); c.fillStyle = ground; c.fillRect(0, 0, W, H);
+  c.beginPath(); c.rect(x, y, w, h); c.clip(); if (fit) { c.translate(x, y); c.scale(w / W, h / H); } drawB(c); c.restore();
+}
+// Roll cut: the frame spins through `turn` rad over `dur` s centred on the cut (A rolls out, B rolls in and lands level), pulling back
+// by `zoom` mid-spin over `ground`, with an n-copy rotational blur. o: turn PI, dur 0.3, zoom 0.25, n 6, spread 0.5 (rad of blur at peak speed).
+// Sound: whoosh centred on tCut (swoosh for a short one).
+function rollCut(c, t, tCut, drawA, drawB, o = {}) {
+  const { turn = Math.PI, dur = 0.3, zoom = 0.25, n = 6, spread = 0.5, ground = '#000' } = o, p = clamp((t - tCut) / dur + 0.5);
+  if (p <= 0) return drawA(c); if (p >= 1) return drawB(c);
+  const a = ease.inOut(p) * turn, B = a >= turn / 2, s = 1 - zoom * Math.sin(Math.PI * p), v = spread * Math.sin(Math.PI * p);
+  c.save(); c.fillStyle = ground; c.fillRect(0, 0, W, H);
+  blurCopies(c, n, u => { c.translate(W / 2, H / 2); c.rotate((B ? a - turn : a) - v * u); c.scale(s, s); c.translate(-W / 2, -H / 2); (B ? drawB : drawA)(c); });
+  c.restore();
+}
+// Zoom-through: A punches in to 1 + amt over `pre` s with a radial blur, the cut lands on B already zoomed by `settle`, which eases back
+// to 1 over `out` s, about two-thirds done in the first third (the measured zoom-settle: -11 to -33 % at 19–30 %/s).
+// o: amt 0.6, pre 0.12, settle 0.25, out 0.4, n 6, at [x, y]. Sound: passby or whoosh ending on tCut, then sub_boom or thump on it.
+function zoomThrough(c, t, tCut, drawA, drawB, o = {}) {
+  const { amt = 0.6, pre = 0.12, settle = 0.25, out = 0.4, n = 6, at = [W / 2, H / 2] } = o, A = t < tCut;
+  const s = A ? 1 + amt * ease.in(clamp(1 - (tCut - t) / pre)) : 1 + settle * Math.exp(-4 * clamp((t - tCut) / out)) * (1 - clamp((t - tCut) / out));
+  const v = A ? s - 1 : Math.max(0, settle * (1 - (t - tCut) / (2 / 30))), fn = A ? drawA : drawB;
+  blurCopies(c, v > 0.01 ? n : 1, u => { const k = s * (1 + 0.15 * v * u); c.translate(at[0], at[1]); c.scale(k, k); c.translate(-at[0], -at[1]); fn(c); });
+}
+// Split panes: n shots side by side (stacked on a vertical frame) popping in one per `stagger` s (one beat), each a centre crop of its
+// full-frame draw, with an optional small label. draws[i](c) paints a full frame. o: stagger 0.45, gap, ground, labels, size, color.
+// Sound: pop or click per pane.
+function panes(c, t, t0, draws, o = {}) {
+  const n = draws.length, rows = H > W, { stagger = 0.45, gap = 24 * S, pad = 60 * S, ground = '#000', labels = [], size = 26 * S, color = '#fff' } = o;
+  const pw = rows ? W - pad * 2 : (W - pad * 2 - gap * (n - 1)) / n, ph = rows ? (H - pad * 2 - gap * (n - 1)) / n : H - pad * 2;
+  c.save(); c.fillStyle = ground; c.fillRect(0, 0, W, H);
+  draws.forEach((d, i) => { if (t < t0 + i * stagger) return; const x = pad + (rows ? 0 : i * (pw + gap)), y = pad + (rows ? i * (ph + gap) : 0), k = Math.max(pw / W, ph / H);
+    c.save(); c.beginPath(); c.rect(x, y, pw, ph); c.clip(); c.translate(x + pw / 2, y + ph / 2); c.scale(k, k); c.translate(-W / 2, -H / 2); d(c); c.restore();
+    if (labels[i]) word(c, labels[i], x + 20 * S, y + ph - 24 * S, { size, weight: 600, color, track: 0.08 }); });
+  c.restore();
+}
 // Whip pan across a wide world: drawWorld(c, ox) draws it shifted by ox; eased in-out with 8-copy motion blur peaking mid-move.
 function whip(c, drawWorld, x0, x1, p, o = {}) {
   const e = ease.inOut(clamp(p)), ox = -lerp(x0, x1, e), v = Math.sin(Math.PI * clamp(p)) * Math.abs(x1 - x0) * (o.blur ?? 0.06);

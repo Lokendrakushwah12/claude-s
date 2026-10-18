@@ -202,3 +202,16 @@ add('Aesthetic', 'type.js', 'clipSheet + serifStack + scriptLine + cutout + loop
   cutout(c, W * 0.1, H * 0.5, 210 * S, 290 * S, t - 2.0, { kind: 'cup', rot: -0.12 });
   cutout(c, W * 0.86, H * 0.64, 250 * S, 240 * S, t - 2.2, { kind: 'camera', rot: 0.06 });
   loopArrow(c, W * 0.55, H * 0.9, W * 0.9, H * 0.93, prog(t, 2.5, 3.3), { loop: 0.13 }); });
+
+// ---- Fast cuts and transitions (2026-10-18: three creator/vlog reels) ----
+const lab = (c, s) => word(c, s, 24, 50, { size: 22, weight: 600, color: '#fff', track: 0.08 }); // which shot is on screen
+const shotA = c => { sceneA(c); c.fillStyle = '#3a3d4a'; c.beginPath(); c.arc(cx, cy - 170, 70, 0, 7); c.fill(); lab(c, 'A'); };
+const shotB = c => { sceneB(c); lab(c, 'B'); };
+const person = c => { c.moveTo(cx + 80, cy - 170); c.arc(cx, cy - 170, 80, 0, 7); c.moveTo(cx - 190, H); c.ellipse(cx, H, 190, 380, 0, Math.PI, 0); };
+add('Transitions & hits', 'type.js', 'matteCut', 'Matte cut', 'the subject silhouette flashes solid white across the cut (matteCut)', 2, (c, t) => { matteCut(c, t, 1, shotA, shotB, { mask: person, pre: 4, post: 4 }); });
+add('Transitions & hits', 'type.js', 'windowCut', 'Window cut', 'next shot hops in as a frame-in-frame on black, then fills (windowCut)', 2.5, (c, t) => { windowCut(c, t, 0.8, shotA, shotB, { hold: 5 }); });
+add('Transitions & hits', 'type.js', 'rollCut', 'Roll cut', 'spin transition: the frame rolls 180° through the cut with blur (rollCut)', 2, (c, t) => { rollCut(c, t, 1, shotA, shotB, { dur: 0.5 }); });
+add('Transitions & hits', 'type.js', 'zoomThrough', 'Zoom-through', 'punch into A, land on B zoomed in and settle out (zoomThrough)', 2, (c, t) => { zoomThrough(c, t, 1, shotA, shotB, { pre: 0.2, out: 0.6 }); });
+add('Transitions & hits', 'type.js', 'panes', 'Split panes', 'split screen whose panes pop in one per beat, labelled (panes)', 2.5, (c, t) => { panes(c, t, 0.3, [shotA, shotB], { labels: ['SHOT A', 'SHOT B'] }); });
+add('Transitions & hits', 'look.js', 'letterbox', 'Letterbox', 'bars close to 2.39 scope, then shut the shot to black (letterbox)', 3, (c, t) => { scene(c, t); letterbox(c, pp(t, 3) * 1.6, 0.8); });
+add('Transitions & hits', 'look.js', 'lutStab xray', 'X-ray hit', '2-frame negative flash on a cut (lutStab xray)', 1.5, (c, t) => { (t < 0.5 ? shotA : scene)(c, t); if (t >= 0.5 && t < 0.5 + 3 / 30) lutStab(c, 'xray'); });

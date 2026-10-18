@@ -11,7 +11,7 @@
 // Preset passes run in this order (weave moves the finished frame, so it can run after the scene):
 //   weave → scene → soft dofBand rgbSplit bloom halftone → grade → halation → crush glow → screenDoor crtMask vhs → flicker → vignette → grain → dust
 // Event passes: lutStab asciiRender crtCollapse vhsTear filmBurn blueTear stutterRepeat defocusExit mosh
-// Hit passes (aura-edit): impactFrame zoomBlur lightSweep blockSwap, crush as a standalone grade, lensBand as a framing
+// Hit passes (aura-edit): impactFrame zoomBlur lightSweep blockSwap, crush as a standalone grade, lensBand and letterbox as framings
 //
 // Cost per frame at 1920x1080, render.mjs wall time over 360 frames on an M4 Pro (a plain frame ≈ 62 ms, Chrome-bound):
 //   the draws themselves hide in the screenshot's slack (weave grade halation flicker vignette dust soft dofBand rgbSplit
@@ -142,6 +142,7 @@ function crtMask(c, k = 0.5) {
 const LUTS = {
   thermal: ['#000000', '#2B0A3D', '#B0306A', '#F07A2A', '#FFE9A0', '#FFFFFF'], navy: ['#0A1478', '#5B3AA8', '#F5D0FF'],
   paper: ['#F4EDE4', '#3A3530'], phosphor: ['#000000', '#0D3B22', '#39E27A', '#E6FFF0'], cyan: ['#001018', '#0A5A78', '#6FF2FF'],
+  xray: ['#FFFFFF', '#CFEAFF', '#4A86E8', '#0B1A4A'], // a negative: the subject goes white-blue for 1–2 frames on a cut (flash_hit)
 };
 function lutStab(c, name = 'thermal', k = 1) {
   const [w, h] = begin(c), st = LUTS[name].map(x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16))), T = new Uint8ClampedArray(768);
@@ -267,6 +268,12 @@ function blockSwap(c, from, p, o = {}) {
   }
   c.restore();
 }
+// Letterbox: bars close in to `aspect` (2.39 scope; pillars when the frame is wider than it) as k goes 0 -> 1. Animate k over 3–6 frames
+// to change aspect on a cut, or run k to 1.5+ (bars meet) to close the shot to black. Sound: a low thump or tick as the bars land.
+function letterbox(c, k = 1, aspect = 2.39, color = '#000') {
+  if (k <= 0) return; const [w, h] = begin(c), rows = w / h < aspect, gap = rows ? (h - w / aspect) / 2 : (w - h * aspect) / 2, b = Math.max(gap * k, k > 1 ? (rows ? h : w) / 2 * (k - 1) + gap : 0);
+  c.fillStyle = color; if (rows) { c.fillRect(0, 0, w, b); c.fillRect(0, h - b, w, b); } else { c.fillRect(0, 0, b, h); c.fillRect(w - b, 0, b, h); } c.restore();
+}
 // Lens band: the picture through a horizontal band whose top and bottom edges bow (thinner in the middle, like a wide lens's
 // pincushion), feathered, on `ground`; the band's sides soften into a blur. A 9:16 "cinema" frame for interview-led edits.
 // o: y (centre, 0..1 of H), h (band height, of H), bow (of H), feather (px at 1080p), edge (side blur, 0 = none), ground.
@@ -350,7 +357,7 @@ function applyLook(c, t, src, L = {}) {
 }
 // Assigned, not declared, so a page's own names win. applyLook only where free: explainer-lesson's kit.js has its own.
 Object.assign(window, { weave, grade, halation, flicker, vignette, filmGrain, filmDust, soft, dofBand, rgbSplit, bloom, halftone, screenDoor, crtMask,
-  LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, crush, impactFrame, zoomBlur, lightSweep, blockSwap, lensBand,
+  LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, crush, impactFrame, zoomBlur, lightSweep, blockSwap, lensBand, letterbox,
   lensFlare, doubleExposure, tealOrange, fisheye, LOOK });
 LOOK.apply = applyLook; if (typeof window.applyLook !== 'function') window.applyLook = applyLook;
 })();

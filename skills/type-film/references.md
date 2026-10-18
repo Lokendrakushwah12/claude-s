@@ -573,3 +573,46 @@ https://www.instagram.com/p/DdZEY47Caim/ · 68 s, 4:3, 39 cuts/min
 - A shop page laid over the talking head as a pale translucent card for the plug.
 **LEAVE** the shop, the LUT pack, the locations.
 **Lives in:** `serifSub` (T132), `glass` for the plug card.
+
+## 2026-10-18 fast cuts and transitions
+Three Instagram reels the user sent as "effects and transitions like these" and "fast-pace editing and cuts". Measured with x-video-frames' deconstruct (cuts, camera, SFX transients, words, beats); creators not recorded.
+
+### Creator tutorial on editing, talking head, 16:9
+https://www.instagram.com/p/DemNOd7xTV0/ · 75.9 s, 40 hard + 57 jump cuts, 76.7 cuts/min, mean hard shot 1.85 s (median 1.17), 0.77 s counting jumps, voice 226 wpm, no beat.
+**TAKE**
+- Cuts ride the words: 44 of 97 cuts come 0–150 ms before a word starts (median −44 ms), 44 land 0–200 ms after one (median +53 ms); only 9 sit away from speech.
+- A demo burst on the word it names: five cuts in 0.7 s (14.4–15.1 s), each on a click/tick SFX, then a 0.9 s hold.
+- Matte bridge: the hand crossing the lens turns into a flat white silhouette for ~3 frames, holds over the next shot, then drops away. Lives in `matteCut`.
+- Red tint frame then a light-leak burn into the next shot (`flash` with a red color, then look.js `filmBurn` p 0→1→0 over ~0.3 s).
+- Titles behind the head (`behind`), resolving out of a blur (`glowIn`); chapter cards "1. / 2. / 3." over b-roll.
+- Smash zoom: from a wide b-roll shot, the subject leaps at camera and the cut lands on a close talking head, motion-blurred. Lives in `zoomThrough`.
+- Camera never sits still on the talking head: push-ins of +6 to +12 % per shot, and zoom-settles of −4 to −12 % (mostly done in the first third).
+**LEAVE** the tool he plugs, his room, his captions' exact font.
+
+### Vertical product reel (founder/creator pitch), 9:16
+https://www.instagram.com/p/Dd9SOdcMnR5/ · 46.5 s, 29 hard + 40 jump cuts, 89 cuts/min, mean hard shot 1.55 s (median 1.22), 0.66 s counting jumps, voice 220 wpm.
+**TAKE**
+- Word-built captions as jump cuts: 12 jumps in 0.9 s (10.1–10.96 s), one per word, 0.04–0.08 s apart, the caption growing word by word over a static close-up.
+- Black title cards that stack words ("BUT" then "BUT WHY", 3.04–3.64 s), then a 1-frame white flash that fades down from white into the next shot (`flash` whiteout / exposure).
+- Negative hit: the subject goes white-blue (an x-ray / inverted look) for 1–2 frames on a cut. Lives in look.js `lutStab(c, 'xray')`.
+- Orange-to-yellow light leak that washes the whole frame for ~0.3 s between sections (10.1 s, 34 s): `filmBurn`.
+- Hook shots land zoomed in and settle out hard: −22.8 % and −32.6 % at −26 %/s, 81–91 % done in the first third (`zoomThrough`'s settle, or `shotCam`).
+- Sub booms on the hook cuts (3.84 s, 13.5 s); air swishes on UI-screen cuts.
+- The app's screen fills the top half, the face the bottom (a stacked split): `panes`.
+**LEAVE** the product, its UI, the CTA comment bait.
+
+### City vlog montage, 16:9, music-led
+https://www.instagram.com/p/DeCPKyXS6gg/ · 22.9 s, 33 hard + 20 jump cuts, 138.9 cuts/min, mean hard shot 0.67 s (median 0.29), 1.29 cuts per beat at 136 BPM, 41 SFX transients.
+**TAKE**
+- Opens on a 1-frame red-tinted flash with a sub boom (0.18 s), straight into the title.
+- Title over the street with a white matte of the title/building shape for a frame, then a hard cut (the same matte bridge as the first reel: `matteCut`).
+- Flicker bursts: 1–3 frame cuts (0.04–0.12 s) back to shots already seen, then a 1–2 s hold (`flipFrames`/`cutIndex` with earlier shots via `drawAt`).
+- Letterbox as a transition: bars slide in over a few frames and meet to close a shot to black (3.3–3.6 s); later shots sit in wider/narrower frames. Lives in look.js `letterbox`.
+- Frame-in-frame on black: the next shot appears as a small window, hops to a bottom band, then fills (11.5–12.3 s), each hop with a falling whoosh 0.4 s apart. Lives in `windowCut`.
+- Split screen: two portrait panes, the second popping in 0.45 s (one beat) after the first, small name labels. Lives in `panes`.
+- A 180° roll into an upside-down shot (14.1 s). Lives in `rollCut`.
+- Run of zoom-settles at the end: four shots in a row each landing −11 to −15 % zoomed in and easing out at −19 to −31 %/s.
+- Second half rhythm: a high blip/pop roughly every 0.45 s with an air swish on most cuts; the cuts sit on the eighth-note grid (median −3 ms, 43 % within ±60 ms).
+**LEAVE** the couple, the city and its landmarks, the end credit.
+
+**Lives in:** `matteCut windowCut rollCut zoomThrough panes` (type.js), `letterbox` and the `xray` LUT for `lutStab` (look.js); gallery T140–T146. Already covered: light leak = `filmBurn`, blur-in title = `glowIn`, text behind subject = `behind`, flicker recall = `flipFrames` + `drawAt`, white dip = `flash` whiteout.
