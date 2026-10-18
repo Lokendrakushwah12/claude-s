@@ -44,6 +44,8 @@ Run **[`creative.md`](creative.md)** first, into `docs/concepts.md`: inventory 2
 ## Styles
 Mix freely. Details and credits are in `references.md`.
 
+**"In the style of <a painter or art movement>":** none of the styles below is painterly. Read that style's card in [huashu-art-motion](https://github.com/alchaincyf/huashu-art-motion) (MIT; `references/风格配方/INDEX.md` lists 36 with star ratings, ★★★ first; cards are in Chinese, so translate as you read) for its stroke passes, palettes and what moves (Van Gogh: three flow-field stroke passes over regional palettes, the sky curling into swirls). Rebuild it in our toolkit on the user's subject; never reuse its room-with-a-cat composition. Fetch the repo only when a film needs it.
+
 | Style | Picture | Sound | From |
 |---|---|---|---|
 | Swiss kinetic type | huge grotesk on grid paper, masked rises, scrambled meta labels | bright bed ≈150 BPM | Whop |
