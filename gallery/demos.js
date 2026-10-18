@@ -216,9 +216,12 @@ add('Transitions & hits', 'type.js', 'panes', 'Split panes', 'split screen whose
 add('Transitions & hits', 'look.js', 'letterbox', 'Letterbox', 'bars close to 2.39 scope, then shut the shot to black (letterbox)', 3, (c, t) => { scene(c, t); letterbox(c, pp(t, 3) * 1.6, 0.8); });
 add('Transitions & hits', 'look.js', 'lutStab xray', 'X-ray hit', '2-frame negative flash on a cut (lutStab xray)', 1.5, (c, t) => { (t < 0.5 ? shotA : scene)(c, t); if (t >= 0.5 && t < 0.5 + 3 / 30) lutStab(c, 'xray'); });
 // T147–T150: the cinematic grades (2026-10-18), graded scene with a before | after wipe
+// Each grades a real CC0 photo (assets/photos/CREDITS.md), 540x960 like the canvas; the drawn scene stands in until it loads.
+const PHOTO = Object.fromEntries([['umber', 'cafe-bar'], ['alpine', 'lake'], ['cream', 'window-room'], ['golden', 'portrait']].map(([p, n]) => { const i = new Image(); i.src = 'assets/photos/' + n + '.jpg'; return [p, i]; }));
 for (const p of ['umber', 'alpine', 'cream', 'golden']) add('Looks', 'look.js', 'applyLook', 'Grade: ' + p, `cinematic ${p} grade, before | after wipe (applyLook LOOK.${p}; grade.sh for footage)`, 3, (c, t) => {
-  const x = W * (0.15 + 0.7 * pp(t, 3)); scene(c, t); applyLook(c, t, null, p);
-  c.save(); c.beginPath(); c.rect(0, 0, x, H); c.clip(); scene(c, t); c.restore(); c.fillStyle = '#fff'; c.fillRect(x - 1, 0, 2, H);
+  const im = PHOTO[p], pic = (c, t) => (im.complete && im.naturalWidth ? c.drawImage(im, 0, 0, W, H) : scene(c, t));
+  const x = W * (0.15 + 0.7 * pp(t, 3)); pic(c, t); applyLook(c, t, null, p);
+  c.save(); c.beginPath(); c.rect(0, 0, x, H); c.clip(); pic(c, t); c.restore(); c.fillStyle = '#fff'; c.fillRect(x - 1, 0, 2, H);
 });
 // T151–T152: real-photo stickers (CC0, subject lifted by ugc-edit's stickers.py with macOS Vision; credits in assets/stickers/CREDITS.md).
 // ponytail: the gallery has no IMGS loader, so these two preload here; a card draws its sticker once the PNG has landed.
