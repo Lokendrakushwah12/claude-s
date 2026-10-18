@@ -145,8 +145,12 @@ if __name__ == "__main__":
     out.mkdir(parents=True, exist_ok=True)
     picks = dict(p.split("=") for p in A.pick)
 
+    missing = [f for f in A.file if not Path(f).expanduser().is_file()]
+    if missing:
+        sys.exit(f"not found: {', '.join(missing)} (relative to {Path.cwd()}). Pass the real path, e.g. --file ~/Downloads/cup.jpg")
     for f in A.file:
         print(f"{f}:")
+        f = str(Path(f).expanduser())
         lift(f, out / f"{slugify(Path(f).stem)}.png", A.max, A.rembg)
 
     for q in A.queries:
