@@ -7,7 +7,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>claude-s motion gallery</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Inter+Tight:wght@400;500;700;900&family=Anton&family=Geist+Mono:wght@400;500&family=Archivo:wght@100..900&family=Instrument+Serif&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Inter+Tight:wght@400;500;700;900&family=Anton&family=Geist+Mono:wght@400;500&family=Archivo:wght@100..900&family=Instrument+Serif:ital@0;1&family=Gloock&family=Caveat:wght@400..700&family=Reenie+Beanie&display=block">
 <style>
   :root { --bg: #f4f4f2; --ink: #16161a; --mute: #6b6b73; --line: #dcdcd8; --accent: #ff5a1f; }
   * { box-sizing: border-box; }
@@ -68,7 +68,7 @@
   ['All', ...groups].forEach(g => { const b = document.createElement('button'); b.className = 'chip' + (g === 'All' ? ' on' : ''); b.textContent = g;
     b.onclick = () => { group = g === 'All' ? null : g; [...chips.children].forEach(x => x.classList.toggle('on', x === b)); filter(); }; chips.appendChild(b); });
   function filter() { const s = q.value.toLowerCase(); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
-  q.oninput = filter;
+  q.oninput = filter; q.value = params.get('q') || ''; filter(); // ?q= pre-filters (headless screenshots)
   const text = () => 'From the claude-s gallery, use these devices:\n' + DEMOS.filter(d => picks.has(d.id)).map(d => `#${d.id} ${d.helper} (${d.file}) — ${d.ask}`).join('\n');
   function sync() {
     cards.forEach(k => k.el.classList.toggle('pick', picks.has(k.d.id))); copyBtn.textContent = `Copy picks (${picks.size})`;
@@ -91,7 +91,7 @@
     cards.forEach(k => { render(k, 1.2); try { const a = k.cx.getImageData(0, 0, 216, 384).data; let v = 0; for (let i = 4; i < a.length; i += 64) v |= a[i] ^ a[0] | a[i + 1] ^ a[1] | a[i + 2] ^ a[2]; if (!v) { k.el.classList.add('blank'); console.warn(k.d.id, 'blank at t=1.2'); } } catch (e) {} });
     let last = 0; (function loop(ms) { if (ms - last > 32) { last = ms; cards.forEach(k => k.vis && k.el.style.display !== 'none' && render(k, ms / 1000)); } requestAnimationFrame(loop); })(0);
   };
-  document.fonts.ready.then(() => Promise.all(['900 40px Inter', '500 40px "Inter Tight"', '40px Anton', '40px "Geist Mono"', '500 40px Archivo'].map(f => document.fonts.load(f)))).catch(() => {}).then(go);
+  document.fonts.ready.then(() => Promise.all(['900 40px Inter', '500 40px "Inter Tight"', '40px Anton', '40px "Geist Mono"', '500 40px Archivo', '40px Gloock', '600 40px Caveat', '40px "Reenie Beanie"', '40px "Instrument Serif"', 'italic 40px "Instrument Serif"'].map(f => document.fonts.load(f)))).catch(() => {}).then(go);
 })();
 </script>
 </body>

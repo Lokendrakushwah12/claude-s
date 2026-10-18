@@ -5,7 +5,8 @@
 // Telegram / YouTube logo chips. frame = the whole picture inset 0.845 on a striped or ruled-paper border.
 // Phrase fields: st {word: style}, show {word: display text, "" hides it}, stk [{img, on, side: "r"|"l", circle: [cx, cy, r]}],
 //   frame blue|pink|mint|paper, big (a section word: its own group, larger), hook (the hookTitle stack shows over it).
-// Top level: hookTitle ["small serif", "BIG", "script"] (or {text, font} each; font is a Google Fonts spec, "Fredoka:wght@700").
+//   rank {n, handle, sub, avatar} (a ranked creator chip at the top with a big script numeral; that phrase's captions step aside).
+// Top level: cover {lines, script, props, dur} (a clipped-sheet cover card over the hook for its first dur s: the thumbnail). hookTitle ["small serif", "BIG", "script"] (or {text, font} each; font is a Google Fonts spec, "Fredoka:wght@700").
 // Words show as written in say, a sentence's first capital lowered (names, acronyms and "I" stay): fix spellings with show.
 (() => {
 if (E.captions !== 'reel') return;
@@ -13,7 +14,7 @@ PRESET.captions = false; // the house lead-in + keyword step aside
 const TITLE_FONTS = ['Bodoni Moda:wght@500', 'Fredoka:wght@700', 'Pinyon Script'];
 const TITLE = (E.hookTitle || []).map((x, k) => { const o = typeof x === 'string' ? { text: x } : x, f = o.font || TITLE_FONTS[k];
   return { text: o.text, f, fam: f.split(':')[0], wt: /wght@(\d+)/.exec(f)?.[1] || 400 }; });
-VIDEO.fonts.push('Fredoka:wght@600;700', 'Bodoni Moda:ital,wght@0,400;0,500;1,400', 'Instrument Serif:ital@0;1', 'Pinyon Script');
+VIDEO.fonts.push('Fredoka:wght@600;700', 'Bodoni Moda:ital,wght@0,400;0,500;1,400', 'Instrument Serif:ital@0;1', 'Pinyon Script', 'Gloock', 'Caveat:wght@400..700');
 for (const o of TITLE) if (!VIDEO.fonts.some(f => f.split(':')[0] === o.fam)) VIDEO.fonts.push(o.f);
 VIDEO.assets = [...new Set([...(VIDEO.assets || []), ...E.phrases.flatMap(p => (p.stk || []).map(k => k.img.replace('assets/', '')))])];
 
@@ -47,10 +48,10 @@ function groups(p) { // 1-3 words a group; a label or chip stands alone; a secti
   return (p.groups = out.map((g, i) => ({ ws: g, t0: i ? g[0].t - 0.03 : p.start, t1: out[i + 1] ? out[i + 1][0].t - 0.03 : p.end })));
 }
 
-const SZ = { plain: 0.056, chunk: 0.08, spark: 0.086, ital: 0.084, label: 0.066, tg: 0.066, yt: 0.066 };
-const FONT = { plain: z => `800 ${z}px "${B.font}"`, chunk: z => `700 ${z}px Fredoka`, spark: z => `400 ${z}px "Bodoni Moda"`,
+const SZ = { script: 0.075, serif: 0.07, plain: 0.056, chunk: 0.08, spark: 0.086, ital: 0.084, label: 0.066, tg: 0.066, yt: 0.066 };
+const FONT = { script: z => `600 ${z}px Caveat`, serif: z => `400 ${z}px Gloock`, plain: z => `800 ${z}px "${B.font}"`, chunk: z => `700 ${z}px Fredoka`, spark: z => `400 ${z}px "Bodoni Moda"`,
   ital: z => `italic 400 ${z}px "Instrument Serif"`, label: z => `700 ${z}px Fredoka`, tg: z => `700 ${z * 0.62}px Fredoka`, yt: z => `700 ${z * 0.62}px Fredoka` };
-const TRACK = { plain: -0.045, chunk: -0.01, spark: -0.02, ital: 0, label: -0.01, tg: 0, yt: 0 };
+const TRACK = { script: 0, serif: -0.03, plain: -0.045, chunk: -0.01, spark: -0.02, ital: 0, label: -0.01, tg: 0, yt: 0 };
 const size = (p, w) => H * SZ[w.st] * (p.big && w.st === 'chunk' ? 1.4 : 1);
 function setFont(c, st, z) { c.font = FONT[st](z); c.letterSpacing = `${TRACK[st] * z}px`; }
 function wordW(c, p, w) {
@@ -82,7 +83,7 @@ function drawWord(c, t, p, w, x, y) { // x = left, y = baseline
   if (a <= 0) return null;
   const ww = wordW(c, p, w), cx = x + ww / 2, cy = y - z * 0.35;
   c.save(); c.globalAlpha *= a; c.translate(cx, cy); c.scale(sc, sc); c.translate(-cx, -cy); setFont(c, w.st, z);
-  if (w.st === 'plain' || w.st === 'ital') {
+  if (['plain', 'ital', 'script', 'serif'].includes(w.st)) {
     c.shadowColor = R.shadow; c.shadowBlur = 14 * S; c.shadowOffsetY = 3 * S; c.fillStyle = '#fff'; c.fillText(w.s, x, y);
   } else if (w.st === 'chunk') {
     c.fillStyle = 'rgba(64,46,8,0.75)'; c.fillText(w.s, x + 3.5 * S, y + 4.5 * S);
@@ -195,9 +196,20 @@ const baseOverlay = VIDEO.overlay;
 VIDEO.overlay = (c, t) => {
   baseOverlay(c, t); const p = phraseAt(t); if (!p) return;
   if (p.hook && TITLE.length) hookTitle(c);
-  if (p.caption !== false && (p.caption === true || !NOCAP.has(p.insert?.kind))) { c.save(); captionsReel(c, t, p); c.restore(); } // inserts with their own type: none
+  if (p.rank) handleChip(c, W * 0.2, H * 0.12, p.rank.handle, p.rank.sub || '', t - (p.words[0]?.t ?? 0), { num: p.rank.n, avatar: p.rank.avatar, size: 34 * S });
+  if (p.caption !== false && (p.caption === true || !NOCAP.has(p.insert?.kind) && !p.rank)) { c.save(); captionsReel(c, t, p); c.restore(); } // inserts with their own type: none
   stickers(c, t, p); framePass(c, t, p);
+  if (E.cover && p.hook && t < (E.cover.dur ?? 1.2)) coverCard(c, t, E.cover);
 };
+// The aesthetic cover over the opening (type.js kit): a clipped grid sheet, a condensed serif stack, a script line, drawn props and
+// a looping arrow, fully built from frame 0 (the thumbnail), fading out over its last 0.15 s.
+function coverCard(c, t, o) {
+  const props = o.props || ['laptop', 'cup', 'camera'], at = [[0.8, 0.13, 330, 260], [0.1, 0.5, 210, 290], [0.86, 0.64, 250, 240]];
+  c.save(); c.globalAlpha = clamp(((o.dur ?? 1.2) - t) / 0.15); bg(c, o.ground || '#F7F4EF'); clipSheet(c, W * 0.49, H * 0.49, W * 0.66, H * 0.8, { clip: o.accent || '#A3B385' });
+  const y = serifStack(c, o.lines || ['your', 'headline'], W * 0.49, H * 0.2, W * 0.6, 9); if (o.script) scriptLine(c, o.script, W * 0.5, y + 110 * S, 1, { size: 84 * S, color: o.accent || '#6F8A3A' });
+  props.slice(0, 3).forEach((k, i) => { const [x, yy, w, h] = at[i]; cutout(c, W * x, H * yy, w * S, h * S, 9 + t, { kind: k, rot: [0.08, -0.12, 0.06][i] }); });
+  loopArrow(c, W * 0.55, H * 0.9, W * 0.9, H * 0.93, 1, { loop: 0.13 }); c.restore();
+}
 
 // Sound, as the reference: no whoosh on a plain jump cut; a passby where the frame changes (a sub under it into a section),
 // a blip on each label or chip, a bloop as a sticker lands, a shine on a sparkle word. Gains ~2x: at 1x they measured

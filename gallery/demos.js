@@ -156,3 +156,49 @@ add('Looks', 'type.js', 'litGround', 'Lit ground', 'flat colour lit like a surfa
 add('Looks', 'promo.js', 'mesh', 'Mesh gradient', 'animated mesh-gradient ground (mesh)', 6, (c, t) => { mesh(c, ['#ff5a1f', '#7c3aed', '#06b6d4', '#facc15'], t); });
 add('Looks', 'promo.js', 'ground', 'Promo ground', 'promo ground with lattice and blooms (ground)', 4, (c, t) => { ground(c, t, { lattice: 'dots', oy: t * 20 }); });
 add('Looks', 'promo.js', 'glow', 'Soft glow', 'soft radial glow / light leak (glow)', 3, (c, t) => { dark(c); glow(c, cx + 100 * Math.sin(t * 2), cy, 300, '#ff5a1f', 0.7); });
+
+// ---- aesthetic reel kit (2026-10-18) ----
+const cream = c => bg(c, '#F6F2EA');
+const warm = c => { const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#C9A285'); g.addColorStop(1, '#4E3B2E'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#E8D3BF'; c.beginPath(); c.ellipse(cx, H * 0.62, 120, 170, 0, 0, 7); c.fill(); c.beginPath(); c.arc(cx, H * 0.36, 70, 0, 7); c.fill(); }; // a stand-in talking head
+add('Aesthetic', 'type.js', 'clipSheet', 'Binder-clip grid sheet', 'gridded paper sheet held by a binder clip, dropping in (clipSheet)', 3, (c, t) => { cream(c); clipSheet(c, cx, cy, W * 0.74, H * 0.7, { p: prog(t, 0, 0.6) }); });
+add('Aesthetic', 'type.js', 'clipSheet', 'Paper clip + washi sheets', 'ruled sheet with a paper clip, plain sheet with washi tape (clipSheet holder)', 3, (c, t) => { bg(c, '#EDE6F2');
+  clipSheet(c, cx - 40, H * 0.3, W * 0.6, H * 0.36, { kind: 'ruled', holder: 'paperclip', rot: 0.04, p: prog(t, 0, 0.6) });
+  clipSheet(c, cx + 40, H * 0.72, W * 0.6, H * 0.34, { kind: 'plain', holder: 'tape', clip: '#F2B8C6', rot: -0.05, p: prog(t, 0.3, 0.9) }); });
+add('Aesthetic', 'type.js', 'serifStack + scriptLine', 'Serif stack + script accent', 'giant condensed serif headline with a handwritten script line under it (serifStack + scriptLine)', 4, (c, t) => { cream(c);
+  const y = serifStack(c, ['I tried', 'every planner', 'for a year'], cx, H * 0.3, W * 0.8, t); scriptLine(c, "so here's the keeper", cx, y + 80 * S, prog(t, 0.9, 1.8)); });
+add('Captions', 'type.js', 'mixWords', 'Mixed-voice caption', 'caption words in mixed fonts (small serif, heavy word, script) popping in on their onsets (mixWords)', 3, (c, t) => { warm(c);
+  mixWords(c, [{ s: 'Quiet', font: 'Instrument Serif', weight: 400, size: 56 * S, at: 0.1 }, { s: 'PANTRY', font: 'Anton', weight: 400, size: 110 * S, color: '#F7EFA0', br: true, at: 0.35 }, { s: 'upgrade', font: 'Caveat', weight: 600, size: 80 * S, br: true, dy: -0.2, at: 0.6 }], cx, H * 0.14, t);
+  mixWords(c, [{ s: '53', font: 'Gloock', size: 120 * S, at: 1.2, color: '#F7EFA0' }, { s: 'grams of', size: 44 * S, at: 1.35, dy: -0.6 }], cx, H * 0.88, t); });
+add('Captions', 'type.js', 'scriptLine', 'Script word caption', 'one handwritten script word written on over the picture (scriptLine)', 2.5, (c, t) => { warm(c);
+  scriptLine(c, 'honestly?', cx, H * 0.2, prog(t, 0.1, 0.8), { size: 110 * S, color: '#FFFFFF' }); });
+add('Captions', 'type.js', 'serifSub', 'Serif subtitles + staggered title', 'elegant serif subtitles fading in word by word, staggered two-line title (serifSub)', 4, (c, t) => { warm(c);
+  serifSub(c, "if you're someone\nwho keeps a list of", W * 0.08, H * 0.16, t, { size: 64 * S, align: 'left', indent: 70 * S, rate: 5 });
+  serifSub(c, 'the truth is, it started by accident', cx, H * 0.9, t - 1.4, { font: 'Instrument Serif', weight: 'italic 400', size: 50 * S }); });
+add('Captions', 'type.js', 'handleChip', 'Ranked handle chip', 'ranking: big script numeral + dark creator chip with avatar, handle and subtitle (handleChip)', 3, (c, t) => { warm(c);
+  handleChip(c, W * 0.3, H * 0.14, 'slowmorning.studio', 'Slow Morning Studio', t - 0.1, { num: 1 }); handleChip(c, W * 0.3, H * 0.3, 'paperandpine', 'Paper & Pine · Ceramics', t - 1.2, { num: 2, avatar: '#C2452D' }); });
+add('Paper & line', 'type.js', 'loopArrow', 'Looping drawn arrow', 'hand-drawn arrow with a loop, drawing on (loopArrow)', 3, (c, t) => { cream(c);
+  loopArrow(c, W * 0.15, H * 0.4, W * 0.85, H * 0.5, prog(t, 0.1, 1.2)); loopArrow(c, W * 0.8, H * 0.65, W * 0.25, H * 0.8, prog(t, 0.6, 1.7), { color: '#6F8A3A', loop: 0.2 }); });
+add('Paper & line', 'type.js', 'scribble', 'Drawn underline / circle / zigzag / spark', 'hand-drawn underline, circle, zigzag and spark marks drawing on (scribble)', 3, (c, t) => { cream(c);
+  const lab = (s, y) => word(c, s, cx, y, { size: 64 * S, font: 'Gloock', weight: 400, color: '#1E1C19', align: 'center' });
+  lab('underline', H * 0.17); scribble(c, 'underline', cx - 130, H * 0.18, 260, 26, prog(t, 0, 0.6));
+  lab('circled', H * 0.4); scribble(c, 'circle', cx - 130, H * 0.4 - 55, 260, 85, prog(t, 0.3, 1.0), { color: '#2F6FD6' });
+  lab('scribbled', H * 0.63); scribble(c, 'zigzag', cx - 120, H * 0.63 - 22, 240, 26, prog(t, 0.6, 1.2), { color: 'rgba(245,214,60,0.7)' });
+  lab('wow', H * 0.86); scribble(c, 'spark', cx + 40, H * 0.86 - 110, 90, 70, prog(t, 0.9, 1.5), { color: '#1E1C19' }); });
+add('Aesthetic', 'type.js', 'cutout', 'Cut-out prop stickers', 'die-cut prop stickers (cup, camera, laptop, photo) popping in with a tilt (cutout)', 4, (c, t) => { cream(c);
+  cutout(c, W * 0.3, H * 0.25, 140, 190, t - 0.1, { kind: 'cup', rot: -0.1 }); cutout(c, W * 0.7, H * 0.3, 180, 170, t - 0.4, { kind: 'camera' });
+  cutout(c, W * 0.32, H * 0.65, 230, 180, t - 0.7, { kind: 'laptop', rot: 0.05 }); cutout(c, W * 0.72, H * 0.72, 170, 200, t - 1.0, { kind: 'photo', rot: 0.1 }); });
+add('Aesthetic', 'type.js', 'tornLabel', 'Torn paper labels on a cutting mat', 'torn paper strips with handwritten caps, set down on a green cutting mat (tornLabel)', 4, (c, t) => { grid(c, '#1F6B4A', 'rgba(255,255,255,0.22)', 36);
+  tornLabel(c, 'before the move', cx - 30, H * 0.3, t - 0.1); tornLabel(c, 'the journey', cx + 60, H * 0.45, t - 0.6, { rot: 0.06, seed: 9 }); tornLabel(c, 'life after', cx - 10, H * 0.62, t - 1.1, { rot: -0.02, seed: 4 }); });
+add('Aesthetic', 'type.js', 'starConfetti + stripeMat', 'Before / after on star confetti', 'cream star-confetti ground with a before/after two-up, the after in a pinstripe mat (starConfetti + stripeMat)', 4, (c, t) => { cream(c); starConfetti(c, t);
+  word(c, 'What a good edit changes', cx, H * 0.24, { size: 40 * S, weight: 700, color: '#2B2620', align: 'center' });
+  const bw = W * 0.38, bh = H * 0.36, y = H * 0.29; [[W * 0.07, '#6B6560'], [W * 0.55, '#C9A285']].forEach(([x, col], i) => { c.fillStyle = col; c.fillRect(x, y, bw, bh); word(c, i ? 'After' : 'Before', x + bw / 2, y + bh + 50 * S, { size: 40 * S, weight: 700, color: '#2B2620', align: 'center' }); });
+  stripeMat(c, W * 0.55, y, bw, bh); mixWords(c, [{ s: 'Secret', font: 'Instrument Serif', weight: 400, size: 30 * S, at: 0.4 }, { s: 'TRICK', font: 'Anton', weight: 400, size: 64 * S, br: true, color: '#F7EFA0', at: 0.6 }], W * 0.55 + bw / 2, y + 60 * S, t); });
+add('Aesthetic', 'type.js', 'clipSheet + serifStack + scriptLine + cutout + loopArrow', 'Aesthetic cover (composite)', 'aesthetic reel cover: clipped grid sheet, giant condensed serif headline, script accent, cut-out props, looping arrow', 6, (c, t) => {
+  bg(c, '#F7F4EF'); clipSheet(c, cx - 10, cy - 10, W * 0.66, H * 0.8, { p: prog(t, 0, 0.5), rot: -0.025 });
+  const y = serifStack(c, ['I shot 6', 'film', 'cameras for', 'a month'], cx - 10, H * 0.2, W * 0.6, t - 0.4);
+  scriptLine(c, "here's the keeper", cx - 4, y + 110 * S, prog(t, 1.2, 2.0), { size: 84 * S });
+  cutout(c, W * 0.8, H * 0.13, 330 * S, 260 * S, t - 1.8, { kind: 'laptop', rot: 0.08 });
+  cutout(c, W * 0.1, H * 0.5, 210 * S, 290 * S, t - 2.0, { kind: 'cup', rot: -0.12 });
+  cutout(c, W * 0.86, H * 0.64, 250 * S, 240 * S, t - 2.2, { kind: 'camera', rot: 0.06 });
+  loopArrow(c, W * 0.55, H * 0.9, W * 0.9, H * 0.93, prog(t, 2.5, 3.3), { loop: 0.13 }); });

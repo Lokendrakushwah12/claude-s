@@ -1053,3 +1053,153 @@ function weightWave(c, str, x, y, t, o = {}) {
   let px = align === 'left' ? x : align === 'right' ? x - total : x - total / 2;
   ch.forEach((s, i) => { word(c, s, px, y, { ...o, size, weight: wt(i), align: 'left' }); px += adv[i]; });
 }
+
+// ---- aesthetic reel kit (2026-10-18: cover sheets, script accents, drawn arrows, cut-out props, creator captions) ----
+TYPE.serif = TYPE.serif || 'Gloock'; TYPE.script = TYPE.script || 'Caveat'; TYPE.hand = TYPE.hand || 'Reenie Beanie'; // load them in VIDEO.fonts
+// Paper sheet held by a binder clip, paper clip or washi tape: grid / ruled / plain, punched holes, soft shadow. (x, y) = centre.
+// o: kind holder rot paper line clip (holder colour) cell holes p (0..1 drops it in, settling its tilt).
+function clipSheet(c, x, y, w, h, o = {}) {
+  const { kind = 'grid', holder = 'binder', rot = -0.03, paper = '#FDFCF9', line = '#DDDAD2', clip = '#A3B385', cell = w / 9, holes = true, p = 1 } = o, e = ease.out(clamp(p));
+  if (e <= 0) return;
+  c.save(); c.globalAlpha *= clamp(p * 3); c.translate(x, y - (1 - e) * 0.08 * H); c.rotate(rot * (2 - e));
+  c.save(); c.shadowColor = 'rgba(40,30,20,0.16)'; c.shadowBlur = 40 * S; c.shadowOffsetY = 14 * S; c.fillStyle = paper; c.fillRect(-w / 2, -h / 2, w, h); c.restore();
+  c.save(); c.beginPath(); c.rect(-w / 2, -h / 2, w, h); c.clip(); c.strokeStyle = line; c.lineWidth = 1.6 * S; c.beginPath();
+  if (kind === 'grid') for (let gx = -w / 2 + cell; gx < w / 2; gx += cell) { c.moveTo(gx, -h / 2); c.lineTo(gx, h / 2); }
+  if (kind !== 'plain') for (let gy = -h / 2 + cell * (kind === 'ruled' ? 1.6 : 1); gy < h / 2; gy += kind === 'ruled' ? cell * 0.7 : cell) { c.moveTo(-w / 2, gy); c.lineTo(w / 2, gy); }
+  c.stroke(); if (kind === 'ruled') { c.strokeStyle = '#E8A6A6'; c.beginPath(); c.moveTo(-w / 2 + cell * 1.1, -h / 2); c.lineTo(-w / 2 + cell * 1.1, h / 2); c.stroke(); }
+  if (holes) { c.fillStyle = 'rgba(0,0,0,0.06)'; [-0.36, 0.36].forEach(f => { c.beginPath(); c.arc(-w / 2 + cell * 0.45, f * h, cell * 0.17, 0, 7); c.fill(); }); }
+  c.restore();
+  const hx = -w * 0.18, hy = -h / 2, z = w * 0.26;
+  if (holder === 'tape') tape(c, hx, hy, z * 1.3, z * 0.36, { color: clip, rot: -0.12 });
+  if (holder === 'binder') { c.strokeStyle = '#6F7766'; c.lineWidth = 4 * S; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(hx - z * 0.26, hy - z * 0.1); c.lineTo(hx - z * 0.16, hy - z * 0.55); c.arc(hx, hy - z * 0.55, z * 0.16, Math.PI, 0); c.lineTo(hx + z * 0.26, hy - z * 0.1); c.stroke();
+    c.fillStyle = clip; c.beginPath(); c.moveTo(hx - z * 0.32, hy - z * 0.18); c.lineTo(hx + z * 0.32, hy - z * 0.18); c.lineTo(hx + z * 0.5, hy + z * 0.24); c.lineTo(hx - z * 0.5, hy + z * 0.24); c.closePath(); c.fill(); }
+  if (holder === 'paperclip') { c.strokeStyle = '#9AA0A8'; c.lineWidth = 4.5 * S; c.lineCap = 'round'; const q = z * 0.16;
+    c.beginPath(); c.moveTo(hx - q, hy + z * 0.5); c.lineTo(hx - q, hy - z * 0.35); c.arc(hx, hy - z * 0.35, q, Math.PI, 0); c.lineTo(hx + q, hy + z * 0.35); c.arc(hx + q * 0.25, hy + z * 0.35, q * 0.75, 0, Math.PI); c.lineTo(hx - q * 0.5, hy - z * 0.2); c.stroke(); }
+  c.restore();
+}
+// Giant condensed-serif headline stack: one size for every line (the widest fits w), squeezed horizontally, centred on x; lines
+// rise in one after another from t = 0 (s). o: font weight color squeeze (0.8) lead stagger track size. Returns the last baseline.
+function serifStack(c, lines, x, top, w, t, o = {}) {
+  const { font = TYPE.serif, weight = 400, color = '#1E1C19', squeeze = 0.8, lead = 0.98, stagger = 0.09, track = -0.035 } = o;
+  const widest = Math.max(...lines.map(s => tw(c, s, 100, weight, font, track))), size = o.size || (100 * w) / (widest * squeeze);
+  let y = top;
+  lines.forEach((s, i) => { y += size * (i ? lead : 0.8); const e = spr(t - i * stagger, 220, 22); if (e <= 0) return;
+    c.save(); c.translate(x, y + (1 - e) * size * 0.35); c.scale(squeeze, 1); word(c, s, 0, 0, { size, weight, font, track, color, align: 'center', alpha: clamp(e * 2) }); c.restore(); });
+  return y;
+}
+// Handwritten script line written on left to right (a wipe), tilted a hair. p 0..1. o: font size color weight align rot.
+function scriptLine(c, str, x, y, p, o = {}) {
+  const { font = TYPE.script, size = 64 * S, color = '#6F8A3A', weight = 500, align = 'center', rot = -0.03 } = o, e = ease.inOut(clamp(p)); if (e <= 0) return;
+  const w = tw(c, str, size, weight, font, 0), x0 = align === 'left' ? 0 : align === 'right' ? -w : -w / 2;
+  c.save(); c.translate(x, y); c.rotate(rot); c.beginPath(); c.rect(x0 - size, -size * 1.6, size + (w + size * 0.5) * e, size * 3.2); c.clip();
+  word(c, str, x0, 0, { size, weight, font, track: 0, color }); c.restore();
+}
+// Hand-drawn arrow with one loop in it (entered tangentially, so no cusp), drawn on with p (sketch strokes, then the head). o: color lw loop (radius as a fraction
+// of the length) at (where the loop sits, 0..1) bow seed.
+function loopArrow(c, x0, y0, x1, y1, p, o = {}) {
+  const { color = '#1E1C19', lw = 3.2 * S, loop = 0.11, at = 0.45, bow = 0.06, seed = 3 } = o, L = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / L, uy = (y1 - y0) / L, r = loop * L, win = 0.22;
+  const pts = Array.from({ length: 97 }, (_, i) => { const u = i / 96, s = clamp((u - at + win / 2) / win), along = u * L + r * Math.sin(2 * Math.PI * s), side = bow * L * Math.sin(Math.PI * u) + r * (1 - Math.cos(2 * Math.PI * s));
+    return [x0 + ux * along - uy * side, y0 + uy * along + ux * side]; });
+  sketch(c, pts, { color, lw, p: clamp(p / 0.85), seed, wob: 0.5, bow: 0, over: 0, light: 0.3 });
+  const hp = prog(p, 0.85, 1); if (hp <= 0) return; const [ax, ay] = pts[92], d = Math.atan2(y1 - ay, x1 - ax), hl = 0.06 * L + 10 * S;
+  [0.5, -0.5].forEach(k => sketch(c, [[x1, y1], [x1 - Math.cos(d + k) * hl, y1 - Math.sin(d + k) * hl]], { color, lw, p: hp, seed: seed + k * 4, wob: 0.4, over: 0, light: 0.3 }));
+}
+// Hand-drawn marks that draw on with p: 'underline' (a swoosh and a shorter second pass), 'circle' (an ellipse that overshoots its
+// start), 'zigzag' (a highlighter scribble), 'spark' (three short rays). Box (x, y, w, h) = top-left + size. o: color lw seed.
+function scribble(c, kind, x, y, w, h, p, o = {}) {
+  const { color = '#C2452D', lw = 3.5 * S, seed = 5 } = o, so = { color, lw, seed, wob: 0.8, over: 0, light: 0.35 };
+  if (kind === 'underline') { sketch(c, [[x, y + h * 0.6], [x + w * 0.5, y + h * 0.45], [x + w, y + h * 0.3]], { ...so, p: clamp(p * 1.6) }); sketch(c, [[x + w * 0.12, y + h], [x + w * 0.75, y + h * 0.75]], { ...so, seed: seed + 1, p: prog(p, 0.55, 1) }); }
+  if (kind === 'circle') sketch(c, Array.from({ length: 41 }, (_, i) => { const a = -2.3 + (i / 40) * Math.PI * 2.25, k = 1 + 0.06 * (i / 40); return [x + w / 2 + (Math.cos(a) * w * k) / 2, y + h / 2 + (Math.sin(a) * h * k) / 2]; }), { ...so, p });
+  if (kind === 'zigzag') sketch(c, Array.from({ length: 9 }, (_, i) => [x + (i / 8) * w, y + (i % 2 ? h : 0)]), { ...so, p, lw: lw * 2.2 });
+  if (kind === 'spark') [-0.9, -0.2, 0.5].forEach((a, i) => { const A = a - Math.PI / 2, ox = x + w / 2, oy = y + h; sketch(c, [[ox + Math.cos(A) * w * 0.25, oy + Math.sin(A) * h * 0.25], [ox + Math.cos(A) * w * 0.7, oy + Math.sin(A) * h]], { ...so, seed: seed + i, p: prog(p, i * 0.2, 0.6 + i * 0.2) }); });
+}
+// Procedural prop art for cutouts (no photos): 'cup' iced latte with a straw, 'camera' instant camera, 'laptop', 'photo' (a
+// placeholder snapshot). Drawn in a w x h box from (0, 0). o.tint = the camera body colour.
+function propArt(c, kind, w, h, o = {}) {
+  const { tint = '#E9E4F2' } = o; c.save(); c.lineJoin = 'round';
+  if (kind === 'cup') { const g = c.createLinearGradient(0, h * 0.2, 0, h); g.addColorStop(0, '#F4ECE0'); g.addColorStop(0.3, '#C99B70'); g.addColorStop(1, '#85563A');
+    c.strokeStyle = '#F2A3B5'; c.lineWidth = w * 0.07; c.beginPath(); c.moveTo(w * 0.6, h * 0.35); c.lineTo(w * 0.8, 0); c.stroke();
+    c.fillStyle = g; c.beginPath(); c.moveTo(w * 0.1, h * 0.2); c.lineTo(w * 0.9, h * 0.2); c.lineTo(w * 0.78, h); c.lineTo(w * 0.22, h); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(w * 0.2, h * 0.28, w * 0.07, h * 0.6); }
+  if (kind === 'camera') { c.fillStyle = tint; c.beginPath(); c.roundRect(0, h * 0.08, w, h * 0.92, w * 0.14); c.fill();
+    c.fillStyle = '#FFFFFF'; c.beginPath(); c.roundRect(w * 0.08, h * 0.16, w * 0.24, h * 0.16, w * 0.03); c.fill(); c.fillStyle = '#2B2A30'; c.fillRect(w * 0.72, h * 0.16, w * 0.16, h * 0.12);
+    [[0.48, '#D7D2DE'], [0.36, '#3A3842'], [0.22, '#14131A'], [0.06, '#6A6F86']].forEach(([r, col]) => { c.fillStyle = col; c.beginPath(); c.arc(w * 0.55, h * 0.6, w * r * 0.6, 0, 7); c.fill(); }); }
+  if (kind === 'laptop') { const quad = (q, col) => { c.fillStyle = col; c.beginPath(); q.forEach(([a, b]) => c.lineTo(a * w, b * h)); c.closePath(); c.fill(); };
+    quad([[0, 0.7], [0.06, 0.06], [0.84, 0], [0.8, 0.58]], '#1C1D21'); quad([[0, 0.7], [0.8, 0.58], [1, 0.84], [0.2, 1]], '#BABDC3'); quad([[0.12, 0.73], [0.74, 0.64], [0.86, 0.79], [0.25, 0.9]], '#9DA1A8'); }
+  if (kind === 'photo') { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#9CC3E4'); g.addColorStop(0.6, '#F3D9B8'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#FFF4D6'; c.beginPath(); c.arc(w * 0.7, h * 0.32, w * 0.12, 0, 7); c.fill(); c.fillStyle = '#7D9B6A'; c.beginPath(); c.ellipse(w * 0.3, h * 1.05, w * 0.7, h * 0.35, 0, 0, 7); c.fill(); }
+  c.restore();
+}
+// Cut-out sticker: the art inside a white die-cut border that follows its silhouette, a soft drop shadow, popping in with a tilt
+// at t = 0 (s) and floating after. (x, y) = centre. o: kind (propArt) | img | draw(c, w, h), border, rot, tint.
+function cutout(c, x, y, w, h, t, o = {}) {
+  const { kind = 'photo', border = 9 * S, rot = 0.06, img } = o, e = spr(t, 300, 16); if (e <= 0) return;
+  const pad = Math.ceil(border + 2), key = Math.round(w) + 'x' + Math.round(h), [ca, a] = scratch('cutA' + key, Math.ceil(w) + pad * 2, Math.ceil(h) + pad * 2), [cb, b] = scratch('cutB' + key, ca.width, ca.height);
+  a.translate(pad, pad); if (img) a.drawImage(img, 0, 0, w, h); else if (o.draw) o.draw(a, w, h); else propArt(a, kind, w, h, o);
+  for (let k = 0; k < 16; k++) b.drawImage(ca, Math.cos(k * 0.3927) * border, Math.sin(k * 0.3927) * border);
+  b.globalCompositeOperation = 'source-in'; b.fillStyle = '#FFFFFF'; b.fillRect(0, 0, cb.width, cb.height); b.globalCompositeOperation = 'source-over'; b.drawImage(ca, 0, 0);
+  c.save(); c.translate(x, y + Math.sin(t * 1.7) * 3 * S); c.rotate(rot + (1 - e) * 0.5 + Math.sin(t * 1.3) * 0.012); c.scale(e, e); c.globalAlpha *= clamp(e * 3);
+  c.shadowColor = 'rgba(40,30,20,0.22)'; c.shadowBlur = 22 * S; c.shadowOffsetY = 10 * S; c.drawImage(cb, -cb.width / 2, -cb.height / 2); c.restore();
+}
+// Ranked creator chip: a big script numeral wiped on beside a dark glass pill (avatar disc, bold handle, muted subtitle) that
+// springs out at t = 0 (s). (x, y) = the pill's left-centre. o: num avatar (colour) size numColor.
+function handleChip(c, x, y, handle, sub, t, o = {}) {
+  const { num, avatar = '#5B3FD9', size = 40 * S, numColor = '#F4D23C' } = o, hgt = size * 2.5, e = spr(t, 320, 22); if (e <= 0) return;
+  if (num != null) scriptLine(c, String(num), x - size * 0.2, y + size * 1.3, prog(t, 0, 0.45), { size: hgt * 1.9, color: numColor, align: 'right', weight: 700, rot: 0.08 });
+  const wd = Math.max(tw(c, handle, size, 700, TYPE.ui, -0.01), tw(c, sub, size * 0.8, 500, TYPE.ui, -0.01)) + hgt + size * 1.2;
+  c.save(); c.translate(x, y); c.scale(e, e); c.globalAlpha *= clamp(e * 2); c.fillStyle = 'rgba(38,36,44,0.78)'; c.beginPath(); c.roundRect(0, -hgt / 2, wd, hgt, hgt / 2); c.fill();
+  c.fillStyle = avatar; c.beginPath(); c.arc(hgt / 2, 0, hgt * 0.36, 0, 7); c.fill();
+  word(c, handle[0].toUpperCase(), hgt / 2, size * 0.36, { size, weight: 700, font: TYPE.ui, color: '#FFFFFF', align: 'center' });
+  word(c, handle, hgt * 0.95, -size * 0.12, { size, weight: 700, font: TYPE.ui, track: -0.01, color: '#FFFFFF' });
+  word(c, sub, hgt * 0.95, size * 0.92, { size: size * 0.8, weight: 500, font: TYPE.ui, track: -0.01, color: '#B9B7C2' }); c.restore();
+}
+// Mixed-voice caption: words in different fonts on shared baselines (a small serif, a heavy word, a script), new lines at br,
+// centred on x; each word springs up at its own onset. parts = [{ s, at, font, weight ('italic 400' works), size, color, br, dy }].
+// o: size shadow lead.
+function mixWords(c, parts, x, y, t, o = {}) {
+  const { size = 64 * S, shadow = 'rgba(0,0,0,0.35)', lead = 1.0 } = o, lines = [[]]; let by = y;
+  parts.forEach(q => { if (q.br && lines.at(-1).length) lines.push([]); lines.at(-1).push(q); });
+  lines.forEach((ln, li) => { const zs = ln.map(q => q.size || size), sp = size * 0.22, ws = ln.map((q, i) => tw(c, q.s, zs[i], q.weight || 600, q.font || TYPE.display, q.track ?? -0.02));
+    by += li ? Math.max(...zs) * lead : 0; let px = x - ws.reduce((a, b) => a + b + sp, -sp) / 2;
+    ln.forEach((q, i) => { const e = spr(t - (q.at || 0), 340, 20), z = zs[i];
+      if (e > 0) { c.save(); c.translate(px + ws[i] / 2, by + (q.dy || 0) * z + (1 - e) * z * 0.3); c.scale(0.7 + 0.3 * e, 0.7 + 0.3 * e);
+        if (shadow) { c.shadowColor = shadow; c.shadowBlur = z * 0.18; c.shadowOffsetY = z * 0.04; }
+        word(c, q.s, -ws[i] / 2, 0, { size: z, weight: q.weight || 600, font: q.font || TYPE.display, track: q.track ?? -0.02, color: q.color || '#FFFFFF', alpha: clamp(e * 3) }); c.restore(); }
+      px += ws[i] + sp; }); });
+}
+// Elegant serif subtitle: words fade in one by one with a little de-blur at o.rate words/s from t = 0 (or at o.ons[i]); '\n' breaks
+// a line and each next line steps right by o.indent (the staggered two-line title). o: size font weight color align lead.
+function serifSub(c, str, x, y, t, o = {}) {
+  const { size = 54 * S, font = 'Instrument Serif', weight = 400, color = '#FFFFFF', rate = 4, indent = 0, align = 'center', lead = 1.0, ons } = o; let k = 0;
+  str.split('\n').forEach((ln, li) => { const ws = ln.split(' '), sp = tw(c, ' ', size, weight, font, 0), wd = ws.map(s => tw(c, s, size, weight, font, 0)), tot = wd.reduce((a, b) => a + b + sp, -sp);
+    let px = (align === 'left' ? x : align === 'right' ? x - tot : x - tot / 2) + li * indent;
+    ws.forEach((s, i) => { const a = clamp((t - (ons ? ons[k] : k / rate)) / 0.22); k++;
+      if (a > 0) { c.save(); c.shadowColor = 'rgba(0,0,0,0.35)'; c.shadowBlur = size * 0.3; if (a < 1) c.filter = `blur(${(1 - a) * size * 0.08}px)`;
+        word(c, s, px, y + li * size * lead, { size, weight, font, track: 0, color, alpha: a }); c.restore(); }
+      px += wd[i] + sp; }); });
+}
+// Torn paper label: a strip with ragged, seeded edges and handwritten caps, set down a hair rotated (drops from 1.15x at t = 0 s).
+// (x, y) = centre. o: font size paper ink rot seed.
+function tornLabel(c, str, x, y, t, o = {}) {
+  const { font = TYPE.hand, size = 60 * S, paper = '#F3EFE6', ink = '#26231F', rot = -0.05, seed = 7 } = o, e = spr(t, 260, 20); if (e <= 0) return;
+  const w = tw(c, str.toUpperCase(), size, 400, font, 0.04) + size * 1.4, h = size * 1.5, r = rng(seed), n = Math.ceil(w / (size * 0.25)), jag = () => (r() - 0.5) * size * 0.16;
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(1.15 - 0.15 * e, 1.15 - 0.15 * e); c.globalAlpha *= clamp(e * 2.5); c.beginPath();
+  for (let i = 0; i <= n; i++) c.lineTo(-w / 2 + (i / n) * w, -h / 2 + jag()); for (let i = 0; i <= 4; i++) c.lineTo(w / 2 + jag(), -h / 2 + (i / 4) * h);
+  for (let i = n; i >= 0; i--) c.lineTo(-w / 2 + (i / n) * w, h / 2 + jag()); for (let i = 4; i >= 0; i--) c.lineTo(-w / 2 + jag(), -h / 2 + (i / 4) * h);
+  c.closePath(); c.save(); c.shadowColor = 'rgba(0,0,0,0.25)'; c.shadowBlur = 10 * S; c.shadowOffsetY = 4 * S; c.fillStyle = paper; c.fill(); c.restore();
+  word(c, str.toUpperCase(), 0, size * 0.32, { size, weight: 400, font, track: 0.04, color: ink, align: 'center' }); c.restore();
+}
+// Scattered little five-point stars in pastel colours, each turning slowly (the cream before/after ground). o: n colors size seed.
+function starConfetti(c, t, o = {}) {
+  const { n = 64, colors = ['#E9A0C4', '#6CC79A', '#9DC3EA', '#B07A4F', '#E06B6B'], size = 16 * S, seed = 11 } = o, r = rng(seed);
+  for (let i = 0; i < n; i++) { const x = r() * W, y = r() * H, col = colors[(r() * colors.length) | 0], z = size * (0.8 + r() * 0.5), a0 = r() * 6 + t * (r() - 0.5) * 0.8;
+    c.fillStyle = col; c.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? z * 0.45 : z, a = a0 + (k * Math.PI) / 5; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.fill(); }
+}
+// Pinstripe mat round a picture box (the "after" panel): a white card with thin vertical stripes; the box itself is left clear.
+// (x, y, w, h) = the picture box. o: pad stripe ground gap.
+function stripeMat(c, x, y, w, h, o = {}) {
+  const { pad = 18 * S, stripe = '#AFC4E0', ground = '#FFFFFF', gap = 8 * S } = o;
+  c.save(); c.beginPath(); c.rect(x - pad, y - pad, w + pad * 2, h + pad * 2); c.rect(x, y, w, h); c.clip('evenodd'); c.fillStyle = ground; c.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
+  c.fillStyle = stripe; for (let sx = x - pad; sx < x + w + pad; sx += gap) c.fillRect(sx, y - pad, gap * 0.5, h + pad * 2); c.restore();
+}

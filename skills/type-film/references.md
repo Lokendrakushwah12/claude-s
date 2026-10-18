@@ -526,3 +526,50 @@ their creators: nothing below quotes one.
 **Lives in:** `fitStack inkBox`.
 
 Also taken (smaller): @ajith_io's letters lifting off a page as glyph embers; @hanifproduktif's words that perform themselves (now on the kill list unless the job comes from the subject); @nolkeeg's one-second data story; @lukasersil's word sliced into sliding strips; @raphaelaubryy's numeral built from grid cells; @rendesr's flow field of strokes revealing a word; @ndhabarde11's grid of shapes morphing at t − 0.3 × distance; @manuelogomigo's single halftone primitive with a light serif; @tdinh_me's mark assembling from its own facets; @vanshwtfff's italic serif annotations on a blueprint ground.
+
+# 2026-10-18 aesthetic reels
+Four Instagram reels plus a user screenshot of a carousel cover, studied for caption styles and the "small aesthetic pieces" around them. The downloads carried no uploader metadata and the measured reports have no handle, so creators are credited by post link until the handles are filled in. Techniques only, in our words; none of their copy, photos or props.
+
+## UGC-platforms cover (user screenshot)
+Cover image shared by the user (no post link) · 4:5 still
+**TAKE**
+- A gridded paper sheet, slightly rotated, held at the top by a binder clip in a muted accent, on a warm off-white ground with a soft drop shadow.
+- A giant condensed high-contrast serif headline stacked over 4-5 centred lines at one size, tight leading; under it one handwritten script line in the accent colour.
+- Die-cut photo props (a drink, a laptop, an instant camera) with white borders bleeding off the sheet's edges, and one looping hand-drawn arrow pointing out of frame ("swipe").
+**LEAVE** the headline and script wording, the sage/cream palette as a whole, their photos.
+**Lives in:** `clipSheet serifStack scriptLine cutout propArt loopArrow` (gallery T127, T129, T139).
+
+## Agency ranking reel, creator not recorded
+https://www.instagram.com/p/DY4AILoTLyw/ · 32 s, 9:16, 47 cuts/min (24 of 25 are jump cuts or graphic pops)
+**TAKE**
+- Cover sticker: a scalloped card held by a binder clip, the title in two voices (a heavy rounded word over an orange script), surrounded by halftone and photo cut-outs.
+- Ranking beat: a huge thin script numeral wiped on next to a dark glass profile chip (avatar disc, bold handle, grey subtitle) at the top.
+- One bold italic word at a time, top centre, white with a soft shadow; the cuts land 0-150 ms either side of a word.
+**LEAVE** the agencies and handles, the cat/megaphone stickers, the pink room.
+**Lives in:** `handleChip mixWords clipSheet cutout` (T134, T130).
+
+## Before/after edit reel, creator not recorded
+https://www.instagram.com/p/DdH7o_ShMAn/ · 26 s, 9:16, 11 graphic pops, no hard cuts
+**TAKE**
+- A cream ground scattered with small pastel five-point stars; a fixed title on top and two portrait panels labelled Before/After.
+- The "after" panel sits in a thin blue pinstripe mat; its captions mix voices per phrase: a small serif word, a heavy pale-yellow word, a script word under it, and a big serif numeral beside a small sans unit.
+**LEAVE** the products and the title wording.
+**Lives in:** `starConfetti stripeMat mixWords scriptLine` (T138, T130, T131); ugc-edit's reel `frame` already does pastel stripes full-frame.
+
+## Short-film process reel, creator not recorded
+https://www.instagram.com/p/DdoWrpERdvD/ · 72 s, 4:3, 42 cuts/min
+**TAKE**
+- Subtitles in a light condensed serif, italic, small and centred low, sentence case, no box; the opening title in the same serif set as two staggered lines (the second indented).
+- Torn paper strips with handwritten caps laid on a green cutting mat over old photos, a magnifier passing over them; pins in a globe.
+- Warm, slightly faded grade throughout.
+**LEAVE** the family photos and the film's subject.
+**Lives in:** `serifSub tornLabel pins grid` (T132, T137).
+
+## Travel-creator money reel, creator not recorded
+https://www.instagram.com/p/DdZEY47Caim/ · 68 s, 4:3, 39 cuts/min
+**TAKE**
+- One serif (an Instrument Serif-like face) for everything: a larger title top-left on the opening line, then plain white subtitles bottom-centre, a phrase at a time, words as spoken.
+- Colour: warm cream and terracotta interiors, mist-blue landscapes; type stays white and never boxed, so the grade carries the look.
+- A shop page laid over the talking head as a pale translucent card for the plug.
+**LEAVE** the shop, the LUT pack, the locations.
+**Lives in:** `serifSub` (T132), `glass` for the plug card.
