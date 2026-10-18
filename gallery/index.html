@@ -14,6 +14,8 @@
   body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 Inter, system-ui, sans-serif; }
   header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   h1 { font-size: 16px; margin: 0 12px 0 0; }
+  .back { color: var(--mute); text-decoration: none; font-weight: 500; margin-right: 4px; }
+  .back:hover { color: var(--ink); }
   input[type=search] { flex: 1 1 180px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; }
   .chip, button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 11px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink); }
   .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -30,7 +32,8 @@
 </head>
 <body>
 <header>
-  <h1>claude-s motion gallery</h1>
+  <a class="back" href="../">← claude-s</a>
+  <h1>Motion gallery</h1>
   <input type="search" id="q" placeholder="Search name, helper, id…">
   <span id="chips"></span>
   <button id="copy">Copy picks (0)</button>
