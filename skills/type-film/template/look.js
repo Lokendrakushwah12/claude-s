@@ -9,7 +9,7 @@
 //   lutStab(c, 'thermal')                                                  event passes: call them on the frames that need them
 //
 // Preset passes run in this order (weave moves the finished frame, so it can run after the scene):
-//   weave → scene → soft dofBand rgbSplit bloom halftone → grade → halation → crush glow → screenDoor crtMask vhs → flicker → vignette → grain → dust
+//   weave → scene → soft dofBand rgbSplit bloom halftone → grade cine → halation → crush glow → screenDoor crtMask vhs → flicker → vignette (→ letterbox if L.bars) → grain → dust
 // Event passes: lutStab asciiRender crtCollapse vhsTear filmBurn blueTear stutterRepeat defocusExit mosh
 // Hit passes (aura-edit): impactFrame zoomBlur lightSweep blockSwap, crush as a standalone grade, lensBand and letterbox as framings
 //
@@ -319,6 +319,23 @@ function tealOrange(c, amt = 0.5, o = {}) {
   x.globalCompositeOperation = 'lighter'; x.drawImage(b, 0, 0);
   c.globalCompositeOperation = 'overlay'; c.globalAlpha = clamp(amt); c.drawImage(a, 0, 0); c.restore();
 }
+// Cine grade: per-channel curves (the same points grade.sh feeds ffmpeg's curves filter, linear between them where ffmpeg uses a
+// spline) and saturation by luma band o.sat = [shadows, mids, highlights] (multipliers, linear across the luma range).
+// One getImageData round trip, ~15 ms of JS at 1080p. k blends toward the untouched picture. LOOK.umber/alpine/cream/golden use it.
+const CINE = {}; // ponytail: LUTs cached per (curves, k); an animated k grows this, quantise k if it ever matters
+function cine(c, k = 1, o = {}) {
+  if (!k || !o.curves) return; const [w, h] = begin(c), key = JSON.stringify([o.curves, k]);
+  const L = CINE[key] || (CINE[key] = ['r', 'g', 'b'].map(ch => Uint8ClampedArray.from({ length: 256 }, (_, i) => {
+    const p = o.curves[ch], x = i / 255; let j = 1; while (j < p.length - 1 && p[j][0] < x) j++;
+    return 255 * lerp(x, lerp(p[j - 1][1], p[j][1], clamp((x - p[j - 1][0]) / (p[j][0] - p[j - 1][0]))), k);
+  })));
+  const [a, m, b] = (o.sat || [1, 1, 1]).map(v => lerp(1, v, k)), im = c.getImageData(0, 0, w, h), d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = L[0][d[i]], g = L[1][d[i + 1]], bl = L[2][d[i + 2]], y = 0.2126 * r + 0.7152 * g + 0.0722 * bl, t = y / 127.5, s = t < 1 ? a + (m - a) * t : m + (b - m) * (t - 1);
+    d[i] = y + (r - y) * s; d[i + 1] = y + (g - y) * s; d[i + 2] = y + (bl - y) * s;
+  }
+  c.putImageData(im, 0, 0); c.restore();
+}
 // Fisheye: barrel distortion, the centre magnified 1 / (1 - k) with the corners pinned. A mesh of cell-px blits from a copy (each
 // cell straight, so long lines step slightly at the edges; smaller cells cost more draws). k 0.15–0.45.
 function fisheye(c, k = 0.3, cell = 12) {
@@ -342,6 +359,15 @@ const LOOK = {
   lcd: { dofBand: 1, rgbSplit: 0.2, bloom: 0.35, screenDoor: 0.45, vignette: 0.45 },                                         // an LCD through a macro lens
   vhs: { soft: 0.6, rgbSplit: 0.5, bloom: 0.2, grade: 0.3, crtMask: 0.25, vhs: 1, grain: 0.1, vignette: 0.3 },               // tape, with a tear every 2.5 s
   aura: { crush: 0.9, glow: 0.45, vignette: 0.45, grain: 0.07 },                                                            // a hype edit: crushed, white bloom
+  // Cinematic grades measured on four reels (references.md "2026-10-18 cinematic grades"); same numbers as grade.sh. Add bars: 2.39 for scope.
+  umber: { cine: 1, curves: { r: [[0, 0], [.25, .19], [.5, .45], [.75, .73], [1, .97]], g: [[0, 0], [.25, .16], [.5, .40], [.75, .67], [1, .93]], b: [[0, .01], [.25, .13], [.5, .33], [.75, .58], [1, .84]] },
+    sat: [0.9, 1, 0.7], halation: 0.15, vignette: 0.6, grain: 0.04 },                                                       // moody low-key amber (DdehoBqsppa)
+  alpine: { cine: 1, curves: { r: [[0, .015], [.25, .24], [.5, .47], [.75, .70], [1, .86]], g: [[0, .03], [.25, .28], [.5, .51], [.75, .72], [1, .89]], b: [[0, .035], [.25, .29], [.5, .51], [.75, .70], [1, .86]] },
+    sat: [1.1, 0.9, 0.6], grain: 0.03 },                                                                                    // cool, desaturated, sage highs (DcKQC1vPUpj)
+  cream: { cine: 1, curves: { r: [[0, .075], [.25, .27], [.5, .47], [.75, .70], [1, .93]], g: [[0, .06], [.25, .24], [.5, .44], [.75, .68], [1, .93]], b: [[0, .045], [.25, .21], [.5, .42], [.75, .68], [1, .94]] },
+    sat: [0.95, 0.85, 0.55], halation: 0.1, grain: 0.03 },                                                                  // faded cream/terracotta + misty blue (DdZEY47Caim)
+  golden: { cine: 1, curves: { r: [[0, .02], [.25, .22], [.5, .47], [.75, .75], [1, .93]], g: [[0, .025], [.25, .20], [.5, .42], [.75, .68], [1, .88]], b: [[0, .01], [.25, .15], [.5, .33], [.75, .56], [1, .76]] },
+    sat: [1, 1.05, 0.75], halation: 0.3, vignette: 0.25, grain: 0.04 },                                                     // warm golden hour, olive shadows (DdoWrpERdvD)
 };
 // One call per frame, after the scene. src: a canvas holding the scene (default: c's own canvas). L: a preset, its name, or
 // { ...LOOK.x, k, focus (dofBand y), grainFn (c, t, k) to swap the grain, e.g. type.js grain or lib.js paper }.
@@ -351,13 +377,13 @@ function applyLook(c, t, src, L = {}) {
   if (src && src !== c.canvas) { begin(c); c.drawImage(src, 0, 0); c.restore(); }
   weave(c, t, g('weave'));
   soft(c, g('soft')); dofBand(c, g('dofBand'), L.focus ?? 0.5); rgbSplit(c, g('rgbSplit')); bloom(c, g('bloom')); halftone(c, g('halftone'));
-  grade(c, g('grade'), g('mono')); halation(c, g('halation')); crush(c, g('crush'), { mono: g('mono'), tint: L.tint }); halation(c, g('glow'), { color: '#ffffff', blur: 10, cut: 0.62 });
+  grade(c, g('grade'), g('mono')); cine(c, g('cine'), L); halation(c, g('halation')); crush(c, g('crush'), { mono: g('mono'), tint: L.tint }); halation(c, g('glow'), { color: '#ffffff', blur: 10, cut: 0.62 });
   screenDoor(c, g('screenDoor')); crtMask(c, g('crtMask')); if (g('vhs') && fr(t, 30) % 75 < 3) vhsTear(c, t, g('vhs'));
-  flicker(c, t, g('flicker')); vignette(c, g('vignette')); if (g('grain')) (L.grainFn || filmGrain)(c, t, g('grain')); filmDust(c, t, g('dust'));
+  flicker(c, t, g('flicker')); vignette(c, g('vignette')); if (L.bars) letterbox(c, 1, L.bars); if (g('grain')) (L.grainFn || filmGrain)(c, t, g('grain')); filmDust(c, t, g('dust'));
 }
 // Assigned, not declared, so a page's own names win. applyLook only where free: explainer-lesson's kit.js has its own.
 Object.assign(window, { weave, grade, halation, flicker, vignette, filmGrain, filmDust, soft, dofBand, rgbSplit, bloom, halftone, screenDoor, crtMask,
   LUTS, lutStab, asciiRender, crtCollapse, vhsTear, filmBurn, blueTear, stutterRepeat, defocusExit, mosh, crush, impactFrame, zoomBlur, lightSweep, blockSwap, lensBand, letterbox,
-  lensFlare, doubleExposure, tealOrange, fisheye, LOOK });
+  lensFlare, doubleExposure, tealOrange, cine, fisheye, LOOK });
 LOOK.apply = applyLook; if (typeof window.applyLook !== 'function') window.applyLook = applyLook;
 })();

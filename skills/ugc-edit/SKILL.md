@@ -15,7 +15,7 @@ Every time in the edit comes from the transcript, so `edit.json` names words, ne
 D=~/Movies/ugc-edits/<slug>; mkdir -p "$D" && cp ~/.claude/skills/ugc-edit/template/* "$D"/ && cp ~/.claude/skills/music-video/template/{lib.js,render.mjs} \
   ~/.claude/skills/promo-video/template/{promo.js,sfx.py} ~/.claude/skills/type-film/template/type.js "$D"/
 ```
-Read the headers of `ingest.py`, `edit.py` and `video.js` once (and `reel.js` for the reel caption style). The type.js devices used here are `hotWord leadIn behind shotCam flash glowIn glitchBox screenInsert clickDisc dof montageFrames cutIndex pointer track`, and in reel mode `handleChip clipSheet serifStack scriptLine cutout loopArrow`; lib.js gives `phone3d` and `codeBlock`. look.js (film and screen looks) is off; add it to index.html only if the user asks for a look.
+Read the headers of `ingest.py`, `edit.py` and `video.js` once (and `reel.js` for the reel caption style). The type.js devices used here are `hotWord leadIn behind shotCam flash glowIn glitchBox screenInsert clickDisc dof montageFrames cutIndex pointer track`, and in reel mode `handleChip clipSheet serifStack scriptLine cutout loopArrow`; lib.js gives `phone3d` and `codeBlock`. look.js (film and screen looks) is off; add it to index.html only if the user asks for a look. For a cinematic grade on the footage itself run type-film's `sh grade.sh in.mp4 out.mp4 cream` (`umber alpine cream golden`; cream suits talking heads and interviews) before ingest.
 
 ## 1. Ingest → `src.json`
 ```bash

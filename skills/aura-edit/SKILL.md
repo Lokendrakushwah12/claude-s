@@ -15,7 +15,7 @@ D=~/Movies/aura-edits/<slug>; mkdir -p "$D" && cp ~/.claude/skills/aura-edit/tem
 ```
 - **ugc-edit's footage engine:** ffprobe and Apple's HDR tone mapping (`ingest.py`), and the person matte for type behind the subject (`matte.py`).
 - **type.js:** `retime punch shake deck maskWord flash behind ecg cam`.
-- **look.js:** `LOOK.aura` (crush plus a white glow, vignette, grain), the hit passes `impactFrame zoomBlur rgbSplit lightSweep blockSwap crush`, and `lensBand` for framing.
+- **look.js:** `LOOK.aura` (crush plus a white glow, vignette, grain), the hit passes `impactFrame zoomBlur rgbSplit lightSweep blockSwap crush`, and `lensBand` for framing. For a moodier, less punchy finish use a cinematic grade instead of crush: `LOOK.umber` (low-key amber) or `golden` (warm late sun), or `sh grade.sh` on the clips (type-film template).
 - **Examples:** `examples/pulse.json` and `examples/pulse-layers.js` are the Pulse demo (its rendered page is kept local for now). They're there to show the API; don't re-skin them.
 
 ## 1. Concept before cuts

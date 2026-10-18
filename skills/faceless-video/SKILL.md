@@ -36,7 +36,7 @@ Before you plan the piece, run the creative method in `~/.claude/skills/type-fil
   - `fps`: 30.
   - `captions`: `line` (the default in narrated), `caps` (small spaced capitals) or `none`.
   - `voice`: `room` or `clean`.
-  - `look`: `{preset, k, ...}`, any look.js pass by name. `palette`, `font`, `ui`, `end`.
+  - `look`: `{preset, k, ...}`, any look.js pass by name; colour b-roll can take a cinematic grade preset instead of archival: `LOOK.umber` (moody low-key amber: interiors, night, food), `alpine` (cool, desaturated highs: landscape, travel), `cream` (faded, lifted warm blacks: interviews, lifestyle), `golden` (warm late sun: outdoor portraits) (or `sh grade.sh` on the clips). `palette`, `font`, `ui`, `end`.
 - **narrated:** `lines: [{id, say, shots: [...], amb, pause?, exaggeration?, tts_text?}]`.
   - **One sentence per line, one idea per sentence, 4 to 10 words.** The take sets the clock.
   - A line starts `pause` (0.7) after the last one. Keep the pauses: #29 held a median of 0.66 s and never rushed.

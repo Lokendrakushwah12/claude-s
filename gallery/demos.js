@@ -215,3 +215,8 @@ add('Transitions & hits', 'type.js', 'zoomThrough', 'Zoom-through', 'punch into 
 add('Transitions & hits', 'type.js', 'panes', 'Split panes', 'split screen whose panes pop in one per beat, labelled (panes)', 2.5, (c, t) => { panes(c, t, 0.3, [shotA, shotB], { labels: ['SHOT A', 'SHOT B'] }); });
 add('Transitions & hits', 'look.js', 'letterbox', 'Letterbox', 'bars close to 2.39 scope, then shut the shot to black (letterbox)', 3, (c, t) => { scene(c, t); letterbox(c, pp(t, 3) * 1.6, 0.8); });
 add('Transitions & hits', 'look.js', 'lutStab xray', 'X-ray hit', '2-frame negative flash on a cut (lutStab xray)', 1.5, (c, t) => { (t < 0.5 ? shotA : scene)(c, t); if (t >= 0.5 && t < 0.5 + 3 / 30) lutStab(c, 'xray'); });
+// T147–T150: the cinematic grades (2026-10-18), graded scene with a before | after wipe
+for (const p of ['umber', 'alpine', 'cream', 'golden']) add('Looks', 'look.js', 'applyLook', 'Grade: ' + p, `cinematic ${p} grade, before | after wipe (applyLook LOOK.${p}; grade.sh for footage)`, 3, (c, t) => {
+  const x = W * (0.15 + 0.7 * pp(t, 3)); scene(c, t); applyLook(c, t, null, p);
+  c.save(); c.beginPath(); c.rect(0, 0, x, H); c.clip(); scene(c, t); c.restore(); c.fillStyle = '#fff'; c.fillRect(x - 1, 0, 2, H);
+});

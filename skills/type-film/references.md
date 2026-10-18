@@ -616,3 +616,28 @@ https://www.instagram.com/p/DeCPKyXS6gg/ · 22.9 s, 33 hard + 20 jump cuts, 138.
 **LEAVE** the couple, the city and its landmarks, the end credit.
 
 **Lives in:** `matteCut windowCut rollCut zoomThrough panes` (type.js), `letterbox` and the `xray` LUT for `lutStab` (look.js); gallery T140–T146. Already covered: light leak = `filmBurn`, blur-in title = `glowIn`, text behind subject = `behind`, flicker recall = `flipFrames` + `drawAt`, white dip = `flash` whiteout.
+
+## 2026-10-18 cinematic grades
+Four Instagram reels: two sent as "cinematic aesthetic color grading", two as "nice captions and colors" (only their colour is taken here). Measured on 20 frames each at 480 px wide (`measure.py`, numpy): luma is Rec.709; percentiles of luma; saturation is HSV S by luma band (bottom 20 % / middle / top 20 %); split-tone = HSV hue of the band's mean colour and its chroma strength (|UV| on 0–255); palette = k-means 6 (share); grain = high-pass σ on the flattest half of pixels (0–255, after IG compression and the downscale, so a floor, not the shot grain); vignette = corner/centre luma; bloom = pixels at 0.6–0.9 luma per pixel above 0.9. No letterbox bars in any of them (active area = full frame). Creators not recorded.
+
+### Moody low-key amber, 16:9 (music-led, 22 hard cuts, 77 BPM)
+https://www.instagram.com/p/DdehoBqsppa/ · 1916x1078 · black 0.001, white 0.981 · luma 5/25/50/75/95 % = 0.027 / 0.094 / 0.201 / 0.367 / 0.764 · sat 0.44 (shadows 0.44, mids 0.49, highs 0.30) · shadows hue 8° (3.4, nearly neutral), highs hue 35° amber (23.2, strong) · palette #0f0a09 22 %, #281c14 21 %, #725236 20 %, #483322 19 %, #a58864 10 %, #ded2bc 8 % · grain 0.38 · vignette 0.68 (heavy) · bloom 2.6 (tight).
+**TAKE** true blacks with a low median (half the frame under 0.2), warm amber mids and highs with the highlights desaturated against the mids, cream whites (#ded2bc) never pure white, a heavy vignette. Lives in `LOOK.umber` / `grade.sh umber`.
+**LEAVE** the food and apartment shots, the edit rhythm.
+
+### Cool alpine daylight, 4:3
+https://www.instagram.com/p/DcKQC1vPUpj/ · 1440x1080 · black 0.026, white 0.873 · luma 0.05 / 0.254 / 0.47 / 0.717 / 0.828 · sat 0.39 (shadows 0.74, mids 0.36, highs 0.12) · shadows hue 168° teal-green (7.6), highs hue 91° sage (8.6) · palette #bdcbb9 30 %, #101e1a 20 %, #7d8983 17 %, #2f5962 13 %, #54572a 11 %, #947f4e 8 % · grain 0.24 · vignette 1.13 (none; sky corners) · bloom none.
+**TAKE** lifted black + highlights capped at ~0.87 (nothing clips), bright mids, rich teal-green shadows against nearly colourless sage highs. Lives in `LOOK.alpine`. Highlight saturation was set to 0.6 rather than the measured ratio so skin stays alive on the test card.
+**LEAVE** the mountains, the hiker.
+
+### Faded cream interview, 4:3 ("nice captions and colors")
+https://www.instagram.com/p/DdZEY47Caim/ · 1440x1080 · black 0.056, white 0.932 · luma 0.096 / 0.255 / 0.384 / 0.517 / 0.796 · sat 0.37 (shadows 0.46, mids 0.40, highs 0.19) · shadows hue 8° warm red-brown (11.4, strong), highs hue 96° (1.8, neutral) · palette #775f48 29 %, #573d2e 20 %, #241f19 16 %, #8491a5 15 % (misty blue), #9b8469 13 %, #dad9da 7 % · grain 0.34 · vignette 1.26 (none) · bloom 21.6 (soft roll-off).
+**TAKE** the most lifted blacks of the set (warm, red-brown), neutral soft whites, low saturation everywhere, cream/terracotta against one misty blue. Lives in `LOOK.cream`.
+**LEAVE** the captions (handled in ugc-edit), the room, the person.
+
+### Warm golden hour, 4:3 ("nice captions and colors")
+https://www.instagram.com/p/DdoWrpERdvD/ · 1440x1080 · black 0.014, white 0.887 · luma 0.057 / 0.165 / 0.267 / 0.40 / 0.814 · sat 0.46 (shadows 0.51, mids 0.50, highs 0.32) · shadows hue 94° olive (3.6), highs hue 36° amber (25.8, strongest of the set) · palette #53482c 26 %, #2b331e 22 %, #0f170f 19 %, #796547 16 %, #ab906b 10 %, #ead7b6 7 % · grain 0.36 · vignette 1.08 · bloom 8.6 (some glow).
+**TAKE** amber highs with olive-green shadows, a low median, highs compressed below 0.9, a light warm glow. Lives in `LOOK.golden` (halation 0.3).
+**LEAVE** the captions, the location, the person.
+
+**Lives in:** look.js `cine(c, k, {curves, sat})` (per-channel curve points + saturation per luma band) and the presets `umber alpine cream golden` (`bars: 2.39` adds scope bars); `grade.sh` reads the same presets out of look.js and runs them through ffmpeg `curves` + `geq` (+ halation, vignette, noise, drawbox) at ~25 fps on 1440x1080; gallery T147–T150. Check tiles: the test card through each preset beside a reference frame, and one reference clip through grade.sh before/after.
