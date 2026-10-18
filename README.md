@@ -33,6 +33,8 @@ Install them together. The skills share three toolkits, which they copy from eac
 | `promo-video/template` | `sfx.py`, `promo.js` | 59 synthesised sounds, beds, voice ducking, sound levels by family, and `autocue` for edits |
 | `type-film/template` | `type.js`, `look.js`, `iso.js`, `filmlook.sh` | about 70 type and motion devices (including aura hits: speed ramps, punches, impact frames), film and screen looks, isometric solids, an ffmpeg film-look pass, and `creative.md`, the method the skills follow to get past derivative ideas |
 
+**Motion gallery:** `gallery/index.html` shows every device in these toolkits as a live card. Serve the repo root (`python3 -m http.server`, or GitHub Pages) and open `/gallery/`, click the cards you want, press **Copy picks**, and paste the list into Claude Code.
+
 ## Requirements
 
 - macOS, with Google Chrome in `/Applications` (set `CHROME=` to use another path).

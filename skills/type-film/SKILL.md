@@ -74,6 +74,7 @@ Mix freely. Details and credits are in `references.md`.
 - **Shape morphs:** resample both outlines to 200 points (`shapePts`, `morphPts`), run them on a spring, and trail 3–4 echo outlines (`onion`) or concentric contours.
 
 ## 4. Build
+- **Gallery picks:** users may paste picks from the repo's `gallery/` as `#Txxx helper (file) — ask`; each maps to the named helper, so use that helper for the device they picked.
 - **Motion:** `spr track cam shotCam`, a pinhole 3D camera `cam3d proj MM` and its moves `dollyZoom orbitCam crane dutch`, `ISO.spring`/`ISO.tween`. lib.js's `spring` takes both forms (`spring(p)` and `spring(p, 8)`); use `track()` for summed closed-form springs. Stop-motion: `boil(t, 12, 3)` gives 3 drawings looping 4 times a second; lib.js also has `stepT jitter flickerGain sketch`.
 - **Type:** `word ui rise riseChars scramble typed words hotWord glowIn inlineWord shimmer selectHL textOnPath`, `hitWord chromaWord fitStack inkBox weightWave`; captions `leadIn karaoke`.
 - **Particles and shapes:** `pointCloud textPts mixPts drawCloud` (trail for streaks, focus for bokeh), `shapePts morphPts drawPts`, `squashDot` for a fast prop.

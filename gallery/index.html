@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- Gallery + pick-to-agent flow after Motion Prompt (MIT, Shohei Ohtaki) and Lucian UX/UI Prompt (MIT, Seokwoooo).
+     Every card is drawn live by the toolkit files below (loaded by relative path), so the gallery always shows the current code.
+     Serve the repo root (python3 -m http.server) and open /gallery/. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-s motion gallery</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Inter+Tight:wght@400;500;700;900&family=Anton&family=Geist+Mono:wght@400;500&family=Archivo:wght@100..900&family=Instrument+Serif&display=block">
+<style>
+  :root { --bg: #f4f4f2; --ink: #16161a; --mute: #6b6b73; --line: #dcdcd8; --accent: #ff5a1f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 Inter, system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  h1 { font-size: 16px; margin: 0 12px 0 0; }
+  input[type=search] { flex: 1 1 180px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; }
+  .chip, button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 11px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink); }
+  .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  #copy { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 16px; }
+  .card { background: #fff; border: 2px solid transparent; border-radius: 12px; padding: 6px; cursor: pointer; }
+  .card.pick { border-color: var(--accent); box-shadow: 0 0 0 3px #ff5a1f33; }
+  .card canvas { width: 100%; aspect-ratio: 9 / 16; display: block; border-radius: 8px; background: #111; }
+  .card .n { font-weight: 600; margin-top: 6px; }
+  .card .m { color: var(--mute); font: 11px "Geist Mono", ui-monospace, monospace; }
+  .card.err .n::after { content: ' error'; color: #d00; font-weight: 400; }
+  #c { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>claude-s motion gallery</h1>
+  <input type="search" id="q" placeholder="Search name, helper, id…">
+  <span id="chips"></span>
+  <button id="copy">Copy picks (0)</button>
+</header>
+<main id="grid"></main>
+<canvas id="c"></canvas>
+<script>
+  // lib.js reads ?size= at load: render every demo at 540x960 (9:16) unless the URL says otherwise.
+  if (!/[?&]size=/.test(location.search)) history.replaceState(null, '', '?size=540x960' + location.search.replace(/^\?/, '&') + location.hash);
+  window.VIDEO = { scenes: [], duration: 4, fonts: [] }; // lib/promo/type read VIDEO; the gallery never calls boot()
+</script>
+<script src="../skills/music-video/template/lib.js"></script>
+<script src="../skills/promo-video/template/promo.js"></script>
+<script src="../skills/type-film/template/type.js"></script>
+<script src="../skills/type-film/template/look.js"></script>
+<script src="../skills/type-film/template/iso.js"></script>
+<script src="demos.js"></script>
+<script>
+(() => {
+  const groups = [...new Set(DEMOS.map(d => d.group))], params = new URLSearchParams(location.search);
+  const picks = new Set((params.get('pick') || '').split(',').filter(Boolean));
+  let group = null;
+  const grid = document.getElementById('grid'), q = document.getElementById('q'), copyBtn = document.getElementById('copy');
+  const cards = DEMOS.map(d => {
+    const el = document.createElement('div'); el.className = 'card'; el.dataset.id = d.id;
+    el.innerHTML = `<canvas width="216" height="384"></canvas><div class="n"></div><div class="m"></div>`;
+    el.querySelector('.n').textContent = d.name; el.querySelector('.m').textContent = `#${d.id} ${d.helper} · ${d.file}`;
+    el.title = d.ask; el.onclick = () => { picks.has(d.id) ? picks.delete(d.id) : picks.add(d.id); sync(); };
+    grid.appendChild(el); return { d, el, cx: el.querySelector('canvas').getContext('2d'), vis: true };
+  });
+  const chips = document.getElementById('chips');
+  ['All', ...groups].forEach(g => { const b = document.createElement('button'); b.className = 'chip' + (g === 'All' ? ' on' : ''); b.textContent = g;
+    b.onclick = () => { group = g === 'All' ? null : g; [...chips.children].forEach(x => x.classList.toggle('on', x === b)); filter(); }; chips.appendChild(b); });
+  function filter() { const s = q.value.toLowerCase(); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
+  q.oninput = filter;
+  const text = () => 'From the claude-s gallery, use these devices:\n' + DEMOS.filter(d => picks.has(d.id)).map(d => `#${d.id} ${d.helper} (${d.file}) — ${d.ask}`).join('\n');
+  function sync() {
+    cards.forEach(k => k.el.classList.toggle('pick', picks.has(k.d.id))); copyBtn.textContent = `Copy picks (${picks.size})`;
+    const p = new URLSearchParams(location.search); picks.size ? p.set('pick', [...picks].join(',')) : p.delete('pick');
+    history.replaceState(null, '', '?' + p.toString().replace(/%2C/g, ','));
+  }
+  copyBtn.onclick = () => { if (!picks.size) return; const s = text(); (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => (copyBtn.textContent = 'Copied ' + picks.size), () => prompt('Copy this:', s)); };
+  sync();
+
+  const io = new IntersectionObserver(es => es.forEach(e => (cards.find(k => k.el === e.target).vis = e.isIntersecting)));
+  cards.forEach(k => io.observe(k.el));
+  function render(k, now) {
+    const { d } = k; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+    ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+    try { d.draw(ctx, now % d.cycle); } catch (e) { if (!k.el.classList.contains('err')) { k.el.classList.add('err'); console.error(d.id, d.helper, e && (e.stack || e.message) || e); } }
+    ctx.restore(); k.cx.drawImage(cv, 0, 0, k.cx.canvas.width, k.cx.canvas.height);
+  }
+  // First pass draws every card once at t = 1.2 s (so errors and blanks show up even off-screen), then only visible cards animate.
+  const go = () => {
+    cards.forEach(k => { render(k, 1.2); try { const a = k.cx.getImageData(0, 0, 216, 384).data; let v = 0; for (let i = 4; i < a.length; i += 64) v |= a[i] ^ a[0] | a[i + 1] ^ a[1] | a[i + 2] ^ a[2]; if (!v) { k.el.classList.add('blank'); console.warn(k.d.id, 'blank at t=1.2'); } } catch (e) {} });
+    let last = 0; (function loop(ms) { if (ms - last > 32) { last = ms; cards.forEach(k => k.vis && k.el.style.display !== 'none' && render(k, ms / 1000)); } requestAnimationFrame(loop); })(0);
+  };
+  document.fonts.ready.then(() => Promise.all(['900 40px Inter', '500 40px "Inter Tight"', '40px Anton', '40px "Geist Mono"', '500 40px Archivo'].map(f => document.fonts.load(f)))).catch(() => {}).then(go);
+})();
+</script>
+</body>
+</html>
