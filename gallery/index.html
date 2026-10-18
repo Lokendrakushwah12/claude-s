@@ -28,17 +28,29 @@
   .card .m { color: var(--mute); font: 11px "Geist Mono", ui-monospace, monospace; }
   .card.err .n::after { content: ' error'; color: #d00; font-weight: 400; }
   #c { display: none; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-right: 6px; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  body.refs #grid, body.refs #chips { display: none; } body:not(.refs) #refs { display: none; }
+  #refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 16px; }
+  .ref { background: #fff; border: 2px solid transparent; border-radius: 12px; padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+  .ref.pick { border-color: var(--accent); box-shadow: 0 0 0 3px #ff5a1f33; }
+  .ref .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .ref .num { font-weight: 700; } .ref .who { font-weight: 600; }
+  .ref .m, .ref .lives { color: var(--mute); font: 11px "Geist Mono", ui-monospace, monospace; } .ref h3 { font-size: 14px; margin: 0; } .ref p { margin: 0; color: #333; }
+  .ref a { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 12px; align-self: flex-start; }
 </style>
 </head>
 <body>
 <header>
   <a class="back" href="../">← claude-s</a>
   <h1>Motion gallery</h1>
+  <span class="seg"><button id="vEff" class="on">Effects</button><button id="vRef">References</button></span>
   <input type="search" id="q" placeholder="Search name, helper, id…">
   <span id="chips"></span>
-  <button id="copy">Copy picks (0)</button>
+  <button id="copy">Copy prompt (0)</button>
 </header>
 <main id="grid"></main>
+<section id="refs"></section>
 <canvas id="c"></canvas>
 <script>
   // lib.js reads ?size= at load: render every demo at 540x960 (9:16) unless the URL says otherwise.
@@ -51,11 +63,12 @@
 <script src="../skills/type-film/template/look.js"></script>
 <script src="../skills/type-film/template/iso.js"></script>
 <script src="demos.js"></script>
+<script src="../refs.js"></script>
 <script>
 (() => {
   const groups = [...new Set(DEMOS.map(d => d.group))], params = new URLSearchParams(location.search);
   const picks = new Set((params.get('pick') || '').split(',').filter(Boolean));
-  let group = null;
+  let group = null, refCards = [];
   const grid = document.getElementById('grid'), q = document.getElementById('q'), copyBtn = document.getElementById('copy');
   const cards = DEMOS.map(d => {
     const el = document.createElement('div'); el.className = 'card'; el.dataset.id = d.id;
@@ -67,16 +80,38 @@
   const chips = document.getElementById('chips');
   ['All', ...groups].forEach(g => { const b = document.createElement('button'); b.className = 'chip' + (g === 'All' ? ' on' : ''); b.textContent = g;
     b.onclick = () => { group = g === 'All' ? null : g; [...chips.children].forEach(x => x.classList.toggle('on', x === b)); filter(); }; chips.appendChild(b); });
-  function filter() { const s = q.value.toLowerCase(); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
+  function filter() { const s = q.value.toLowerCase(); refCards.forEach(k => k.el.style.display = !s || Object.values(k.r).join(' ').toLowerCase().includes(s) ? '' : 'none'); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
   q.oninput = filter; q.value = params.get('q') || ''; filter(); // ?q= pre-filters (headless screenshots)
-  const text = () => 'From the claude-s gallery, use these devices:\n' + DEMOS.filter(d => picks.has(d.id)).map(d => `#${d.id} ${d.helper} (${d.file}) — ${d.ask}`).join('\n');
+  // References (shared with the landing page via ../refs.js): picked separately from the effects, ?refs=12,5 to share.
+  const REFS_ALL = [...REFS3, ...REFS2, ...REFS, ...EARLY], refPicks = new Set((params.get('refs') || '').split(',').filter(Boolean));
+  const refsEl = document.getElementById('refs'), esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  refCards = REFS_ALL.map(r => { const el = document.createElement('article'); el.className = 'ref';
+    el.innerHTML = `<div class="top"><span class="num">#R${esc(r.n)}</span><span class="who">${esc(r.who)}</span></div><div class="m">${esc(r.meta)}</div>
+      <h3>${esc(r.title)}</h3><p>${esc(r.took)}</p><div class="lives">${r.lives ? 'helpers: ' + esc(r.lives) + ' · ' : ''}fed: ${esc(r.feeds.join(', '))}</div>${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">Open original ↗</a>` : ''}`;
+    el.querySelector('a')?.addEventListener('click', e => e.stopPropagation());
+    el.onclick = () => { refPicks.has(r.n) ? refPicks.delete(r.n) : refPicks.add(r.n); sync(); }; refsEl.appendChild(el); return { r, el }; });
+  // The prompt for Claude Code: <placeholders> are for the user to fill. Exposed as window.galleryPrompt for checks.
+  const buildPrompt = window.galleryPrompt = (refs, effects) => {
+    const out = [];
+    if (refs.length) out.push('Using claude-s, make a <length> <format> video for <subject/brand> using the techniques from these references:',
+      ...refs.map(r => `- #R${r.n} ${r.who}: ${r.took}${r.lives ? ` (helpers: ${r.lives})` : ''} [${r.feeds.join(', ')}]${r.url ? ' ' + r.url : ''}`),
+      'Take techniques only, never their shots, copy or palettes.');
+    if (effects.length) out.push((refs.length ? '\nAlso use' : 'From the claude-s gallery, use') + ' these devices:', ...effects.map(d => `#${d.id} ${d.helper} (${d.file}) — ${d.ask}`));
+    return out.join('\n');
+  };
+  const text = () => buildPrompt(REFS_ALL.filter(r => refPicks.has(r.n)), DEMOS.filter(d => picks.has(d.id)));
+  const setView = v => { document.body.classList.toggle('refs', v === 'refs'); vEff.classList.toggle('on', v !== 'refs'); vRef.classList.toggle('on', v === 'refs'); view = v; filter(); sync(); };
+  let view = params.get('view') === 'refs' ? 'refs' : 'effects';
+  const vEff = document.getElementById('vEff'), vRef = document.getElementById('vRef'); vEff.onclick = () => setView('effects'); vRef.onclick = () => setView('refs');
   function sync() {
-    cards.forEach(k => k.el.classList.toggle('pick', picks.has(k.d.id))); copyBtn.textContent = `Copy picks (${picks.size})`;
-    const p = new URLSearchParams(location.search); picks.size ? p.set('pick', [...picks].join(',')) : p.delete('pick');
+    cards.forEach(k => k.el.classList.toggle('pick', picks.has(k.d.id))); refCards.forEach(k => k.el.classList.toggle('pick', refPicks.has(k.r.n)));
+    copyBtn.textContent = `Copy prompt (${picks.size + refPicks.size})`;
+    const p = new URLSearchParams(location.search); picks.size ? p.set('pick', [...picks].join(',')) : p.delete('pick'); refPicks.size ? p.set('refs', [...refPicks].join(',')) : p.delete('refs');
+    view === 'refs' ? p.set('view', 'refs') : p.delete('view');
     history.replaceState(null, '', '?' + p.toString().replace(/%2C/g, ','));
   }
-  copyBtn.onclick = () => { if (!picks.size) return; const s = text(); (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => (copyBtn.textContent = 'Copied ' + picks.size), () => prompt('Copy this:', s)); };
-  sync();
+  copyBtn.onclick = () => { if (!picks.size && !refPicks.size) return; const s = text(); (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => (copyBtn.textContent = 'Copied ' + (picks.size + refPicks.size)), () => prompt('Copy this:', s)); };
+  setView(view);
 
   const io = new IntersectionObserver(es => es.forEach(e => (cards.find(k => k.el === e.target).vis = e.isIntersecting)));
   cards.forEach(k => io.observe(k.el));

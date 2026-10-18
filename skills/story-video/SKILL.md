@@ -5,6 +5,8 @@ description: Make a fast kinetic-typography story video (founder story, promo, e
 
 # Story video → MP4
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 A working pipeline. **Don't rebuild it: copy `template/` and write the data.** The only creative work is the script. Everything else is one command.
 
 The style: fast and emotional. One short phrase per card, cut 50 ms before its word. Black text cards crossfade in over 2 frames and stay quiet; the hard cuts (photos, the `white` contrast beat, the `why` drop, the end card) each land a sound. A calm bed ducks under the voice, drops into a beat at the story's turn, goes silent for half a second before the end card, and ends on an echo instead of a stinger. Keep cuts tight. Don't swap Chatterbox for the flat `say` voice unless the user asks.

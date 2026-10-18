@@ -5,6 +5,8 @@ description: Make a short, polished SaaS or product launch promo video (10–30 
 
 # Promo video: product → 15 s launch MP4
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 The reference is the Dub.co launch video (Sept 2026). It was one-shotted from a two-sentence prompt run **inside the product's repo**. The prompt asked for a 15-second motion-graphics SaaS launch video that shows off like a motion designer's showreel. The repo is the whole trick: the agent had the real logo, brand colours, fonts, copy, data and UI components, so the video looked like *their* product, not a template.
 
 It reuses the **music-video engine** (`lib.js`, `render.mjs`) and the **type-film kit** (`type.js` devices, `look.js` looks, `iso.js` isometric). This skill adds `promo.js` (promo helpers), `sfx.py` (the sound) and a demo `video.js`.

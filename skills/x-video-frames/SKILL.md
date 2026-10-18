@@ -5,6 +5,8 @@ description: Download a video from an X/Twitter post link and extract frames (de
 
 # X/Twitter video → frames
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 Needs `yt-dlp` and `ffmpeg` (both in /opt/homebrew/bin; `brew install yt-dlp ffmpeg` if missing).
 
 1. Peek at the metadata first, without downloading:

@@ -5,6 +5,8 @@ description: Make a music-led "aura farming" hype edit (8–20 s, vertical by de
 
 # Aura edit: a clip + a beat grid → a hype edit
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 Every time in `aura.json` is in **beats**, so the shots, the slow-mo moments, the hits, the type and the sound sit on one grid and can't drift. `aura.py build` pulls each shot's source frames at the clip's own frame rate. `video.js` retimes them through each shot's speed curve and blends neighbouring frames. `render.mjs --subframes 4` adds motion blur. The same hit list drives the picture and sfx.py's cues.
 
 ## Setup

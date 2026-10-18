@@ -5,6 +5,8 @@ description: Find and cut short segments of old film (b-roll, archival texture, 
 
 # Archive footage → verified clips + credits
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 One helper, `archive.py` (uv, stdlib, ffmpeg, Pillow for the labels). It searches, shows you a numbered contact sheet, checks the licence at the original archive, cuts a few seconds over HTTP range requests and writes the credits. **A clip goes into a video only after `get` has verified it.**
 
 movingimagearchive.com (MIA) is the best place to *find* old film: OpenCLIP search over Prelinger, US Government Films, NASA and Open Images, split into shots. It has no terms page and no robots.txt, and every source there says `public_domain`. Prelinger's own rights FAQ warns that many of its films aren't public domain. So MIA's label is only a hint, and `get` reads the licence again where the film actually lives.

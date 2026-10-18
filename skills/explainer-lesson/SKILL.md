@@ -5,6 +5,8 @@ description: Make a narrated, animated explainer for one hard concept (physics, 
 
 # Explainer lesson: one hard concept → a narrated MP4
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 A lesson is one file, `lesson.js`. It holds a timeline (chapters, captions, sound cues) and a `scene()` that paints the film for any time `t`. Everything else is shared, so the lesson holds only what is specific to its topic. The method comes from Kevin Ngo's Opus shorts: one HTML page with a canvas and scripts, no media files.
 
 `template/` is a working lesson. **Copy it; don't rebuild it.** The creative work goes into `lesson.js`.

@@ -220,3 +220,12 @@ for (const p of ['umber', 'alpine', 'cream', 'golden']) add('Looks', 'look.js', 
   const x = W * (0.15 + 0.7 * pp(t, 3)); scene(c, t); applyLook(c, t, null, p);
   c.save(); c.beginPath(); c.rect(0, 0, x, H); c.clip(); scene(c, t); c.restore(); c.fillStyle = '#fff'; c.fillRect(x - 1, 0, 2, H);
 });
+// T151–T152: real-photo stickers (CC0, subject lifted by ugc-edit's stickers.py with macOS Vision; credits in assets/stickers/CREDITS.md).
+// ponytail: the gallery has no IMGS loader, so these two preload here; a card draws its sticker once the PNG has landed.
+const STK = Object.fromEntries(['iced-coffee', 'laptop'].map(n => { const i = new Image(); i.src = 'assets/stickers/' + n + '.png'; return [n, i]; }));
+const stk = (c, n, x, y, w, t, o = {}) => { const im = STK[n]; if (im.complete && im.naturalWidth) cutout(c, x, y, w, (w * im.naturalHeight) / im.naturalWidth, t, { img: im, ...o }); };
+add('Aesthetic', 'type.js', 'cutout img + stickers.py', 'Real-photo cut-out stickers', 'real photo stickers: stickers.py finds a CC0 photo, Vision lifts the subject, cutout() gives it a die-cut border that follows the alpha (cutout img)', 4, (c, t) => { cream(c);
+  stk(c, 'iced-coffee', W * 0.36, H * 0.3, 300, t - 0.1, { rot: -0.08 }); stk(c, 'laptop', W * 0.6, H * 0.66, 340, t - 0.5, { rot: 0.06 }); });
+add('Aesthetic', 'type.js', 'cutout img + mixWords', 'Photo sticker beside a caption', 'a lifted photo sticker springs in on its word next to a mixed-type caption (ugc-edit reel stk with a stickers/ PNG)', 4, (c, t) => { scene(c, t);
+  mixWords(c, [{ s: 'my', at: 0 }, { s: 'morning', at: 0.15, font: 'Instrument Serif', weight: 'italic 400' }, { s: 'fuel', at: 0.35, br: true, font: 'Caveat', color: '#F6B9D2', size: 80 }], cx, H * 0.14, t, { size: 64 });
+  stk(c, 'iced-coffee', W * 0.7, H * 0.56, 220, t - 0.45, { rot: 0.1 }); });

@@ -5,6 +5,8 @@ description: Make an ORIGINAL brand motion film (10–30 s) from one or more ref
 
 # Type film: references + brand → an original motion film
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 **References are ingredients, not scripts.** The first Keychain film reproduced its Whop reference shot for shot: the same 13 shots, in the same order, with the same compositions. The user rejected it for that. Every film must be a new idea, built from the brand's own world. The references only lend techniques.
 
 ## Setup

@@ -5,6 +5,8 @@ description: Build an interactive "explorable explanation" page that teaches how
 
 # Explorable explainer: one question, answered with figures you can play with
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 The reference is https://claude.ai/artifact/Ez6BXp1sGc4fCEGihotM61 ("How do bike gears work?"). It is a calm essay that stops every few paragraphs for a figure, and each figure lets the reader move one thing and see what changes. **Take its techniques, not its figures.** Every new topic gets figures invented from its own parts, its own numbers and its own motion. A lock explainer that ends up looking like the bike one with gears swapped for pins has failed.
 
 The iso line style below (silhouette plus crease, honest plates, one highlight, two motion clocks) pairs well with hairline-create (github.com/lucasmarkes/hairline, MIT, by Lucas Marques). This skill has its own implementation; link to it, never copy it. A worked example built with this skill is `demos/explorable-explainer.html` in the claude-s repo (a keyboard switch).

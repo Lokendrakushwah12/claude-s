@@ -5,6 +5,8 @@ description: Make lyric-driven music videos from a song file, drawn entirely as 
 
 # Music video: song → JS-animated MP4
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 The approach comes from donald jewkes' "Claude Pop" remake prompt: a coherent style bible, a mascot protagonist, lyrics as the main attention device, current zeitgeist references, and ruthless self-review. Everything on screen is drawn in code, so the video is deterministic and re-renderable. Generated images and video are optional **reference or underlay**, never the look itself.
 
 `template/` is a working engine. **Copy it; don't rebuild it.** The creative work goes into `treatment.md` and `video.js`.

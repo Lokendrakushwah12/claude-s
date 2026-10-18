@@ -5,6 +5,8 @@ description: Make a faceless video (nobody on camera) for Reels, Shorts, TikTok 
 
 # Faceless video → MP4
 
+> Part of claude-s. When a job needs parts from other skills, read `../claude-s/SKILL.md`: which skill leads, and what the others lend.
+
 The picture is someone else's world and the sound is ours. Two modes share one engine:
 - **narrated:** a calm, close Chatterbox read, a new picture for every idea, and captions that build word by word on the voice.
 - **ambient:** no voice. A procedural soundscape (`ambience.py`, no samples) changes with every cut, and foley lands on what's in the shot.
