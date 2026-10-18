@@ -641,3 +641,11 @@ https://www.instagram.com/p/DdoWrpERdvD/ · 1440x1080 · black 0.014, white 0.88
 **LEAVE** the captions, the location, the person.
 
 **Lives in:** look.js `cine(c, k, {curves, sat})` (per-channel curve points + saturation per luma band) and the presets `umber alpine cream golden` (`bars: 2.39` adds scope bars); `grade.sh` reads the same presets out of look.js and runs them through ffmpeg `curves` + `geq` (+ halation, vignette, noise, drawbox) at ~25 fps on 1440x1080; gallery T147–T150. Check tiles: the test card through each preset beside a reference frame, and one reference clip through grade.sh before/after.
+
+## 2026-10-18 hand-drawn transitions, "jordan" (Hand Drawn Animator pin)
+https://in.pinterest.com/pin/256494141275166022/ · three 720x960 clips (1.8 s, 3.4 s, 2.5 s), each captioned "no.N <cut name>", looked at as 15 fps strips. The seller's plugin is a hand-drawn animator, but these three clips are edit lessons with no doodles on them.
+- **no.1 multi-shot match cut:** a round subject (ink in a dish, a petri plate, a flower centre) locked on one circle on black and swapped every 2–3 frames, then an eye and a flower hole fill the frame on the same circle.
+- **no.2 fast-paced cut:** a held wide shot, then 2–4-frame inserts (pen on paper, handwriting) joined by directional motion-blur whips, landing on a long hold.
+- **no.3 dissolve:** handwriting on paper cuts to a dark room, and the ink stays multiplied over the new shot, fading word by word over about 0.5 s while the paper is already gone.
+**TAKE** the shape locked across many shots on a 2-frame hold (`matchChain`), the ink-only dissolve (`inkDissolve`), whips between inserts (existing `whip`). The plugin's own look (lines on twos, boiling, scribble fills) is built from our `sketch` + `boil` + `stepT`: `scribbleWipe` (marker scribble covers A, un-draws to B; scratch in, squeak out), `doodleTrace` + `ovalPts` (boiling outline round a subject; scratch), `doodleBurst` (rays, stars, sparkle crosses; sparkle). Gallery #T153–T157.
+**LEAVE** the footage, the "no.N" caption cards, the plugin itself.

@@ -1256,3 +1256,48 @@ function stripeMat(c, x, y, w, h, o = {}) {
   c.save(); c.beginPath(); c.rect(x - pad, y - pad, w + pad * 2, h + pad * 2); c.rect(x, y, w, h); c.clip('evenodd'); c.fillStyle = ground; c.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
   c.fillStyle = stripe; for (let sx = x - pad; sx < x + w + pad; sx += gap) c.fillRect(sx, y - pad, gap * 0.5, h + pad * 2); c.restore();
 }
+// ---- Hand-drawn transitions and doodles (2026-10-18; "jordan" Hand Drawn Animator pin, references.md). Lines are drawn on twos (12 fps) and boil ----
+// Scribble wipe: a fat marker zigzag scribbles over A for `pre` s (on twos, boiling), the cut lands under full cover, then the scribble
+// un-draws from its first stroke to reveal B over `post` s. o: pre 0.4, post 0.4, rows 7, color '#1E1C19', fps 12, seed. Sound: scratch in, squeak out.
+function scribbleWipe(c, t, tCut, drawA, drawB, o = {}) {
+  const { pre = 0.4, post = 0.4, rows = 9, color = '#1E1C19', fps = 12, seed = 11 } = o, ts = stepT(t, fps), s = H / rows, pad = 0.12 * W;
+  (t < tCut ? drawA : drawB)(c); if (ts < tCut - pre || ts >= tCut + post) return;
+  const p = ts < tCut ? prog(ts, tCut - pre, tCut) * 1.05 : 1 - prog(ts, tCut, tCut + post);
+  for (const k of [0, 1]) { // two interleaved zigzags: max gap one row, so 1.3 rows of marker covers yet the stroke edges still read
+    const pts = Array.from({ length: rows + 3 }, (_, i) => [(i + k) % 2 ? W + pad : -pad, (i - 1) * s]);
+    sketch(c, ts < tCut ? pts : pts.reverse(), { color, lw: 1.3 * s, wob: 0.06 * s, over: 0, light: 0.5, seed: seed + k * 5 + boil(t, fps, 3), p }); }
+}
+// Doodle trace: a felt-tip outline traced around a subject (closed pts, pushed `pad` px out from their centroid) drawing on over `dur` s
+// from t = 0, then boiling on twos; `loops` 2 adds the looser second pass. o: color lw dur pad loops fps seed. Sound: scratch (or a pencil squeak).
+function doodleTrace(c, pts, t, o = {}) {
+  const { color = '#FFFFFF', lw = 5 * S, dur = 0.5, pad = 14 * S, loops = 2, fps = 12, seed = 21 } = o; if (t < 0) return;
+  const mx = pts.reduce((a, q) => a + q[0], 0) / pts.length, my = pts.reduce((a, q) => a + q[1], 0) / pts.length, p = clamp(stepT(t, fps) / dur);
+  for (let k = 0; k < loops; k++) { const d = pad * (1 + k * 0.6);
+    sketch(c, pts.map(([x, y]) => { const L = Math.hypot(x - mx, y - my) || 1; return [x + ((x - mx) / L) * d, y + ((y - my) / L) * d]; }), { color, lw: lw * (1 - k * 0.3), closed: true, wob: 2.5 * S, over: 6 * S, light: 0.4, p: clamp(p * loops - k), seed: seed + k * 7 + boil(t, fps, 3) }); }
+}
+// Ellipse as pts for doodleTrace / sketch: n points round (x, y) with radii rx, ry.
+const ovalPts = (x, y, rx, ry, n = 28) => Array.from({ length: n }, (_, i) => [x + Math.cos((i / n) * 6.283) * rx, y + Math.sin((i / n) * 6.283) * ry]);
+// Doodle burst: rays, little five-point stars and sparkle crosses drawn out round (x, y) from t = 0 over `dur` s, boiling on twos.
+// o: r (inner radius) n (rays) stars sparks color lw dur fps seed. Sound: sparkle (or blip_pop) on t = 0.
+function doodleBurst(c, x, y, t, o = {}) {
+  const { r = 70 * S, n = 8, stars = 3, sparks = 3, color = '#FFFFFF', lw = 4 * S, dur = 0.4, fps = 12, seed = 31 } = o; if (t < 0) return;
+  const p = clamp(stepT(t, fps) / dur), R = rng(seed), b = boil(t, fps, 3), so = { color, lw, wob: 1.2 * S, over: 0, light: 0.35 };
+  for (let i = 0; i < n; i++) { const a = (i / n) * 6.283 + (R() - 0.5) * 0.4, l = r * (0.5 + R() * 0.5); sketch(c, [[x + Math.cos(a) * r, y + Math.sin(a) * r], [x + Math.cos(a) * (r + l), y + Math.sin(a) * (r + l)]], { ...so, p: prog(p, i * 0.03, 0.5 + i * 0.03), seed: seed + i * 3 + b }); }
+  const at = () => { const a = R() * 6.283, d = r * (1.7 + R() * 0.8); return [x + Math.cos(a) * d, y + Math.sin(a) * d, (10 + R() * 10) * S]; };
+  for (let i = 0; i < stars; i++) { const [sx, sy, s] = at(); sketch(c, Array.from({ length: 10 }, (_, k) => { const a = -Math.PI / 2 + (k * Math.PI) / 5, q = k % 2 ? s * 0.45 : s; return [sx + Math.cos(a) * q, sy + Math.sin(a) * q]; }), { ...so, closed: true, p: prog(p, 0.3 + i * 0.1, 0.8 + i * 0.07), seed: seed + 50 + i + b }); }
+  for (let i = 0; i < sparks; i++) { const [sx, sy, s] = at(), q = prog(p, 0.45 + i * 0.1, 1); sketch(c, [[sx - s, sy], [sx + s, sy]], { ...so, p: q, seed: seed + 80 + i + b }); sketch(c, [[sx, sy - s], [sx, sy + s]], { ...so, p: q, seed: seed + 90 + i + b }); }
+}
+// Multi-shot match cut: shots (draw functions, each framed so its round subject sits on the same circle) flip every `hold` frames inside
+// a circle mask on `ground`; the last shot opens the mask to full frame over `open` s. From t0. o: x y r hold 2 fps 24 open 0.25 ground. Sound: click per shot, whoosh on the open.
+function matchChain(c, t, t0, shots, o = {}) {
+  const { x = W / 2, y = H * 0.42, r = W * 0.36, hold = 2, fps = 24, open = 0.25, ground = '#050505' } = o, k = clamp(Math.floor(((t - t0) * fps + 1e-6) / hold), 0, shots.length - 1);
+  const tl = t0 + ((shots.length - 1) * hold) / fps, R = lerp(r, Math.hypot(W, H), ease.inOut(prog(t, tl, tl + open)));
+  c.save(); c.fillStyle = ground; c.fillRect(0, 0, W, H); c.beginPath(); c.arc(x, y, R, 0, 7); c.clip(); shots[k](c); c.restore();
+}
+// Ink dissolve: at the cut B arrives at once and A's darks (handwriting, ink, silhouettes) stay multiplied over it, fading over `dur` s;
+// A's paper whites vanish on the first frame. o: dur 0.6. Sound: paper (or a soft swoosh) on tCut.
+function inkDissolve(c, t, tCut, drawA, drawB, o = {}) {
+  const { dur = 0.6 } = o; if (t < tCut) return drawA(c); drawB(c); const p = prog(t, tCut, tCut + dur); if (p >= 1) return;
+  const [cv, a] = scratch('inkA', c.canvas.width, c.canvas.height); a.setTransform(c.getTransform()); drawA(a);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'multiply'; c.globalAlpha *= 1 - ease.out(p); c.drawImage(cv, 0, 0); c.restore();
+}

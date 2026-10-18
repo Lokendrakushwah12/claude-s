@@ -32,6 +32,8 @@ cp -R <this skill's dir>/template ~/Movies/faceless/<slug> && cd ~/Movies/facele
 ## 2. Write film.json
 Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
 
+In narrated mode, write the opening line with `~/.claude/skills/claude-s/hooks.md`; in ambient mode, pick a visual hook from it.
+
 - **Top level:**
   - `mode`: `narrated` or `ambient`.
   - `size`: `1080x1920` for Reels/Shorts, `1920x1080`, or `1440x1080` when it's all 4:3 film.

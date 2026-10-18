@@ -232,3 +232,15 @@ add('Aesthetic', 'type.js', 'cutout img + stickers.py', 'Real-photo cut-out stic
 add('Aesthetic', 'type.js', 'cutout img + mixWords', 'Photo sticker beside a caption', 'a lifted photo sticker springs in on its word next to a mixed-type caption (ugc-edit reel stk with a stickers/ PNG)', 4, (c, t) => { scene(c, t);
   mixWords(c, [{ s: 'my', at: 0 }, { s: 'morning', at: 0.15, font: 'Instrument Serif', weight: 'italic 400' }, { s: 'fuel', at: 0.35, br: true, font: 'Caveat', color: '#F6B9D2', size: 80 }], cx, H * 0.14, t, { size: 64 });
   stk(c, 'iced-coffee', W * 0.7, H * 0.56, 220, t - 0.45, { rot: 0.1 }); });
+// T153–T157: hand-drawn transitions and doodles (2026-10-18, "jordan" Hand Drawn Animator pin; references.md). Lines step on twos and boil.
+const disc = (col, k) => c => { bg(c, col); c.fillStyle = '#f6efe3'; c.beginPath(); c.arc(cx, H * 0.42, W * 0.36, 0, 7); c.fill(); c.strokeStyle = '#7a2e12'; c.lineWidth = 10;
+  for (let i = 0; i < k; i++) { const a = (i / k) * 6.283; c.beginPath(); c.moveTo(cx, H * 0.42); c.lineTo(cx + Math.cos(a) * W * 0.34, H * 0.42 + Math.sin(a) * W * 0.34); c.stroke(); } };
+const inkPage = c => { bg(c, '#E9DCC6'); word(c, 'Dream.', cx, cy, { size: 130, font: 'Caveat', color: '#2A1E16', align: 'center' }); word(c, 'so far', cx, cy - 150, { size: 80, font: 'Caveat', color: '#2A1E16', align: 'center' }); };
+add('Transitions & hits', 'type.js', 'scribbleWipe', 'Scribble wipe', 'a fat marker scribble covers A on twos, then un-draws to reveal B (scribbleWipe; scratch in, squeak out)', 2.2, (c, t) => { scribbleWipe(c, t, 1.1, shotA, shotB, { pre: 0.5, post: 0.5, color: '#FFD23F' }); });
+add('Paper & line', 'type.js', 'doodleTrace', 'Doodle trace', 'a boiling felt-tip outline traced round the subject on twos, two passes (doodleTrace + ovalPts; scratch)', 2.5, (c, t) => { shotA(c);
+  doodleTrace(c, ovalPts(cx, cy - 170, 80, 80), t - 0.2, { dur: 0.6, lw: 7, pad: 22 }); });
+add('Paper & line', 'type.js', 'doodleBurst', 'Doodle burst', 'drawn rays, little stars and sparkle crosses burst round a point, boiling (doodleBurst; sparkle)', 2, (c, t) => { shotB(c);
+  doodleBurst(c, cx, cy - 120, t - 0.2, { r: 90, color: '#fff', lw: 5 }); });
+add('Transitions & hits', 'type.js', 'matchChain', 'Multi-shot match cut', 'round subjects flip every 2 frames inside one locked circle, the last opens to full frame (matchChain; click per shot, whoosh)', 2.2, (c, t) => {
+  matchChain(c, t, 0.2, [disc('#2a0d05', 3), disc('#3b1a0a', 6), disc('#120a1e', 9), disc('#1e2a10', 12), disc('#0b1b26', 0), disc('#2a0d05', 5)], { hold: 4 }); });
+add('Transitions & hits', 'type.js', 'inkDissolve', 'Ink dissolve', 'handwriting from A stays multiplied over B and fades, the paper drops out at once (inkDissolve; paper)', 2.4, (c, t) => { inkDissolve(c, t, 0.8, inkPage, shotB, { dur: 1 }); });

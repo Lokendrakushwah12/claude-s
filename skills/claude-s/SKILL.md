@@ -49,7 +49,7 @@ The user may paste picks from the gallery (`#T029 dollyZoom (type.js)`) or a ref
 ## 3. The pipeline every job follows
 1. **Brief:** what it's about, who it's for, length, 9:16 or 16:9, voice or not. Ask only for what you can't default.
 2. **References:** deconstruct any the user gave; take techniques, never their shots or copy.
-3. **Script** (when there's a voice): spoken lines, not notes; write for one listener.
+3. **Script** (when there's a voice): spoken lines, not notes; write for one listener. Write the hook last with `hooks.md` (families, visual hooks, anti-slop rules, the 4-line check).
 4. **Voice:** narrate, check every take, build the timeline.
 5. **Picture:** the lead's renderer; borrowed helpers; stills gate before the full render.
 6. **Sound:** cues from the picture's own times; music ducks under the voice.

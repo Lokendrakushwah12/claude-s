@@ -147,6 +147,7 @@ Look at `cuts.jpg` (one row per cut), `contact.jpg` and `review/spectrogram.png`
 Fix, rebuild and look again.
 
 ## Hook variants (A/B the opening)
+Pick and write the candidate lines with `~/.claude/skills/claude-s/hooks.md` (hook families, the 4-line check).
 Put candidate opening lines in `"hooks"` (any line of the recording, as words or as a phrase object), then:
 ```bash
 uv run edit.py hooks      # hooks/hN.mp4 = that line + the first "hookBody" (3) body phrases, each built and rendered in hooks/hN/

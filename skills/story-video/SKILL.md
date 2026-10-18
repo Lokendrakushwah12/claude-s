@@ -26,6 +26,7 @@ Before you plan the piece, run the creative method in `~/.claude/skills/type-fil
    cp -R <this skill's dir>/template ~/Movies/<slug>
    ```
 2. In `make_cards.py`, write `SCRIPT`: rows of `(slug, style, text, seconds)`.
+   - Write the first card's line with `~/.claude/skills/claude-s/hooks.md`.
    - Cut sentences into phrases of about 1–2 s of speech. Split across cards where a spoken pause falls ("she had an idea" / "nobody believed in").
    - Styles: `serif`, `sans` (bold), `white` (a black-on-white contrast beat, use sparingly), `photo` (a photo with a caption), `why` (the story's turn), `end` (text is `"NAME|URL"`).
    - `seconds` is only a floor. The voice sets the real length.
