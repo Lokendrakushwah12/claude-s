@@ -34,6 +34,7 @@ Mixed inputs: lead with whatever owns the **footage** (real clips beat drawn sce
 | Expressive English narration, voice cloning | `story-video/template/narrate.py` (`REFERENCE`) | when the read must act |
 | Type, captions, 3D camera, transitions, hits | `type-film/template/type.js` | any canvas-drawn shot; names in `gallery/` (#Txxx) |
 | Aesthetic reel kit (clipped sheets, serif stacks, script lines, cut-outs, torn labels) | `type.js` + `ugc-edit` reel mode | covers, list reels, before/after |
+| Sticker library, 347 die-cut stickers | `ugc-edit/stickers/` (`manifest.json` tags, gallery Stickers tab) | copy picks into the project's `assets/stickers/`, `stk: [{img: "stickers/s012.webp", on: "word"}]` |
 | Real photo stickers | `ugc-edit/template/stickers.py` + `lift.swift` | CC0/PD/CC BY search or the user's photos, subject lifted, credits written |
 | Looks and grades (film16, archival, crt, vhs, aura, umber, alpine, cream, golden) | `type-film/template/look.js`; real footage: `grade.sh`, `filmlook.sh` | finish any piece |
 | Sound: 59 SFX, beds, ducking under a voice | `promo-video/template/sfx.py` | every piece; cue sounds from the same times the picture uses |

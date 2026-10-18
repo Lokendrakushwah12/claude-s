@@ -137,7 +137,7 @@ function stickers(c, t, p) {
       const R0 = b.bw / 2; c.beginPath(); c.arc(0, 0, R0, 0, Math.PI * 2); c.fill(); c.shadowColor = 'transparent';
       const [fx, fy, fr] = k.circle, rr = R0 * 0.9, s = rr / (fr * b.im.width);
       c.save(); c.beginPath(); c.arc(0, 0, rr, 0, Math.PI * 2); c.clip(); c.drawImage(b.im, -fx * b.im.width * s, -fy * b.im.height * s, b.im.width * s, b.im.height * s); c.restore();
-    } else if (k.cut ?? /stickers\/.*\.png$/i.test(k.img)) { // a transparent cut-out (stickers.py): die-cut border follows its alpha
+    } else if (k.cut ?? /stickers\/.*\.(png|webp)$/i.test(k.img)) { // a transparent cut-out (stickers.py): die-cut border follows its alpha
       c.shadowColor = 'transparent'; const f = Math.min(b.bw / b.im.width, b.bh / b.im.height);
       cutout(c, 0, 0, b.im.width * f, b.im.height * f, 9, { img: b.im, rot: 0, border: b.bw * 0.045 });
     } else {

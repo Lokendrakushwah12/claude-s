@@ -31,7 +31,13 @@
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-right: 6px; }
   .seg button { border: 0; border-radius: 0; }
   .seg button.on { background: var(--ink); color: #fff; }
-  body.refs #grid, body.refs #chips { display: none; } body:not(.refs) #refs { display: none; }
+  body.refs #grid, body.refs #chips, body.sv #grid, body.sv #chips { display: none; } body:not(.refs) #refs, body:not(.sv) #stks { display: none; }
+  #stks { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; padding: 16px; }
+  .stk { position: relative; background: #fff; border: 2px solid transparent; border-radius: 12px; padding: 6px; cursor: pointer; text-align: center; color: var(--mute); font: 11px "Geist Mono", ui-monospace, monospace; }
+  .stk.pick { border-color: var(--accent); box-shadow: 0 0 0 3px #ff5a1f33; }
+  .stk img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; margin-bottom: 4px; border-radius: 8px; background: repeating-conic-gradient(#e4e4e0 0 25%, #f6f6f4 0 50%) 0 0 / 16px 16px; }
+  .stk button { position: absolute; top: 10px; right: 10px; padding: 1px 7px; opacity: .85; }
+  #lb { border: 0; padding: 0; background: none; } #lb::backdrop { background: #000c; } #lb img { display: block; max-width: 92vw; max-height: 92vh; }
   #refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 16px; }
   .ref { background: #fff; border: 2px solid transparent; border-radius: 12px; padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
   .ref.pick { border-color: var(--accent); box-shadow: 0 0 0 3px #ff5a1f33; }
@@ -44,13 +50,15 @@
 <header>
   <a class="back" href="../">← claude-s</a>
   <h1>Motion gallery</h1>
-  <span class="seg"><button id="vEff" class="on">Effects</button><button id="vRef">References</button></span>
+  <span class="seg"><button id="vEff" data-v="effects" class="on">Effects</button><button id="vRef" data-v="refs">References</button><button id="vStk" data-v="stickers">Stickers</button></span>
   <input type="search" id="q" placeholder="Search name, helper, id…">
   <span id="chips"></span>
   <button id="copy">Copy prompt (0)</button>
 </header>
 <main id="grid"></main>
 <section id="refs"></section>
+<section id="stks"></section>
+<dialog id="lb" onclick="this.close()"><img alt=""></dialog>
 <canvas id="c"></canvas>
 <script>
   // lib.js reads ?size= at load: render every demo at 540x960 (9:16) unless the URL says otherwise.
@@ -68,7 +76,7 @@
 (() => {
   const groups = [...new Set(DEMOS.map(d => d.group))], params = new URLSearchParams(location.search);
   const picks = new Set((params.get('pick') || '').split(',').filter(Boolean));
-  let group = null, refCards = [];
+  let group = null, refCards = [], stkCards = [];
   const grid = document.getElementById('grid'), q = document.getElementById('q'), copyBtn = document.getElementById('copy');
   const cards = DEMOS.map(d => {
     const el = document.createElement('div'); el.className = 'card'; el.dataset.id = d.id;
@@ -80,7 +88,7 @@
   const chips = document.getElementById('chips');
   ['All', ...groups].forEach(g => { const b = document.createElement('button'); b.className = 'chip' + (g === 'All' ? ' on' : ''); b.textContent = g;
     b.onclick = () => { group = g === 'All' ? null : g; [...chips.children].forEach(x => x.classList.toggle('on', x === b)); filter(); }; chips.appendChild(b); });
-  function filter() { const s = q.value.toLowerCase(); refCards.forEach(k => k.el.style.display = !s || Object.values(k.r).join(' ').toLowerCase().includes(s) ? '' : 'none'); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
+  function filter() { const s = q.value.toLowerCase(); stkCards.forEach(k => k.el.style.display = !s || [k.s.id, k.s.file, ...k.s.tags].join(' ').toLowerCase().includes(s) ? '' : 'none'); refCards.forEach(k => k.el.style.display = !s || Object.values(k.r).join(' ').toLowerCase().includes(s) ? '' : 'none'); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
   q.oninput = filter; q.value = params.get('q') || ''; filter(); // ?q= pre-filters (headless screenshots)
   // References (shared with the landing page via ../refs.js): picked separately from the effects, ?refs=12,5 to share.
   const REFS_ALL = [...REFS3, ...REFS2, ...REFS, ...EARLY], refPicks = new Set((params.get('refs') || '').split(',').filter(Boolean));
@@ -90,27 +98,39 @@
       <h3>${esc(r.title)}</h3><p>${esc(r.took)}</p><div class="lives">${r.lives ? 'helpers: ' + esc(r.lives) + ' · ' : ''}fed: ${esc(r.feeds.join(', '))}</div>${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">Open original ↗</a>` : ''}`;
     el.querySelector('a')?.addEventListener('click', e => e.stopPropagation());
     el.onclick = () => { refPicks.has(r.n) ? refPicks.delete(r.n) : refPicks.add(r.n); sync(); }; refsEl.appendChild(el); return { r, el }; });
+  // Stickers (skills/ugc-edit/stickers/manifest.json): picked separately, ?stickers=12,45 to share; the corner button opens the full-size file.
+  const STK = '../skills/ugc-edit/stickers/', stkPicks = new Set((params.get('stickers') || '').split(',').filter(Boolean).map(Number)), stksEl = document.getElementById('stks'), lb = document.getElementById('lb');
+  let STICKERS = [];
+  fetch(STK + 'manifest.json').then(r => r.json()).then(m => { STICKERS = m;
+    stkCards = m.map(s => { const n = +s.id.slice(1), el = document.createElement('div'); el.className = 'stk'; el.title = s.tags.join(', ');
+      el.innerHTML = `<img loading="lazy" src="${STK}thumbs/${s.file}" alt="${esc(el.title)}"><span>${s.id}</span><button title="Full size">⤢</button>`;
+      el.querySelector('button').onclick = e => { e.stopPropagation(); lb.querySelector('img').src = STK + s.file; lb.showModal(); };
+      el.onclick = () => { stkPicks.has(n) ? stkPicks.delete(n) : stkPicks.add(n); sync(); }; stksEl.appendChild(el); return { s, n, el }; });
+    filter(); sync(); });
   // The prompt for Claude Code: <placeholders> are for the user to fill. Exposed as window.galleryPrompt for checks.
-  const buildPrompt = window.galleryPrompt = (refs, effects) => {
+  const buildPrompt = window.galleryPrompt = (refs, effects, stickers = []) => {
     const out = [];
     if (refs.length) out.push('Using claude-s, make a <length> <format> video for <subject/brand> using the techniques from these references:',
       ...refs.map(r => `- #R${r.n} ${r.who}: ${r.took}${r.lives ? ` (helpers: ${r.lives})` : ''} [${r.feeds.join(', ')}]${r.url ? ' ' + r.url : ''}`),
       'Take techniques only, never their shots, copy or palettes.');
     if (effects.length) out.push((refs.length ? '\nAlso use' : 'From the claude-s gallery, use') + ' these devices:', ...effects.map(d => `#${d.id} ${d.helper} (${d.file}) — ${d.ask}`));
+    if (stickers.length) out.push((out.length ? '\n' : '') + `Use these stickers from claude-s (skills/ugc-edit/stickers/): ${stickers.map(s => `${s.id} ${s.file} (${s.tags.slice(0, 2).join(', ')})`).join(', ')}`,
+      `In ugc-edit, copy them into the project's assets/stickers/ and land each on a word: stk: [{img: "stickers/${stickers[0].file}", on: "<word>"}]`);
     return out.join('\n');
   };
-  const text = () => buildPrompt(REFS_ALL.filter(r => refPicks.has(r.n)), DEMOS.filter(d => picks.has(d.id)));
-  const setView = v => { document.body.classList.toggle('refs', v === 'refs'); vEff.classList.toggle('on', v !== 'refs'); vRef.classList.toggle('on', v === 'refs'); view = v; filter(); sync(); };
-  let view = params.get('view') === 'refs' ? 'refs' : 'effects';
-  const vEff = document.getElementById('vEff'), vRef = document.getElementById('vRef'); vEff.onclick = () => setView('effects'); vRef.onclick = () => setView('refs');
+  const text = () => buildPrompt(REFS_ALL.filter(r => refPicks.has(r.n)), DEMOS.filter(d => picks.has(d.id)), STICKERS.filter(s => stkPicks.has(+s.id.slice(1))));
+  const vBtns = document.querySelectorAll('.seg button'), total = () => picks.size + refPicks.size + stkPicks.size;
+  const setView = v => { view = v; document.body.classList.toggle('refs', v === 'refs'); document.body.classList.toggle('sv', v === 'stickers'); vBtns.forEach(b => b.classList.toggle('on', b.dataset.v === v)); filter(); sync(); };
+  let view = ['refs', 'stickers'].includes(params.get('view')) ? params.get('view') : 'effects';
+  vBtns.forEach(b => b.onclick = () => setView(b.dataset.v));
   function sync() {
-    cards.forEach(k => k.el.classList.toggle('pick', picks.has(k.d.id))); refCards.forEach(k => k.el.classList.toggle('pick', refPicks.has(k.r.n)));
-    copyBtn.textContent = `Copy prompt (${picks.size + refPicks.size})`;
-    const p = new URLSearchParams(location.search); picks.size ? p.set('pick', [...picks].join(',')) : p.delete('pick'); refPicks.size ? p.set('refs', [...refPicks].join(',')) : p.delete('refs');
-    view === 'refs' ? p.set('view', 'refs') : p.delete('view');
+    cards.forEach(k => k.el.classList.toggle('pick', picks.has(k.d.id))); refCards.forEach(k => k.el.classList.toggle('pick', refPicks.has(k.r.n))); stkCards.forEach(k => k.el.classList.toggle('pick', stkPicks.has(k.n)));
+    copyBtn.textContent = `Copy prompt (${total()})`;
+    const p = new URLSearchParams(location.search); picks.size ? p.set('pick', [...picks].join(',')) : p.delete('pick'); refPicks.size ? p.set('refs', [...refPicks].join(',')) : p.delete('refs'); stkPicks.size ? p.set('stickers', [...stkPicks].join(',')) : p.delete('stickers');
+    view === 'effects' ? p.delete('view') : p.set('view', view);
     history.replaceState(null, '', '?' + p.toString().replace(/%2C/g, ','));
   }
-  copyBtn.onclick = () => { if (!picks.size && !refPicks.size) return; const s = text(); (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => (copyBtn.textContent = 'Copied ' + (picks.size + refPicks.size)), () => prompt('Copy this:', s)); };
+  copyBtn.onclick = () => { if (!total()) return; const s = text(); (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => (copyBtn.textContent = 'Copied ' + total()), () => prompt('Copy this:', s)); };
   setView(view);
 
   const io = new IntersectionObserver(es => es.forEach(e => (cards.find(k => k.el === e.target).vis = e.isIntersecting)));
