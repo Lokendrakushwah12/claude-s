@@ -48,15 +48,16 @@ EXACT = []       # section starts to keep exact (e.g. the measured drop); others
 EDGE = 0.12   # trim off shot edges (a source AMV's own transitions live there)
 # transitions: (type, seconds, shake). first = into the section, inner cycles inside it.
 # shake is vertical, damped, and always rides a bloom flash. min = slowest speed (below 1x
-# is motion-interpolated; under ~0.75x interpolation starts to smear).
+# is motion-interpolated; under ~0.75x interpolation starts to smear). zoom = slow push-in end
+# scale, 1.0 = off: a push on every shot reads as a constant zoom (user noticed), so opt in per mood.
 STYLE = {
-    "intro":  dict(first=("blur", 0.8, 0), inner=[("blur", 0.45, 0)], zoom=1.04, max=1.9, min=0.85),
+    "intro":  dict(first=("blur", 0.8, 0), inner=[("blur", 0.45, 0)], zoom=1.0, max=1.9, min=0.85),
     "lift":   dict(first=("flash", 0.3, 0), inner=[("qblur", 0, 1), ("zoom", 0.3, 0), ("qblur", 0, 0), ("blur", 0.4, 0)],
-                   zoom=1.03, max=1.9, min=0.8, flashes=True),
+                   zoom=1.0, max=1.9, min=0.8, flashes=True),
     "calm":   dict(first=("blur", 1.0, 0), inner=[("blur", 0.6, 0), ("blur", 0.6, 0), ("zoom", 0.4, 0)],
-                   zoom=1.05, max=3.0, min=0.75),
+                   zoom=1.0, max=3.0, min=0.75),
     "chorus": dict(first=("flash", 0.3, 0), inner=[("qblur", 0, 1), ("zoom", 0.3, 0), ("qblur", 0, 0), ("blur", 0.35, 0)],
-                   zoom=1.03, max=1.7, min=0.75, flashes=True),
+                   zoom=1.0, max=1.7, min=0.75, flashes=True),
 }
 
 def snap(t):

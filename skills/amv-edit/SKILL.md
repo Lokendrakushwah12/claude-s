@@ -94,6 +94,22 @@ The layout follows the classic AMV thumbnail: a huge title behind a full-size ch
    - the text had black borders
    - the shadow spread too much
 
+## 9. A short matched to a reference edit (kinetic type)
+For "make one like this" on a 10-20 s reference: big words that build letter by letter over close-ups.
+1. **Find the audio:** `uv run songmatch.py ref.mp4 song.mp3` gives the song stretch (plan `song_start`, `end` = the reference's length). Same audio means the same beats, so the reference's cut times work as-is.
+2. **Measure:**
+   - `refscan.py` gives cuts, flash pops and motion direction.
+   - Find word entrances, colour and how long each word takes to build by tracking the text colour per frame (gold/red pixel share in the middle band).
+   - Measure the grade against our render, not by eye. The Harvey reference was p50 95, p95 163, sat 62, R-B 60: a warm matte.
+3. **Words:** the reference may spell out lyrics. Don't type or transcribe them; use the song title and character names, or lines the user supplies.
+   - **Syllable chunks:** split each word into syllables (HAR|VEY, MI|YA|MU|RA) and land each chunk on a sung syllable. Detect vocal onsets on the voice's harmonic part (HPSS, then 250-3500 Hz flux); take the onset nearest the word's entrance, then onsets at least ¾ of the reveal window apart.
+   - **Card:** `chunks: [[letters, seconds in], ...]`. Each chunk develops from pale, translucent and soft to full colour and sharp in about 0.25 s, with nothing showing before its time. Study the reference frame by frame first; a smooth left-to-right sweep with ghost letters was wrong.
+   - **Font:** `font: heavy` + `sx: 0.58` (tall, very condensed, high-contrast serif), `glow` around 0.2 (flat letters); a `small` line above uses quick fades. Credit: two bold lines at the bottom centre (`credit`, Avenir Next Demi Bold).
+4. **Shots:** only deep, warm, saturated close-ups. Cool, white or pastel backgrounds go grey under a matte grade.
+5. **Motion and edges:** no push-in (`zoom` 1.0); vertical shakes ride the flash pops. Edges: a radial zoom blur from about 0.28 out (`edge_zoom` 0.10, `edge_start` 0.28, `edge` 3), sharp in the centre.
+6. **Stickers:** the claude-s library (`ugc-edit/stickers`, image lines) is optional. The reference had none, and they didn't sit well on this style, so we took them out.
+7. **Check:** tile the reference and our render at the same times, side by side, before delivering. `examples/horimiya-harvey-short.py` is the full plan.
+
 ## Problems seen so far
 - **The picture stopped at 0:57, then at 0:26:** xfade ends the whole stream when its first input runs a frame short. Shots render 0.25 s long (`PAD`) and hold their last frame (`tpad`), so this can't recur.
 - **The padding vanished:** after `minterpolate` the frame timestamps were off, so `trim=duration` dropped the padded frames. Frames are renumbered (`setpts=N/FPS/TB`) and trimmed by count.
@@ -112,4 +128,10 @@ The layout follows the classic AMV thumbnail: a huge title behind a full-size ch
 - **Thumbnail: a hair loop filled with glow:** `binary_fill_holes` closed a real gap between strands. Only pinholes under 400 px are filled now.
 - **Thumbnail: holes punched in the shirt:** a "small white piece near the edge" rule sized pieces inside the edge band, where the shirt's line art splits it into small parts. The hole was hidden while the background was the same frame. Size pieces over the whole cutout, or don't use such a rule.
 - **Thumbnail: "background too blurred" at 1.2 px:** the frame's own backdrop was a soft-focus sparkle. Use `--bg` with a sharp scene from the clips. One "flake" the user circled was that backdrop, not the cutout, so check the cutout's alpha at the spot before adding cleanup rules.
+- **Short: the font looked wrong:** the condensed cut was too wide and soft. Render candidates next to a crop of the reference's own lettering and pick by eye. Here, a squeezed Display Extrabold matched; Bodoni and Didot were too thin.
+- **Short: quality nowhere near the reference:** the grade numbers were off (R-B 19 vs 60, saturation 35 vs 62, crushed blacks), and cool or pastel shots fought the palette. Match the grade to the reference's numbers, use warm shots only, keep it crisp (`edge` 0, low bloom).
+- **Short: the text animation wasn't the reference's:** a smooth letter sweep over ghost letters. The reference builds each word in syllable chunks on the sung syllables, each developing from pale to full colour; frame-by-frame strips at 30 fps showed it.
+- **Short: the edges weren't soft enough:** a light gaussian edge blur from 0.55 out. The reference smears the outer two-thirds with a radial zoom blur.
+- **A constant zoom on every scene:** a slow push-in on all shots by default. It's opt-in now (`zoom` 1.0).
+- **The frame check stopped on a night shot:** it read a genuinely dark scene as crushed. A frame now counts as crushed only when near-black and near-white are both over 15%, which was the broken render's signature.
 - **Thumbnail: black borders on the text:** a dark outline for separation. It's now a tight soft drop shadow (blur and offset about 1% of the text height); a wider one "spread too much".

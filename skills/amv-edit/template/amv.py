@@ -18,14 +18,28 @@ plan.json:
   ],
   "flashes": [56.0, 62.7],          # song times of instant bloom flashes
   "cards": [{"at": 0.5, "dur": 3.4, "bg": "black|dim|none",
-             "lines": [{"text": "TITLE", "font": "serif|sans", "size": 120, "track": 0.5,
-                        "y": 0, "delay": 0.0, "move": "down|up", "edge": false}]}]
+             "chunks": [[3, 0.0], [3, 0.5]],  # optional: syllables (letters, seconds in) each develop pale -> colour
+             "reveal": 0.4,               # optional: letters sweep in over 0.4 s over a faint blurred ghost
+             "quick": false,              # optional: fast fades, no drift (secondary words)
+             "lines": [{"text": "TITLE", "font": "serif|sans|script|cond|heavy|bold", "size": 120, "track": 0.5,
+                        "sx": 1.0,        # horizontal squeeze (heavy + 0.58 = tall condensed high-contrast serif)
+                        "x": 0, "y": 0, "delay": 0.0, "move": "down|up", "edge": false,
+                        "color": [255, 250, 242], "glow": 1.0, "halo": 1.0, "small": false},
+                       {"image": "sticker.webp", "w": 280, "x": 600, "y": 250, "rot": -10}]}],   # slams in
+  "song_start": 57.77,               # the song second plan time 0 maps to (a short on one stretch)
+  "watermark": "", "credit": ["(c) 2026 NAME", "SONG - ARTIST"],   # corner brand / bottom-centre credit
+  "fade": [1.5, 0.5, 2.0],           # video out, audio in, audio out (s)
+  "grade": {"curve": "...", "contrast": 1.06, "sat": 0.85, "balance": "rs=..:bs=..", "bloom": 0.35,
+            "vignette": "PI/7", "sharpen": 1.1, "edge": 10,   # defaults = the soft AMV grade; edge 0 = crisp
+            "edge_start": 0.55, "edge_zoom": 0.0}   # edge blur from this radius out; edge_zoom > 0 = radial zoom blur
 }
 "at"    song time this shot is fully on screen (the transition into it ends here)
 "t"     transition INTO this shot: blur | zoom | qblur | cut | flash   (first shot fades from black)
+"zoom"  slow push-in end scale; 1.0 = none (opt-in: a push on every shot reads as a constant zoom)
 "speed" < 1 is motion-interpolated (Twixtor-style), never plain slow-down
 """
 import hashlib, json, os, subprocess, sys
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 plan = json.load(open(sys.argv[1]))
@@ -44,10 +58,13 @@ def _first(*cands):  # first font file that exists: (path, ttc index, variable-f
     sys.exit(f"no font found among {[c[0] for c in cands]}")
 _FEATURE = [os.path.join(d, f) for d in (os.path.expanduser("~/Library/Fonts"), "/Library/Fonts") if os.path.isdir(d)
             for f in os.listdir(d) if "FeatureHeadline" in f and f.endswith((".ttf", ".otf"))]
-FONTS = {"serif": _first(*[(f, None, b"Display Regular") for f in _FEATURE],
-                         ("/System/Library/Fonts/Supplemental/Baskerville.ttc", 0, None)),
+_SUP = "/System/Library/Fonts/Supplemental/"
+FONTS = {"serif": _first(*[(f, None, b"Display Regular") for f in _FEATURE], (_SUP + "Baskerville.ttc", 0, None)),
          "sans": ("/System/Library/Fonts/Supplemental/GillSans.ttc", 7, None),   # Gill Sans Light
-         "script": ("/System/Library/Fonts/Supplemental/Savoye LET.ttc", 0, None)}  # thin handwritten, for sung lines
+         "script": ("/System/Library/Fonts/Supplemental/Savoye LET.ttc", 0, None),
+         "cond": _first(*[(f, None, b"Display Cond Extrabold") for f in _FEATURE], (_SUP + "Didot.ttc", 2, None)),
+         "heavy": _first(*[(f, None, b"Display Extrabold") for f in _FEATURE], (_SUP + "Bodoni 72.ttc", 2, None)),  # squeeze with "sx" for a tall, very condensed high-contrast serif
+         "bold": ("/System/Library/Fonts/Avenir Next.ttc", 2, None)}  # Avenir Next Demi Bold (credit line)  # thin handwritten, for sung lines
 WATERMARK = plan.get("watermark", "")  # small, faint, top-right for the whole video
 tmp = os.path.join(os.path.dirname(os.path.abspath(out)), ".amv_cache")
 os.makedirs(tmp, exist_ok=True)
@@ -119,6 +136,12 @@ def render_card(card):
     ease = lambda x: 0.0 if x <= 0 else 1.0 if x >= 1 else x * x * (3 - 2 * x)
     sprites = []
     for ln in card["lines"]:  # each line once: tracked text + bloom, tight-cropped
+        if ln.get("image"):  # sticker / image line
+            im = Image.open(ln["image"]).convert("RGBA")
+            im = im.resize((ln["w"], int(im.height * ln["w"] / im.width)), Image.LANCZOS)
+            if ln.get("rot"): im = im.rotate(ln["rot"], expand=True, resample=Image.BICUBIC)
+            sprites.append((ln, im, None, None))
+            continue
         path, idx, var = FONTS[ln.get("font", "serif")]
         font = ImageFont.truetype(path, ln["size"], index=idx or 0)
         if var: font.set_variation_by_name(var)
@@ -128,9 +151,15 @@ def render_card(card):
         pad = 60
         im = Image.new("L", (tw + 2 * pad, int(ln["size"] * 1.5) + 2 * pad), 0)
         dr, x = ImageDraw.Draw(im), pad
+        xs = []
         for ch, cw in zip(ln["text"], widths):
+            xs.append(x)
             dr.text((x, pad), ch, font=font, fill=255)
             x += cw + gap
+        xs.append(x - gap)
+        if ln.get("sx", 1) != 1:  # horizontal squeeze: condensed letters from a regular-width face
+            im = im.resize((max(1, int(im.width * ln["sx"])), im.height), Image.LANCZOS)
+            xs = [v * ln["sx"] for v in xs]
         if ln.get("edge"):  # fade toward the ends, like the reference title
             ramp = Image.linear_gradient("L").rotate(90, expand=True).resize((im.width // 2, im.height))
             mask = Image.new("L", im.size, 0)
@@ -138,14 +167,25 @@ def render_card(card):
             mask.paste(ramp.transpose(Image.FLIP_LEFT_RIGHT).point(lambda v: 110 + v * 145 // 255), (im.width // 2, 0))
             im = ImageChops.multiply(im, mask)
         glow = im.filter(ImageFilter.GaussianBlur(16)).point(lambda v: min(255, v * 2))
-        alpha = ImageChops.lighter(im, glow.point(lambda v: v * 150 // 255))
+        gk = ln.get("glow", 1.0)
+        alpha = ImageChops.lighter(im, glow.point(lambda v: int(v * 150 * gk) // 255))
         rgb = ln.get("color", [255, 250, 242])
-        sprite = Image.merge("RGBA", (*(Image.new("L", im.size, c) for c in rgb), alpha))
         # soft dark halo underneath keeps thin letters readable over bright footage
-        halo = im.filter(ImageFilter.GaussianBlur(26)).point(lambda v: min(255, v * 3) * 130 // 255)
+        hk = ln.get("halo", 1.0)
+        halo = im.filter(ImageFilter.GaussianBlur(26 * ln.get("halo_r", 1.0))).point(lambda v: int(min(255, v * 3) * 130 * hk) // 255)
         z = Image.new("L", im.size, 0)
-        sprite = Image.alpha_composite(Image.merge("RGBA", (z, z, z, halo)), sprite)
-        sprites.append((ln, sprite))
+        paint = lambda c: Image.alpha_composite(Image.merge("RGBA", (z, z, z, halo)),
+                                                Image.merge("RGBA", (*(Image.new("L", im.size, v) for v in c), alpha)))
+        sprite = paint(rgb)
+        extra = None
+        if card.get("chunks") and not ln.get("small"):  # syllable chunks: cut points + a pale copy to develop from
+            pale = [int(v * 0.35 + 255 * 0.65) for v in rgb]
+            extra = {"pale": paint(pale), "xs": xs}
+        ghost = None
+        if card.get("reveal") and not ln.get("small"):  # letters still to come: a faint blurred ghost
+            ghost = sprite.filter(ImageFilter.GaussianBlur(7))
+            ghost.putalpha(ghost.getchannel("A").point(lambda v: v * 70 // 255))
+        sprites.append((ln, sprite, ghost, extra))
     dur, n = card["dur"], round(card["dur"] * FPS)
     for k in range(n):
         t = k / FPS
@@ -153,20 +193,61 @@ def render_card(card):
         bg_in, bg_out = ease(t / 0.35), ease((dur - t) / 0.6)
         bga = {"black": 255 * bg_out, "dim": 150 * min(bg_in, bg_out), "none": 0}[card.get("bg", "none")]
         if bga: fr.paste((0, 0, 0, int(bga)), (0, 0, W, H))
-        for ln, sp in sprites:
+        for ln, sp, ghost, extra in sprites:
+            if ln.get("image"):  # slam in from 140%, quick fade out
+                a_in, a_out = ease((t - ln.get("delay", 0)) / 0.16), ease((dur - t) / 0.2)
+                if a_in <= 0 or a_out <= 0: continue
+                s = 1 + 0.4 * (1 - a_in)
+                img = sp.resize((max(1, int(sp.width * s)), max(1, int(sp.height * s))))
+                img.putalpha(img.getchannel("A").point(lambda v: int(v * min(1, a_in * 1.5) * a_out)))
+                fr.alpha_composite(img, (int(W / 2 + ln.get("x", 0) - img.width / 2), int(H / 2 + ln.get("y", 0) - img.height / 2)))
+                continue
+            if extra is not None:  # syllable chunks, each on its sung syllable; nothing shows before its time
+                a_out = ease((dur - t) / 0.15)
+                x0w = (W - sp.width) / 2 + ln.get("x", 0); y0w = H / 2 + ln.get("y", 0) - sp.height / 2
+                xs, start = extra["xs"], 0
+                for k2, (count, off) in enumerate(card["chunks"]):
+                    tc = ln.get("delay", 0) + off
+                    if t < tc: break
+                    e, ce = ease((t - tc) / 0.18), ease((t - tc) / 0.28)
+                    b0 = 0 if start == 0 else int(xs[start])
+                    end = start + count
+                    b1 = sp.width if end >= len(xs) - 1 else int(xs[end])
+                    full_c, pale_c = sp.crop((b0, 0, b1, sp.height)), extra["pale"].crop((b0, 0, b1, sp.height))
+                    img = Image.blend(pale_c, full_c, ce)
+                    r = 5 * (1 - e)
+                    if r > 0.3: img = img.filter(ImageFilter.GaussianBlur(r))
+                    img.putalpha(img.getchannel("A").point(lambda v: int(v * e * a_out)))
+                    fr.alpha_composite(img, (int(x0w + b0), int(y0w)))
+                    start = end
+                continue
+            if ghost is not None:  # reveal: a left-to-right sweep of sharp letters over their ghost
+                a_out = ease((dur - t) / 0.15)
+                prog = min(1, max(0, (t - ln.get("delay", 0)) / card["reveal"]))
+                img = Image.alpha_composite(ghost, Image.new("RGBA", ghost.size, (0, 0, 0, 0)))
+                edge = 60 + prog * (sp.width - 120)
+                ramp = np.clip((edge - np.arange(sp.width)) / 40 + 0.5, 0, 1)
+                sharp = sp.copy()
+                sharp.putalpha(Image.fromarray((np.asarray(sp.getchannel("A")) * ramp[None, :]).astype(np.uint8)))
+                img = Image.alpha_composite(img, sharp)
+                img.putalpha(img.getchannel("A").point(lambda v: int(v * a_out)))
+                x = (W - img.width) / 2 + ln.get("x", 0)
+                fr.alpha_composite(img, (int(x), int(H / 2 + ln.get("y", 0) - img.height / 2)))
+                continue
             if card.get("static"): a_in, a_out = 1, 1
+            elif card.get("quick") or card.get("reveal") or card.get("chunks"): a_in, a_out = ease((t - ln.get("delay", 0)) / 0.25), ease((dur - t) / 0.15)
             elif card.get("sub"): a_in, a_out = ease(t / 0.2), ease((dur - t) / 0.25)  # subtitles: quick, no drift
             else: a_in, a_out = ease((t - ln.get("delay", 0)) / 0.7), ease((dur - t) / 0.55)
             a = a_in * a_out
             if a <= 0: continue
-            mv = 0 if card.get("sub") else {"down": -26, "up": 26}.get(ln.get("move"), 0) * (1 - a_in) - 14 * (1 - a_out)
+            mv = 0 if card.get("sub") or card.get("reveal") or card.get("quick") or card.get("chunks") else {"down": -26, "up": 26}.get(ln.get("move"), 0) * (1 - a_in) - 14 * (1 - a_out)
             scale = 1 + (0.06 if ln.get("move") == "up" else 0) * (1 - a_in)
             # copy: putalpha below would otherwise fade the cached sprite itself, frame after frame
             img = sp.copy() if scale == 1 else sp.resize((int(sp.width * scale), int(sp.height * scale)))
-            r = 0 if card.get("sub") else 14 * (1 - a_in) + 10 * (1 - a_out)
+            r = 0 if card.get("sub") or card.get("static") else (6 if card.get("reveal") or card.get("quick") or card.get("chunks") else 14) * (1 - a_in) + 10 * (1 - a_out)
             if r > 0.3: img = img.filter(ImageFilter.GaussianBlur(r))
             img.putalpha(img.getchannel("A").point(lambda v: int(v * a)))
-            x = W - 40 - img.width if ln.get("align") == "right" else (W - img.width) / 2
+            x = W - 40 - img.width if ln.get("align") == "right" else (W - img.width) / 2 + ln.get("x", 0)
             fr.alpha_composite(img, (int(x), int(H / 2 + ln.get("y", 0) - img.height / 2 + mv)))
         fr.save(f"{d}/{k:04d}.png")
     open(f"{d}/done", "w").close()
@@ -226,29 +307,49 @@ P = "+".join(f"gte(t,{ft - t0:.3f})*exp(-11*max(0,t-{ft - t0:.3f}))" for ft in p
 # off below clipping, ~14% darker mids, ~20% more saturation, luma-only sharpening, then a bloom
 # built from the highlights only (a full-frame screen glow lifted the blacks), soft edge blur.
 # Curves and colour balance run in RGB (gbrp); the bloom switches to yuv444p (see below).
+GR = dict(curve="0/0 0.12/0.04 0.5/0.46 0.8/0.75 1/0.9", contrast=1.06, sat=0.85, rs=0.015, bs=-0.015,
+          bloom=0.35, vignette="PI/7", sharpen=1.1, balance="", edge=10, edge_start=0.55, edge_zoom=0.0)
+GR.update(plan.get("grade", {}))
 f.append(f"[{prev}]trim=duration={total:.3f},format=gbrp,"
-         f"curves=all='0/0 0.12/0.04 0.5/0.46 0.8/0.75 1/0.9',"
-         f"eq=contrast='1.06-0.22*({P})':saturation=0.85:brightness='0.2*({P})':eval=frame,"
-         f"colorbalance=rs=0.015:bs=-0.015:rh=0.01:bh=-0.01,unsharp=5:5:1.1:5:5:0,"
+         f"curves=all='{GR['curve']}',"
+         f"eq=contrast='{GR['contrast']}-0.22*({P})':saturation={GR['sat']}:brightness='0.2*({P})':eval=frame,"
+         f"colorbalance={GR['balance'] or f"rs={GR['rs']}:bs={GR['bs']}:rh=0.01:bh=-0.01"},unsharp=5:5:{GR['sharpen']}:5:5:0,"
          # bloom on brightness only (yuv444p): blend in gbrp mixed up planes and turned everything
          # magenta; "normal" at opacity 1 keeps the base picture's colour
          f"format=yuv444p,split[g0][g1];[g1]curves=all='0/0 0.6/0 1/1',gblur=sigma=28[g2];"
-         f"[g0][g2]blend=c0_mode=screen:c0_opacity=0.35:c1_mode=normal:c1_opacity=1:c2_mode=normal:c2_opacity=1,"
-         f"split[e0][e1];[e1]gblur=sigma=10[e2]")
+         f"[g0][g2]blend=c0_mode=screen:c0_opacity={GR['bloom']}:c1_mode=normal:c1_opacity=1:c2_mode=normal:c2_opacity=1,"
+         f"split[e0][e1]")
+if GR["edge_zoom"] > 0:  # radial zoom blur: average of copies enlarged 0..edge_zoom about the centre
+    nz = 6
+    f.append(f"[e1]split={nz}" + "".join(f"[z{k}]" for k in range(nz)) + ";" +
+             ";".join(f"[z{k}]scale=w=2*trunc({W}*{1 + GR['edge_zoom'] * k / (nz - 1):.4f}/2):h=-2,crop={W}:{H},setsar=1[zz{k}]"
+                      for k in range(nz)) + ";" +
+             "".join(f"[zz{k}]" for k in range(nz)) + f"mix=inputs={nz},gblur=sigma={max(0.1, GR['edge'])}[e2]")
+else:
+    f.append(f"[e1]gblur=sigma={max(0.1, GR['edge'])}[e2]")
 def edge_mask():  # 0 in the middle, easing to 255 at the frame edges
     from PIL import Image
     import numpy as np
-    p = f"{tmp}/edge_mask_{W}x{H}.png"
+    p = f"{tmp}/edge_mask_{W}x{H}_{GR['edge_start']}.png"
     if not os.path.exists(p):
         yy, xx = np.mgrid[0:H, 0:W]
         r = np.sqrt(((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2) / np.sqrt(2)
-        Image.fromarray((np.clip((r - 0.55) / 0.45, 0, 1) ** 1.6 * 255).astype(np.uint8)).save(p)
+        s0 = GR["edge_start"]
+        Image.fromarray((np.clip((r - s0) / (1 - s0), 0, 1) ** 1.6 * 255).astype(np.uint8)).save(p)
     return p
 j = inputs.count("-i")
 inputs += ["-loop", "1", "-framerate", str(FPS), "-i", edge_mask()]
-f.append(f"[{j}:v]format=gray,trim=duration={total:.3f}[em];[e2][em]alphamerge[e3];"
-         f"[e0][e3]overlay=shortest=1,vignette=angle=PI/7[g]")
+f.append(f"[{j}:v]format=gray{',lutyuv=y=0' if GR['edge'] <= 0 else ''},trim=duration={total:.3f}[em];[e2][em]alphamerge[e3];"
+         f"[e0][e3]overlay=shortest=1,vignette=angle={GR['vignette']}[g]")
 prev = "g"
+if plan.get("credit"):
+    cr = render_card({"at": 0, "dur": 1 / FPS, "bg": "none", "static": True, "lines": [
+        {"text": c, "font": "bold", "size": 34 - 10 * k, "track": 0.02, "y": H / 2 - 92 + 38 * k, "glow": 0.0, "halo": 0.3}
+        for k, c in enumerate(plan["credit"])]})
+    j = inputs.count("-i")
+    inputs += ["-loop", "1", "-framerate", str(FPS), "-i", f"{cr}/0000.png"]
+    f.append(f"[{j}:v]format=rgba,colorchannelmixer=aa=0.95,trim=duration={total:.3f}[cr];[{prev}][cr]overlay=shortest=1[cl]")
+    prev = "cl"
 if WATERMARK:
     wm = render_card({"at": 0, "dur": 1 / FPS, "bg": "none", "static": True, "lines": [
         {"text": WATERMARK, "font": "serif", "size": 30, "track": 0.35, "y": -H / 2 + 62, "align": "right"}]})
@@ -262,7 +363,8 @@ for k, (c, d) in enumerate(zip(plan.get("cards", []), cards)):
     inputs += ["-framerate", str(FPS), "-i", f"{d}/%04d.png"]
     f.append(f"[{j}:v]format=rgba,setpts=PTS+{c['at'] - t0:.3f}/TB[c{k}];[{prev}][c{k}]overlay=eof_action=pass[o{k}]")
     prev = f"o{k}"
-f.append(f"[{prev}]fade=t=out:st={total - 1.5:.3f}:d=1.5,format=yuv420p[vout]")
+VFO, AFI, AFO = plan.get("fade", [1.5, 0.5, 2.0])  # video out, audio in, audio out (s)
+f.append(f"[{prev}]fade=t=out:st={total - VFO:.3f}:d={VFO},format=yuv420p[vout]")
 ai = inputs.count("-i")
 inputs += ["-ss", str(plan.get("song_start", 0) + t0), "-t", f"{total:.3f}", "-i", plan["song"]]
 # Character voice lines (planned above): the shot's own dialogue, music ducked under it with 0.25s ramps.
@@ -278,9 +380,9 @@ for i, at, vl, fo in VOICES:
     voices.append(f"[v{j}]")
     duck.append(f"clip((t-{a - 0.25:.3f})/0.25,0,1)*clip(({b + 0.25:.3f}-t)/0.25,0,1)")
 music_vol = f"1-0.65*min(1,{'+'.join(duck)})" if duck else "1"
-f.append(f"[{ai}:a]volume='{music_vol}':eval=frame,afade=t=in:d=0.5[mus]")
+f.append(f"[{ai}:a]volume='{music_vol}':eval=frame,afade=t=in:d={AFI}[mus]")
 f.append(f"[mus]{''.join(voices)}amix=inputs={1 + len(voices)}:normalize=0:duration=first,"
-         f"afade=t=out:st={total - 2:.3f}:d=2,alimiter=limit=0.95[aout]")
+         f"afade=t=out:st={total - AFO:.3f}:d={AFO},alimiter=limit=0.95[aout]")
 proc = subprocess.Popen(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1",
                          *inputs, "-filter_complex", ";".join(f), "-map", "[vout]", "-map", "[aout]",
                          "-c:v", "libx264", "-crf", "17", "-preset", "medium",
@@ -310,7 +412,8 @@ for k, t in enumerate(ts):
     g = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", f"{t:.2f}", "-i", out, "-frames:v", "1",
                         "-vf", "scale=320:180,format=gray", "-f", "rawvideo", "-"], capture_output=True).stdout
     y = np.frombuffer(g, np.uint8)
-    ext.append(float(((y < 20) | (y > 235)).mean()))
+    blk, wht = float((y < 20).mean()), float((y > 235).mean())
+    ext.append(blk + wht if min(blk, wht) > 0.15 else 0.0)  # both together = crushed; black alone = a night shot
 bad = [(round(t, 1), round(e, 2)) for t, e in zip(ts, ext) if e > 0.55]
 if len(bad) < 3 and np.median(ext) <= 0.35: bad = []
 sheet = os.path.splitext(out)[0] + "_check.jpg"
