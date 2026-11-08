@@ -1,6 +1,6 @@
 ---
 name: amv-edit
-description: Make an anime music video (AMV) from the user's anime clips and a song, styled after reference AMVs they share. It builds a shot library with contact sheets from folders of episode clips, maps the song (beats, verses, choruses, the measured drop), takes references apart into numbers (cut pace, flash count, quick-blur length, shake direction, grade versus the raw footage, the music dips where character voice comes through), plans a story arc one section per story beat, and renders frame-exact with blur dissolves, zoom punches, quick-blur cuts, vertical shakes on bloom flashes, Twixtor-style interpolated slow motion (never plain slow-down), a matched grade with highlight bloom and crisp lines, soft edges, animated serif/sans/script title and brand cards on measured beats, a corner watermark, and real character voice lines ducked under the music. Every render is length- and frame-checked before delivery. Use when the user says AMV, anime edit, anime music video, "use these clips with this song", "edit like this AMV", twixtor, or shares anime clip folders, an episode list or an AMV link.
+description: Make an anime music video (AMV) from the user's anime clips and a song, styled after reference AMVs they share. It builds a shot library with contact sheets from folders of episode clips, maps the song (beats, verses, choruses, the measured drop), takes references apart into numbers (cut pace, flash count, quick-blur length, shake direction, grade versus the raw footage, the music dips where character voice comes through), plans a story arc one section per story beat, and renders frame-exact with blur dissolves, zoom punches, quick-blur cuts, vertical shakes on bloom flashes, Twixtor-style interpolated slow motion (never plain slow-down), a matched grade with highlight bloom and crisp lines, soft edges, animated serif/sans/script title and brand cards on measured beats, a corner watermark, and real character voice lines ducked under the music. Every render is length- and frame-checked before delivery. It also makes the YouTube thumbnail: a full-size character cutout in front of a full-width arched title, graded to match. Use when the user says AMV, anime edit, anime music video, "use these clips with this song", "edit like this AMV", twixtor, AMV thumbnail, or shares anime clip folders, an episode list or an AMV link.
 ---
 
 # AMV edit: anime clips + a song + references → an AMV
@@ -71,6 +71,29 @@ uv run amv.py plan.json out.mp4
 ```
 It prints `[render] NN%` while it works. At the end it fails on a short video track or crushed frames, and writes `out_check.jpg` (30 frames). **Look at the contact sheet before copying anything to the user**, then run `~/.claude/skills/x-video-frames/filmgate.py` as every claude-s film does. Never deliver on the exit code alone.
 
+## 8. Thumbnail
+The layout follows the classic AMV thumbnail: a huge title behind a full-size character, with a small spaced serif line.
+1. **Pick a close-up from the clips:** a clear expression, the face in the upper half, and edges that aren't lost in a busy glow. Pull 8-16 candidates at full resolution and tile them. A single character matches the classic look; a couple tells the story. Offer both.
+2. **Lift the subject** with macOS Vision (borrowed from ugc-edit, no download):
+   ```bash
+   swift ~/.claude/skills/ugc-edit/template/lift.swift frame.png cut.png
+   ```
+3. **Compose:**
+   ```bash
+   uv run thumb.py frame.png cut.png thumb.jpg --title HARVEY --sub HORIMIYA [--bg scene.png] [--deglow]
+   ```
+   - **Title:** full width (94%), Gill Sans SemiBold, silver with pink toward the right, arched (`--arc 150` reads on the end letters; 70 hides under the head), behind the subject.
+   - **Serif line:** in front of the subject, with a stronger shadow.
+   - **Grade:** the same as the AMV, then a soft edge blur. Out comes 1280×720.
+4. **Check it at full size and zoomed into the hair edges** before delivering. Each of these was a real complaint:
+   - the cutout was resized
+   - the background was too blurred
+   - the title was narrow or too thin
+   - there was no curve
+   - the cutout had dirty edges
+   - the text had black borders
+   - the shadow spread too much
+
 ## Problems seen so far
 - **The picture stopped at 0:57, then at 0:26:** xfade ends the whole stream when its first input runs a frame short. Shots render 0.25 s long (`PAD`) and hold their last frame (`tpad`), so this can't recur.
 - **The padding vanished:** after `minterpolate` the frame timestamps were off, so `trim=duration` dropped the padded frames. Frames are renumbered (`setpts=N/FPS/TB`) and trimmed by count.
@@ -84,3 +107,9 @@ It prints `[render] NN%` while it works. At the end it fails on a short video tr
 - **A voice line cut off mid-word:** voice audio ended at the shot's cut. It now runs to the next 0.26 s pause in the speech band, over the next shot, and the duck follows it.
 - **Subtitles were invisible:** with no blur or resize, the card loop faded the cached sprite in place, so alpha decayed 28 → 10 → 5 frame after frame. Title cards hid this, since they blur or scale until they're fully opaque. The sprite is copied now, and the card cache key carries a version so stale frames rebuild.
 - **10 cuts sat off the beat:** hand-set section starts (0.07-0.21 s off), and outro cuts after the beat tracker stopped. Section starts snap now, and the grid is extended to the end.
+- **Thumbnail: a white outline round the cutout:** a rim light behind the subject. It's gone.
+- **Thumbnail: glow stuck in the hair:** Vision counts backdrop sparkle next to hair as subject. Islands are dropped; `--deglow` removes bright non-red or yellow pixels near the edge; edge pixels take the subject's inner colours.
+- **Thumbnail: a hair loop filled with glow:** `binary_fill_holes` closed a real gap between strands. Only pinholes under 400 px are filled now.
+- **Thumbnail: holes punched in the shirt:** a "small white piece near the edge" rule sized pieces inside the edge band, where the shirt's line art splits it into small parts. The hole was hidden while the background was the same frame. Size pieces over the whole cutout, or don't use such a rule.
+- **Thumbnail: "background too blurred" at 1.2 px:** the frame's own backdrop was a soft-focus sparkle. Use `--bg` with a sharp scene from the clips. One "flake" the user circled was that backdrop, not the cutout, so check the cutout's alpha at the spot before adding cleanup rules.
+- **Thumbnail: black borders on the text:** a dark outline for separation. It's now a tight soft drop shadow (blur and offset about 1% of the text height); a wider one "spread too much".
