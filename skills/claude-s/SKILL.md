@@ -12,6 +12,7 @@ The skills are one studio, not eleven apps. **One skill leads** (its project fol
 |---|---|---|
 | the user's own talking head, podcast or screen recording | a creator cut, tutorial, before/after, aesthetic reel | `ugc-edit` |
 | the user's clips or stills | a beat-locked hype edit, montage | `aura-edit` |
+| anime episode clips + a song (+ reference AMVs) | an AMV (anime music video) with a story arc | `amv-edit` |
 | a script or theme, nobody on camera | narrated or voiceless b-roll video | `faceless-video` |
 | a reference film + a brand | an original motion film, kinetic type, a narrated motion reel | `type-film` |
 | a product repo or site | a launch promo with the real UI | `promo-video` |
