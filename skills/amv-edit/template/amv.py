@@ -18,7 +18,7 @@ plan.json:
   ],
   "flashes": [56.0, 62.7],          # song times of instant bloom flashes
   "cards": [{"at": 0.5, "dur": 3.4, "bg": "black|dim|none",
-             "chunks": [[3, 0.0], [3, 0.5]],  # optional: syllables (letters, seconds in) each develop pale -> colour
+             "chunks": [[3, 0.0], [3, 0.5]],  # optional: syllables (letters, seconds in); each letter is its own sprite, staggered, pale -> colour
              "reveal": 0.4,               # optional: letters sweep in over 0.4 s over a faint blurred ghost
              "quick": false,              # optional: fast fades, no drift (secondary words)
              "lines": [{"text": "TITLE", "font": "serif|sans|script|cond|heavy|bold", "size": 120, "track": 0.5,
@@ -128,7 +128,7 @@ def render_shot(i):
 # Text cards: Pillow renders each card as a transparent PNG sequence (cached by spec)
 def render_card(card):
     from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
-    key = hashlib.sha1(json.dumps([2, card], sort_keys=True).encode()).hexdigest()[:12]  # bump on renderer changes
+    key = hashlib.sha1(json.dumps([3, card], sort_keys=True).encode()).hexdigest()[:12]  # bump on renderer changes
     d = f"{tmp}/card_{key}"
     if os.path.exists(f"{d}/done"):
         return d
@@ -178,9 +178,26 @@ def render_card(card):
                                                 Image.merge("RGBA", (*(Image.new("L", im.size, v) for v in c), alpha)))
         sprite = paint(rgb)
         extra = None
-        if card.get("chunks") and not ln.get("small"):  # syllable chunks: cut points + a pale copy to develop from
+        if card.get("chunks") and not ln.get("small"):
+            # every letter is its own complete sprite (full shape, glow, shadow) at its spot in the word:
+            # cropping chunks out of the word image clipped serifs and sliced the glow at the seams
             pale = [int(v * 0.35 + 255 * 0.65) for v in rgb]
-            extra = {"pale": paint(pale), "xs": xs}
+            letters = []
+            for i, (ch, cw) in enumerate(zip(ln["text"], widths)):
+                lm = Image.new("L", (int(cw) + 2 * pad, im.height), 0)
+                ImageDraw.Draw(lm).text((pad, pad), ch, font=font, fill=255)
+                ox = xs[i] - pad * ln.get("sx", 1)          # letter canvas origin in word coordinates
+                if ln.get("sx", 1) != 1:
+                    lm = lm.resize((max(1, int(lm.width * ln["sx"])), lm.height), Image.LANCZOS)
+                lg = lm.filter(ImageFilter.GaussianBlur(16)).point(lambda v: min(255, v * 2))
+                la = ImageChops.lighter(lm, lg.point(lambda v: int(v * 150 * gk) // 255))
+                lh = lm.filter(ImageFilter.GaussianBlur(26 * ln.get("halo_r", 1.0))).point(lambda v: int(min(255, v * 3) * 130 * hk) // 255)
+                lz = Image.new("L", lm.size, 0)
+                lp = lambda c, la=la, lh=lh, lz=lz, lm=lm: Image.alpha_composite(
+                    Image.merge("RGBA", (lz, lz, lz, lh)), Image.merge("RGBA", (*(Image.new("L", lm.size, v) for v in c), la)))
+                if ch.strip(): letters.append((int(ox), lp(rgb), lp(pale)))
+                else: letters.append(None)
+            extra = {"letters": letters}
         ghost = None
         if card.get("reveal") and not ln.get("small"):  # letters still to come: a faint blurred ghost
             ghost = sprite.filter(ImageFilter.GaussianBlur(7))
@@ -202,24 +219,24 @@ def render_card(card):
                 img.putalpha(img.getchannel("A").point(lambda v: int(v * min(1, a_in * 1.5) * a_out)))
                 fr.alpha_composite(img, (int(W / 2 + ln.get("x", 0) - img.width / 2), int(H / 2 + ln.get("y", 0) - img.height / 2)))
                 continue
-            if extra is not None:  # syllable chunks, each on its sung syllable; nothing shows before its time
+            if extra is not None:  # syllable chunks on their sung syllables; letters stagger within a chunk
                 a_out = ease((dur - t) / 0.15)
                 x0w = (W - sp.width) / 2 + ln.get("x", 0); y0w = H / 2 + ln.get("y", 0) - sp.height / 2
-                xs, start = extra["xs"], 0
-                for k2, (count, off) in enumerate(card["chunks"]):
-                    tc = ln.get("delay", 0) + off
-                    if t < tc: break
-                    e, ce = ease((t - tc) / 0.18), ease((t - tc) / 0.28)
-                    b0 = 0 if start == 0 else int(xs[start])
-                    end = start + count
-                    b1 = sp.width if end >= len(xs) - 1 else int(xs[end])
-                    full_c, pale_c = sp.crop((b0, 0, b1, sp.height)), extra["pale"].crop((b0, 0, b1, sp.height))
-                    img = Image.blend(pale_c, full_c, ce)
-                    r = 5 * (1 - e)
-                    if r > 0.3: img = img.filter(ImageFilter.GaussianBlur(r))
-                    img.putalpha(img.getchannel("A").point(lambda v: int(v * e * a_out)))
-                    fr.alpha_composite(img, (int(x0w + b0), int(y0w)))
-                    start = end
+                start = 0
+                for count, off in card["chunks"]:
+                    for m in range(count):
+                        li = start + m
+                        if li >= len(extra["letters"]) or extra["letters"][li] is None: continue
+                        tl = ln.get("delay", 0) + off + 0.035 * m
+                        if t < tl: continue
+                        ox, full_l, pale_l = extra["letters"][li]
+                        e, ce = ease((t - tl) / 0.18), ease((t - tl) / 0.28)
+                        img = Image.blend(pale_l, full_l, ce)
+                        r = 5 * (1 - e)
+                        if r > 0.3: img = img.filter(ImageFilter.GaussianBlur(r))
+                        img.putalpha(img.getchannel("A").point(lambda v: int(v * e * a_out)))
+                        fr.alpha_composite(img, (int(x0w + ox), int(y0w)))
+                    start += count
                 continue
             if ghost is not None:  # reveal: a left-to-right sweep of sharp letters over their ghost
                 a_out = ease((dur - t) / 0.15)
