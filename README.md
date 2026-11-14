@@ -6,9 +6,9 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 |---|---|---|
 | [`claude-s`](skills/claude-s) | The map: which skill leads a job, the parts every other skill lends (voice, captions, camera, transitions, grades, sound, stickers, archive film, the delivery gate), and the pipeline every job follows. Claude reads it for any job that spans skills | [gallery](gallery/) |
 | [`ugc-edit`](skills/ugc-edit) | A creator-style edit of your own footage. It takes a talking head, podcast or screen recording and cuts it on the words with an always-moving camera, hot-keyword captions that keep off the face (optionally behind the speaker), inserts, and a sound on every cut. It drops false starts and retakes, keeps laughs, renders hook variants, mixes in product demos, chapter cards, riso posters and collections (stamps, polaroids, grids), and exports the cut as FCPXML and EDL | [ugc-edit.html](demos/ugc-edit.html) |
-| [`aura-edit`](skills/aura-edit) | A music-led "aura farming" hype edit of footage or stills, locked to one beat grid: frame-exact speed ramps, punches, shake, impact frames, a stills strobe, slammed and masked type, a crushed glowing grade and a synthesised bed with a real drop | coming soon |
+| [`aura-edit`](skills/aura-edit) | A music-led "aura farming" hype edit of footage or stills, locked to one beat grid: frame-exact speed ramps, punches, shake, impact frames, a stills strobe, slammed and masked type, a crushed glowing grade and a synthesised bed with a real drop. Also travel montages from a folder of your own clips: every clip reviewed start to end, shots ordered by measured camera motion and by how each cut pairs, a colour grade matched to a reference reel (a LUT tuned by numbers), a title that rises out from behind the mountains (sky matte), and lyric captions timed to the sung vocals from lyrics you paste | coming soon |
 | [`amv-edit`](skills/amv-edit) | An anime music video from your episode clips and a song, styled after reference AMVs: a shot library with contact sheets, a measured song map and drop, a story arc one beat per section, blur dissolves, zoom punches, quick-blur cuts, vertical shakes on bloom flashes, Twixtor-style interpolated slow motion, a matched glow grade, animated title and brand cards, and real character voice lines ducked under the music. Every render is frame-checked. Plus the thumbnail: a character cutout in front of an arched title, and short kinetic-type edits matched to a reference (same audio, letter-by-letter words, matched grade) | - |
-| [`faceless-video`](skills/faceless-video) | A faceless video from a script or a theme: narrated with a human-sounding local voice and word captions, or voiceless with a fully synthesised natural soundscape and foley on what's in shot. B-roll from public-domain archive film, your clips or canvas scenes | [faceless-video.html](demos/faceless-video.html) |
+| [`faceless-video`](skills/faceless-video) | A faceless video from a script or a theme: narrated with a human-sounding local voice and word captions, or voiceless with a fully synthesised natural soundscape and foley on what's in shot. For a story about a real person, company or event, real footage of it first (keynotes, interviews, news, downloaded from links), cut fast on the words with full-screen word cards and image pops with click sounds. Other b-roll from public-domain archive film, your clips or canvas scenes | [faceless-video.html](demos/faceless-video.html) |
 | [`type-film`](skills/type-film) | An original 10–30 s brand motion film from reference videos plus the brand's own site. Styles include Swiss type, cinematic, screen HUD, 80s vector CRT, single-take morph, line catalogue and isometric product | [type-film.html](demos/type-film.html) |
 | [`promo-video`](skills/promo-video) | A SaaS launch promo built from a product's repo or site, using its real logo, colours, fonts, UI and numbers, with a cursor that moves like a hand and silky 60 fps motion. Renders 16:9, 1:1 and 9:16 | [promo-video.html](demos/promo-video.html) |
 | [`explainer-lesson`](skills/explainer-lesson) | A narrated, animated lesson on one hard concept, with picture, sound and voice on one clock. Looks include blueprint, chalkboard, gouache, riso, graphite stop-motion and hairline | [explainer-lesson.html](demos/explainer-lesson.html) |
@@ -16,7 +16,7 @@ Skills that let Claude (Opus 5.5 in Claude Code) make and edit videos. Every fra
 | [`story-video`](skills/story-video) | A narrated kinetic-typography story (founder story, recap): a card per phrase, an expressive Chatterbox voice, ducked music, a sub on every hard cut | [story-video.html](demos/story-video.html) |
 | [`explorable-explainer`](skills/explorable-explainer) | An interactive "how does X work" essay with line-art and isometric figures you scrub and pick, published as a claude.ai Artifact | [explorable-explainer.html](demos/explorable-explainer.html) |
 | [`archive-footage`](skills/archive-footage) | Public-domain archival clips (countdowns, grain plates, old streets) with each licence verified at the original archive, and credits written for you | [archive-footage.html](demos/archive-footage.html) |
-| [`x-video-frames`](skills/x-video-frames) | Frames from an x.com video. `deconstruct.py` takes any reference apart: cuts, spectrogram, SFX events, beats, ducking, words, camera drift. `filmgate.py` blocks delivery of a finished film with blank frames or a blue-purple palette, and flags one where almost nothing moves | [x-video-frames.html](demos/x-video-frames.html) |
+| [`x-video-frames`](skills/x-video-frames) | Frames from an X, Instagram, YouTube or TikTok video. `deconstruct.py` takes any reference apart: cuts, spectrogram, SFX events, beats, ducking, words, camera drift. `filmgate.py` blocks delivery of a finished film with blank frames or a blue-purple palette, and flags one where almost nothing moves | [x-video-frames.html](demos/x-video-frames.html) |
 
 Each demo page is self-contained, with the video and its sound embedded. Download it and open it in a browser.
 
@@ -41,11 +41,12 @@ Install them together. The skills share three toolkits, which they copy from eac
 
 - macOS, with Google Chrome in `/Applications` (set `CHROME=` to use another path).
 - `node` 18+, `ffmpeg` and `uv`. 3D scenes load Three.js from jsdelivr at render time, so they need a network connection. `render.mjs` drives Chrome over raw CDP, so there's no `npm install`; Python steps pull their own packages through `uv`.
-- `yt-dlp` for `x-video-frames`.
+- `yt-dlp` for `x-video-frames` and `faceless-video`, run as `uvx --python 3.12 yt-dlp` (nothing to install beyond `uv`). Instagram needs it: yt-dlp on Homebrew's Python 3.14 fails with "No module named expat".
 - Voice: `story-video`, `explainer-lesson`, `music-video`, `ugc-edit` and `faceless-video` narrate with Chatterbox. Install it once with `sh ~/.claude/skills/story-video/setup.sh` (a local TTS model; a few GB on first use). `explainer-lesson` falls back to macOS `say`. Narrated `type-film`s use [Kokoro](https://github.com/hexgrad/kokoro) (82M, Apache-2.0) by default: fast, and it reads Hindi cleanly (`brew install espeak-ng`; `uv` pulls the rest). For a Hindi voice with Chatterbox, its multilingual model is another ~3 GB.
 - Optional:
   - `FAL_KEY` and `ELEVENLABS_API_KEY` for `music-video`.
   - MediaPipe, which `ugc-edit` pulls in itself for type behind the speaker and captions that keep off the face.
+  - A female narration voice for `faceless-video`: it clones `skills/faceless-video/voices/female_samantha.wav` when that file exists (it isn't shipped). Make one with `say -v Samantha -r 185 -o /tmp/s.aiff "<a few sentences>"` and `ffmpeg -i /tmp/s.aiff -ar 24000 -ac 1 ~/.claude/skills/faceless-video/voices/female_samantha.wav`; without it, Chatterbox's own voice reads.
 
 ## Use it
 
@@ -70,6 +71,10 @@ Describe the video; the matching skill triggers on its own.
 > "make an aura edit of this clip, phonk drop, speed ramps" (`~/Downloads/drive.mov`)
 
 > "a faceless reel about the sea with no voice, just natural sound and old film"
+
+> "make a video on the Binance $6.3B story, fast like this one https://www.instagram.com/p/…"
+
+> "make a travel edit from my trip folder, same song and caption style as this reel, graded like this one" (`~/Documents/kashmir/`)
 
 Each video skill keeps its projects in their own folder under `~/Movies/`, with the source next to the rendered MP4, so you can ask for changes later.
 
