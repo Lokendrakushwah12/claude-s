@@ -746,7 +746,11 @@ def drone_bed(hum=50, whine=7812, gain=1.0, **_):
     put(0, x * np.clip(t / 0.05, 0, 1) * 0.5, gain, bus="room")  # ~20 dB under the blips
 
 
-CUT = {"intro": 700, "groove": 1500, "break": 2600, "drive": 2200, "stop": 2000, "arp": 900}
+CUT = {"intro": 700, "groove": 1500, "break": 2600, "drive": 2200, "stop": 2000, "arp": 900, "tension": 1900, "pulse": 2000}
+# tension / pulse: the dark documentary bed under a commentary voice, measured on the Nvidia commentary reel's music
+# (2026-11-14): energy in the sub and low-mids with the top 20+ dB down, level flat (LRA 3.3), no drum grid, only a slow
+# low hit every ~1.9 s, close dark harmony (D, C#, C, A). tension = a dark pad, a held sub and the slow hit; pulse adds a
+# quiet 16th-note clock tick (a countdown under a deadline line). A riser leads into the next section.
 
 
 def play_bed(bed):
@@ -761,7 +765,7 @@ def play_bed(bed):
             for k, m in enumerate(ch + [ch[0] + 12]): pluck(m + 12, s0 + k * beat / 4, 0.9, pan=(k - 2) * 0.3)
             continue
         if kind not in CUT and kind != "outro": sys.exit(f"unknown section kind {kind!r}")
-        drums, t = kind in ("groove", "drive"), s0
+        drums, t, dark = kind in ("groove", "drive"), s0, kind in ("tension", "pulse")
         while t < s1 - 1e-6:
             ch = chords[int(round((t - secs[0][0]) / bar)) % len(chords)]; blen = min(bar, s1 - t)
             if kind != "outro": pad(ch, t, blen, CUT[kind], 0.7 if kind in ("intro", "arp") else 1.0)
@@ -781,9 +785,20 @@ def play_bed(bed):
                     for q in range(4):
                         s, ts = k * 4 + q, tb + q * beat / 4
                         pluck(seq[s % len(seq)] + 12, ts, 0.55 * (1.2 if q == 0 else 1) * (min(1, 0.1 + (ts - s0) / 1.65) if si == 0 else 1), pan=0.35 if s % 2 else -0.35)
+                elif dark:  # the slow low hit on 1 (and a ghost on 3), the clock's 16ths in pulse
+                    if k % 4 in (0, 2): kick(tb, 0.08 if k % 4 == 0 else 0.03, f0=95, f1=45, tau=0.05, decay=0.35)
+                    if kind == "pulse":
+                        for q in range(4): tick(tb + q * beat / 4, 0.14 + 0.1 * (q == 0), f=5200)
                 elif kind != "intro" or k % 2 == 0:  # 8ths, chord tones up an octave
                     gk = 0.5 if kind == "intro" else 0.8 * (1 - 0.65 * (tb - s0) / (s1 - s0)) if kind == "outro" else 0.8
                     for e8 in (0, 1): pluck(ch[(k * 2 + e8) % len(ch)] + 12, tb + e8 * beat / 2, gk, pan=0.4 if e8 else -0.4)
+            if dark:  # a held sub under the whole bar, and a faint air shimmer (measured against the reel: sub level with the
+                # low-mids, the top ~19 dB under. Tuned on the bed alone: a 0.6 low hit with a 0.55 s tail put the sub 24 dB over
+                # the low-mids, so the hit is a soft 0.08 thud, the sub 0.15, and the pad opens to 1.9 kHz with chords voiced D4-D5 (midi 62+) for the reel's
+                # low-mids; that measured sub +5, bass -1, mid -11, hi -21, air -23 dB against the low-mids (reel: -1, -9, -10, -19, -24):
+                # the top matches, the bottom is still ~6-8 dB heavier than the reel)
+                bass(ch[0] - 24, t, blen * 0.97, 0.15)
+                n = int(blen * SR); put(t, stereo(filt(noise(n), "high", 5500) * env(n, blen * 0.4, blen * 0.5) * 0.05), 1.0, send=0.5)
             if drums:
                 for p in kp:
                     tk = t + p * beat
@@ -791,7 +806,7 @@ def play_bed(bed):
             t += bar
         if kind == "break":  # snare roll into what follows
             for k in range(8): snare(s1 - beat + k * beat / 8, 0.3 + 0.08 * k)
-        if kind in ("intro", "drive"): riser(s1, 1.0, dur=min(1.5, s1 - s0))
+        if kind in ("intro", "drive") or (dark and s1 < DUR - 0.5): riser(s1, 0.7 if dark else 1.0, dur=min(1.5, s1 - s0))
         if kind == "drive": gate(side, s1 - beat / 2, s1)  # half a beat of silence before the end hit
     ST["g"] = 1.0
 

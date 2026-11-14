@@ -115,6 +115,9 @@ amb = ambience.render({"duration": D, "seed": F.get("seed", 1), "xfade": F.get("
 rows = [[s["t0"] + r[0], *r[1:]] for s in shots for r in s.get("sfx", [])] + F.get("sfx", [])
 rows += [[s["t0"] + p.get("at", 0) + k * p.get("every", 0.12), p.get("sound", "click"), p.get("gain", 1)]  # a click on every pop
          for s in shots if (p := s.get("pops")) for k in range(len(p["imgs"])) if s["t0"] + p.get("at", 0) + k * p.get("every", 0.12) < s["t1"]]
+# a sound on each cut trick (video.js fxIn): the reel's flashes land with a crushed glitch or a hard click, the wipe whooshes
+FX_SOUND = {"invert": [[0, "glitch", 0.7]], "blocks": [[0, "click", 1.0], [1 / 30, "click", 0.8]], "glitch": [[0, "glitch", 0.9]], "wipe": [[0, "swoosh", 0.9]]}
+rows += [[s["t0"] + dt, n, g] for s in shots for fx in ([s["fx"]] if isinstance(s.get("fx"), str) else s.get("fx") or []) for dt, n, g in FX_SOUND.get(fx, [])]
 N = amb.shape[1]; fit = lambda x: np.pad(x, ((0, 0), (0, max(0, N - x.shape[1]))))[:, :N]
 if NARRATED:
     vo = []

@@ -18,7 +18,9 @@ function load(src) {
 // stutter n: hold every source frame n output frames (#37's step-printed riders: frames dropped, the motion jerks)
 const frameOf = (s, t) => { let k = Math.floor((t - s.t0) * FPS + 1e-6); if (s.stutter) k -= k % s.stutter; return clamp(k, 0, s.n - 1); };
 const srcOf = (s, t) => s.frames + String(frameOf(s, t) + 1).padStart(4, '0') + '.jpg';
-const needs = t => F.shots.filter(s => t >= s.t0 && t < s.t1).flatMap(s => [...(s.frames ? [srcOf(s, t)] : []), ...(s.pops?.imgs || [])]);
+const prevOf = s => F.shots[F.shots.indexOf(s) - 1];
+const needs = t => F.shots.filter(s => t >= s.t0 && t < s.t1).flatMap(s => [...(s.frames ? [srcOf(s, t)] : []), ...(s.pops?.imgs || []),
+  ...(fxList(s).includes('wipe') && t < s.t0 + WIPE && prevOf(s)?.frames ? [srcOf(prevOf(s), prevOf(s).t1 - 1 / FPS)] : [])]);
 const drawAll = seek;
 window.seek = async t => { await Promise.all(needs(t).map(load)); for (let k = 1; k <= 3; k++) needs(t + k / FPS).forEach(load); drawAll(t); };
 
@@ -120,7 +122,49 @@ const SCENES = {
 function shot(c, s, t) {
   if (s.scene) SCENES[s.scene] ? SCENES[s.scene](c, s, t) : console.warn('no canvas scene', s.scene);
   else { const im = GOT[srcOf(s, t)]; if (im) ({ full, box, print, crt })[s.frame || 'full'](c, im, s, t); }
+  if (s.spot) spot(c, s);
   if (s.pops) pops(c, s, t);
+  fxIn(c, s, t);
+}
+
+// ---- the commentary reel's cut tricks (Nvidia reel, measured frame by frame 2026-11-14), on a shot's first frames.
+// fx: a name or a list. invert: a colour-negative frame with a hard black or white block (0.12, 1.50, 2.25, 22.12 s), then
+// one negative frame more. blocks: white and black tiles snap over the incoming shot for 2 frames (0.62, 22.25, 43.6 s).
+// glitch: a red/cyan channel split for 3 frames, shrinking (13.25 s). wipe: an accent bar sweeps right to left over 0.22 s,
+// the old shot's last frame still on its left (42.25 s). build.py puts a sound on each (FX_SOUND there).
+const WIPE = 0.22, fxList = s => [].concat(s.fx || []);
+function scratchOf(c) { const k = c.canvas; (scratchOf.cv ??= document.createElement('canvas')); const v = scratchOf.cv; if (v.width !== k.width) { v.width = k.width; v.height = k.height; }
+  const x = v.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.filter = 'none'; x.clearRect(0, 0, v.width, v.height); x.drawImage(k, 0, 0); return v; }
+function fxIn(c, s, t) {
+  const fx = fxList(s); if (!fx.length) return;
+  const f = Math.floor((t - s.t0) * FPS + 1e-6), r = rng(((s.t0 * 997) | 0) + 3), cw = c.canvas.width, ch = c.canvas.height;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  if (fx.includes('wipe') && t < s.t0 + WIPE) {
+    const p = ease.inOut(prog(t, s.t0, s.t0 + WIPE)), x = cw * (1 - p), pv = prevOf(s), im = pv && GOT[srcOf(pv, pv.t1 - 1 / FPS)];
+    c.save(); c.beginPath(); c.rect(0, 0, x, ch); c.clip(); im ? cover(c, im, 0, 0, cw, ch) : bg(c, '#f2f0eb'); c.restore();
+    c.fillStyle = P.accent; c.fillRect(x - cw * 0.012, 0, cw * 0.024, ch);
+  }
+  if (fx.includes('glitch') && f <= 2) {
+    const v = scratchOf(c), dx = (3 - f) * 9 * U * (c.canvas.width / W), tint = (col, ox) => { const k = document.createElement('canvas'); k.width = cw; k.height = ch; const x = k.getContext('2d');
+      x.drawImage(v, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = col; x.fillRect(0, 0, cw, ch); c.drawImage(k, ox, 0); };
+    c.fillStyle = '#000'; c.fillRect(0, 0, cw, ch); c.globalCompositeOperation = 'lighter'; tint('#ff0000', dx); tint('#00ffff', -dx); c.globalCompositeOperation = 'source-over';
+  }
+  if (fx.includes('invert') && f <= 1) {
+    const v = scratchOf(c); c.filter = 'invert(1)'; c.drawImage(v, 0, 0); c.filter = 'none';
+    if (f === 0) { const bw = cw * (0.22 + 0.14 * r()), bh = ch * (0.26 + 0.14 * r()), bx = r() < 0.5 ? 0 : cw - bw, by = r() < 0.5 ? 0 : ch - bh;
+      c.fillStyle = r() < 0.5 ? '#000' : '#fff'; c.fillRect(bx, by, bw, bh); }
+  }
+  if (fx.includes('blocks') && f <= 1) {
+    const cells = [...Array(9).keys()].sort(() => r() - 0.5).slice(0, f ? 2 : 3), tw = cw / 3, th = ch / 3;
+    cells.forEach((k, i) => { c.fillStyle = (i + f) % 2 ? '#000' : '#fff'; c.fillRect((k % 3) * tw, Math.floor(k / 3) * th, tw, th); });
+  }
+  c.restore();
+}
+// spot: {x, y, size} (0..1; size = the square's side as a fraction of the height): the commentary reel's square window on the
+// subject (the chip, 1.6-2.1 s), everything outside it near black
+function spot(c, s) {
+  const o = s.spot === true ? {} : s.spot, side = H * (o.size || 0.45), x = W * (o.x ?? 0.5) - side / 2, y = H * (o.y ?? 0.45) - side / 2;
+  c.save(); c.fillStyle = 'rgba(0,0,0,.9)'; c.beginPath(); c.rect(0, 0, W, H); c.rect(x, y, side, side); c.fill('evenodd'); c.restore();
 }
 // pops: the commentary reel's image burst (Nvidia reel, 22.1-23.5 s and 43.4-44.9 s). A still lands every `every` s (0.12),
 // a white slab for one frame and then the image, with a click on each (build.py). collage: the shot behind blurs and
@@ -130,6 +174,15 @@ function pops(c, s, t) {
   const p = s.pops, every = p.every || 0.12, grid = p.mode === 'grid', since = t - s.t0 - (p.at || 0), k = Math.floor(since / every + 1e-6);
   if (k < 0) return;
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  if (p.mode === 'strobe') { // the commentary reel's product run (3.0-4.5 s, 13.4-14.4 s): one image per step on a plate
+    c.restore(); const i = Math.min(k, p.imgs.length - 1), im = GOT[p.imgs[i]], dark = i % 2 === 1, sz = W * (p.size || 0.5);
+    bg(c, dark ? '#050505' : '#f2f0eb');
+    // the negative goes on the plate that turns the image's own background into the plate's colour, so it reads as a
+    // cut-out: light-background stills invert on black (the default), dark ones (source: "dark", a GPU on a black stage) on white
+    if (im) { const w = Math.min(sz, H * 0.62 * im.width / im.height), h = w * im.height / im.width; c.save(); if (dark !== (p.source === 'dark')) c.filter = 'invert(1)';
+      c.shadowColor = dark ? 'transparent' : 'rgba(0,0,0,.25)'; c.shadowBlur = 30 * U; c.drawImage(im, (W - w) / 2, H * 0.46 - h / 2, w, h); c.restore(); }
+    return;
+  }
   if (grid) { c.fillStyle = '#000'; c.fillRect(0, 0, c.canvas.width, c.canvas.height); }
   else { c.filter = 'blur(14px) brightness(0.45)'; c.drawImage(c.canvas, 0, 0); }
   c.restore();
@@ -172,8 +225,10 @@ function captions(c, t) {
   const caps = F.captions === 'caps', size = (caps ? 30 : TALL ? 58 : 46) * U, font = caps ? `600 ${size}px "${SANS}"` : `500 ${size}px "${SANS}"`;
   c.save(); c.letterSpacing = caps ? `${size * 0.16}px` : '0px';
   const rows = layout(c, ws.map(w => caps ? w.w.toUpperCase() : w.w), W * 0.84, font), lh = size * 1.25, y0 = H * (TALL ? 0.76 : 0.85) - (rows.length - 1) * lh / 2;
-  // over a white word card the captions go dark (white on white vanished), the said word in the card red
-  const light = F.shots.some(s => s.scene === 'card' && s.bg === 'white' && t >= s.t0 && t < s.t1), ink = light ? '#141414' : P.ink, hot = light ? '#b3121b' : P.accent;
+  // over a white word card or a white strobe plate the captions go dark (white on white vanished), the said word in the card red
+  const strobeWhite = s => { const p = s.pops, k = Math.floor((t - s.t0 - (p.at || 0)) / (p.every || 0.12) + 1e-6); return k >= 0 && Math.min(k, p.imgs.length - 1) % 2 === 0; };
+  const light = F.shots.some(s => t >= s.t0 && t < s.t1 && ((s.scene === 'card' && s.bg === 'white') || (s.pops?.mode === 'strobe' && strobeWhite(s)))),
+    ink = light ? '#141414' : P.ink, hot = light ? '#b3121b' : P.accent;
   c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = light ? 'transparent' : 'rgba(0,0,0,.65)'; c.shadowBlur = 18 * U;
   let k = 0;
   rows.forEach((r, ri) => r.forEach(p => {
