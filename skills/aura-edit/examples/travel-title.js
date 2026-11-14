@@ -60,4 +60,30 @@ function kLyrics(c, t) {
   c.save(); c.font = `400 ${Math.round(H * 0.0475)}px ${K_FONT}`; c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
   c.shadowColor = 'rgba(0,0,0,0.12)'; c.shadowBlur = H * 0.004; c.fillText(str, W / 2, H * 0.511); c.restore();
 }
-{ const o0 = VIDEO.overlay; VIDEO.overlay = (c, t) => { o0(c, t); kPlaces(c, t); kLyrics(c, t); }; }
+// bleed: the "ink bleed" text effect from the user's screenshot (2026-11-14), on the captions above as they were (the
+// reference's size, place, lowercase and word-by-word build; the user said not to copy the screenshot's layout, size or reveal).
+// The technique (Photoshop's blur + Threshold, as an SVG filter in andyjakubowski.com/tutorial/ink-bleed-effect-with-svg-filters):
+// draw the text, blur it so the ink spreads into the pixels around it, then threshold the alpha so the spread hardens into
+// solid shape. Letters swell, corners and terminals round off, tight joins melt together: the screenshot's soft, rounded look
+// comes from this, not from a rounded font. A short alpha ramp at the cutoff keeps the new edge antialiased.
+// In Inter variable, as the user asked (a local OFL file, so the render needs no network).
+const K_LYR = 'bleed', K_INTER = '"KInter", -apple-system, system-ui, sans-serif';
+const K_INTER_FONT = new FontFace('KInter', 'url(InterVariable.woff2)', { weight: '100 900' }); document.fonts.add(K_INTER_FONT);
+{ const s0 = window.seek; window.seek = async t => { await K_INTER_FONT.load(); return s0(t); }; }
+const K_BLEED = { blur: 0.028, cut: 0.2, ramp: 0.2 }; // blur in em; the alpha cutoff and its ramp, 0..1. The user picked the lightest of three, then lighter still
+function kLyricsBleed(c, t) {
+  if (t < K_CUT) return;
+  const cap = (window.KLYR || []).find(l => t >= l.t && t < l.end); if (!cap) return;
+  const str = cap.words.filter(([, at]) => t >= at).map(([w]) => w).join(' ').toLowerCase().replace(/'/g, '\u2019'); if (!str) return;
+  const k = c.canvas.width / W, size = Math.round(H * 0.0475 * k), pad = Math.ceil(size * 0.6), font = `350 ${size}px ${K_INTER}`;
+  const [cv, x] = scratch('kbleed', 1, 1); x.font = font; const tw = Math.ceil(x.measureText(str).width) + 2 * pad, th = Math.ceil(size * 1.6) + 2 * pad;
+  if (cv.width !== tw || cv.height !== th) { cv.width = tw; cv.height = th; }
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, tw, th); x.font = font; x.textBaseline = 'alphabetic'; x.textAlign = 'left';
+  x.fillStyle = '#fff'; x.filter = `blur(${K_BLEED.blur * size}px)`; x.fillText(str, pad, pad + size * 1.15); x.filter = 'none';
+  const d = x.getImageData(0, 0, tw, th), a = d.data, lo = K_BLEED.cut * 255, w = K_BLEED.ramp * 255;
+  for (let i = 0; i < a.length; i += 4) { a[i] = a[i + 1] = a[i + 2] = 255; a[i + 3] = Math.max(0, Math.min(255, (a[i + 3] - lo) / w * 255)); }
+  x.putImageData(d, 0, 0);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.shadowColor = 'rgba(0,0,0,0.12)'; c.shadowBlur = H * 0.004 * k;
+  c.drawImage(cv, Math.round(W * k / 2 - tw / 2), Math.round(H * k * 0.511 - pad - size * 1.15)); c.restore();
+}
+{ const o0 = VIDEO.overlay; VIDEO.overlay = (c, t) => { o0(c, t); kPlaces(c, t); (K_LYR === 'bleed' ? kLyricsBleed : kLyrics)(c, t); }; }
