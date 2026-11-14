@@ -11,18 +11,28 @@ function kType(c, s, x, y, size, o = {}) { // one line of system-font type; trac
   c.save(); c.font = `${o.weight || 400} ${size}px ${K_FONT}`; c.letterSpacing = `${(o.track || 0) * size}px`;
   c.textAlign = o.align || 'center'; c.textBaseline = 'alphabetic'; c.globalAlpha *= o.a ?? 1; c.fillStyle = o.color || '#fff';
   if (o.shadow) { c.shadowColor = `rgba(0,0,0,${o.shadow})`; c.shadowBlur = size * 0.35; }
+  if (o.blur) c.filter = `blur(${o.blur}px)`;
   c.fillText(s, x, y); c.restore();
 }
 
-// the title: tracks in from wide while it rises 3 % and fades up, behind the mountains (drawn between footage and matte)
+// the title: each letter rises up out of the ridge, from 12 % below and a 2 % blur to sharp, 50 ms apart (the user asked for
+// "bottom to top with blur fade"), drawn between footage and sky matte so it emerges from behind the mountains.
+// Behind the mountains: the skyline runs 0.35 H (left) to 0.27 H (the peak, right) across the word (measured on the sky matte,
+// in screen space). 0.24 H type on a 0.36 baseline puts the ridge through the lower half of the x-height mid-word: the left
+// letters stand almost whole and the peak swallows most of "ir".
+const K_TITLE = 'kashmir';
 function kTitle(c, t) {
   if (t >= K_WALK) return;
-  const p = ease.out(prog(t, 0.2, 1.3)), q = ease.out(prog(t, 0.75, 1.5));
-  // behind the mountains: the skyline runs 0.35 H (left) to 0.27 H (the peak, right) across the word (measured on the sky
-  // matte, in screen space). 0.24 H type on a 0.36 baseline puts the ridge through the lower half of the x-height mid-word:
-  // the left letters stand almost whole, the peak swallows most of "ir", and the word rises 6 % up out of the ridge.
-  kType(c, 'kashmir', W / 2, H * (0.36 + 0.06 * (1 - p)), H * 0.24, { weight: 600, track: lerp(0.1, -0.02, p), a: p });
-  kType(c, K_DATES, W / 2, H * 0.12, H * 0.019, { weight: 500, track: 0.32, a: 0.9 * q, shadow: 0.25 });
+  const size = H * 0.24, track = -0.02 * size, y = H * 0.36;
+  c.save(); c.font = `600 ${size}px ${K_FONT}`; c.letterSpacing = `${track}px`;
+  const x0 = (W - (c.measureText(K_TITLE).width - track)) / 2;
+  const xs = [...K_TITLE].map((_, i) => x0 + (i ? c.measureText(K_TITLE.slice(0, i)).width : 0)); c.restore(); // kerned advances
+  [...K_TITLE].forEach((ch, i) => {
+    const t0 = 0.15 + 0.05 * i, p = ease.out(prog(t, t0, t0 + 0.9)); if (p <= 0) return;
+    kType(c, ch, xs[i], y + H * 0.12 * (1 - p), size, { weight: 600, track: -0.02, a: p, blur: H * 0.02 * (1 - p), align: 'left' });
+  });
+  const q = ease.out(prog(t, 0.75, 1.5));
+  kType(c, K_DATES, W / 2, H * 0.12 + H * 0.02 * (1 - q), H * 0.019, { weight: 500, track: 0.32, a: 0.9 * q, blur: H * 0.006 * (1 - q), shadow: 0.25 });
 }
 // the places: one per beat from the cut, low and small, like a film's location card. Widths are measured without the
 // trailing letter-space that letterSpacing adds after the last glyph, and drawn left-aligned so the dots sit centred

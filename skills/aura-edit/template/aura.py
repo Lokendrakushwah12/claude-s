@@ -18,7 +18,8 @@ aura.json. Every time is in BEATS from beat 0 of a `bpm` grid, so the cut, the h
     hit      [b, s]: source second s lands on beat b of the shot. That's where a "hit" ramp goes slow
     ramp     a speed (1 = real time, 0 = a freeze), a preset name (RAMPS), or [[beat, speed], ...] in the shot's own beats.
              Cosine-eased between keys. type.js retime() is the exact integral, so frame n needs no history and never jitters.
-    zoom     base zoom (1 = cover) about focus [x, y] (0..1 of the frame); behind: true pulls a person matte (matte.py), "sky" a sky matte (skymatte.py: type behind the mountains)
+    zoom     base zoom (1 = cover) about focus [x, y] (0..1 of the frame; that point stays put, so to centre a subject at u
+             use zoom z >= 1/(2u) and focus (0.5 - u*z')/(1 - z') with z' = z*1.07 overscan); scale: this shot's pull scale; behind: true pulls a person matte (matte.py), "sky" a sky matte (skymatte.py: type behind the mountains)
   hits     [[beat | [b0, b1, step], kind, {opts}], ...] kinds: drop punch shake flash impact blur split sweep stop (video.js HIT)
   type     [{at, beats, text, kind: "slam" | "mask", y, size, fonts: [...], hold, from, track}]  (from 1 = cut on, no scale-in)
   sound    {bed: {sections: [[beat, kind], ...], chords, kick, kick_pattern}, mutes: [[b0, b1], ...], lufs,
@@ -154,7 +155,8 @@ def build(spec_path="aura.json"):
         src1 = src0 + integral(dur, keys)
         if src0 < 0 or src1 > c["dur"]: print(f"  shot {i}: source {src0:.2f}-{src1:.2f} s runs off {s['clip']} (0-{c['dur']:.2f}); the edge frame holds")
         f0 = max(0, math.floor(src0 * c["fps"])); f1 = math.ceil(min(src1, c["dur"]) * c["fps"]) + 1
-        sc = min(1, max(W / c["w"], H / c["h"]) * scale); fw, fh = 2 * round(c["w"] * sc / 2), 2 * round(c["h"] * sc / 2)
+        sc = min(1, max(W / c["w"], H / c["h"]) * s.get("scale", scale)); fw, fh = 2 * round(c["w"] * sc / 2), 2 * round(c["h"] * sc / 2)
+        # s.get("scale"): a shot's own pull scale, so a reframed (zoomed) shot stays sharp
         d = f"frames/s{i:02d}/"; n = extract(c["path"], f0, f1 - f0 + 1, c["fps"], d, fw, fh, E.get("grade"))
         tool = "skymatte.py" if s.get("behind") == "sky" else "matte.py"  # sky: the type sits behind the mountains, not a person
         if s.get("behind") and subprocess.run(["uv", "run", tool, d]).returncode != 0: print(f"  shot {i}: no matte, its type goes in front")
