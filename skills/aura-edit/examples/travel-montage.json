@@ -1,0 +1,133 @@
+{
+ "bpm": 60,
+ "fps": 30,
+ "size": [
+  1920,
+  1080
+ ],
+ "scale": 1.25,
+ "beats": 16.4,
+ "brand": {
+  "ink": "#FFFFFF",
+  "ground": "#050505",
+  "font": "Helvetica Neue",
+  "mono": "Helvetica Neue"
+ },
+ "fonts": [],
+ "look": {
+  "grain": 0.03,
+  "vignette": 0.15
+ },
+ "clips": {
+  "title": "src-v2/title.mov",
+  "walk": "src-v2/walk.mov",
+  "dal": "src-v2/dal.mov",
+  "ducks": "src-v2/ducks.mov",
+  "boats": "src-v2/boats.mov",
+  "garden": "src-v2/garden.mov",
+  "meadow": "src-v2/meadow.mov",
+  "treeview": "src-v2/treeview.mov",
+  "arms": "src-v2/arms.mov",
+  "pines": "src-v2/pines.mov",
+  "summit": "src-v2/summit.mov",
+  "fence": "src-v2/fence.mov",
+  "river": "src-v2/river.mov",
+  "glacier": "src-v2/glacier.mov"
+ },
+ "shots": [
+  {
+   "at": 0,
+   "beats": 2.94,
+   "clip": "title",
+   "src": 1.0,
+   "behind": "sky"
+  },
+  {
+   "at": 2.94,
+   "beats": 2.93,
+   "clip": "walk",
+   "src": 1.5
+  },
+  {
+   "at": 5.87,
+   "beats": 0.86,
+   "clip": "dal",
+   "src": 1.0
+  },
+  {
+   "at": 6.73,
+   "beats": 0.9,
+   "clip": "ducks",
+   "src": 1.0
+  },
+  {
+   "at": 7.63,
+   "beats": 0.87,
+   "clip": "boats",
+   "src": 1.0
+  },
+  {
+   "at": 8.5,
+   "beats": 0.87,
+   "clip": "garden",
+   "src": 0.4
+  },
+  {
+   "at": 9.37,
+   "beats": 0.86,
+   "clip": "meadow",
+   "src": 1.0
+  },
+  {
+   "at": 10.23,
+   "beats": 0.9,
+   "clip": "treeview",
+   "src": 1.0
+  },
+  {
+   "at": 11.13,
+   "beats": 0.87,
+   "clip": "arms",
+   "src": 1.0
+  },
+  {
+   "at": 12.0,
+   "beats": 0.87,
+   "clip": "pines",
+   "src": 1.0
+  },
+  {
+   "at": 12.87,
+   "beats": 0.86,
+   "clip": "summit",
+   "src": 1.0
+  },
+  {
+   "at": 13.73,
+   "beats": 0.9,
+   "clip": "fence",
+   "src": 1.0
+  },
+  {
+   "at": 14.63,
+   "beats": 0.87,
+   "clip": "river",
+   "src": 1.0
+  },
+  {
+   "at": 15.5,
+   "beats": 0.9,
+   "clip": "glacier",
+   "src": 0.2
+  }
+ ],
+ "hits": [],
+ "type": [],
+ "sound": {
+  "bed": {},
+  "lufs": -36,
+  "mutes": [],
+  "sfx": []
+ },
+ "grade": "grade.cube"
+}

@@ -1,0 +1,238 @@
+{
+ "bpm": 60,
+ "fps": 30,
+ "size": [
+  1920,
+  1080
+ ],
+ "scale": 1.25,
+ "beats": 16.4,
+ "brand": {
+  "ink": "#FFFFFF",
+  "ground": "#050505",
+  "font": "Inter",
+  "mono": "Inter"
+ },
+ "fonts": [
+  "Inter:wght@400;500;600;700"
+ ],
+ "look": {
+  "grain": 0.03,
+  "vignette": 0.15
+ },
+ "clips": {
+  "drive": "src-trim/drive.mov",
+  "tree": "src-trim/tree.mov",
+  "lake": "src-trim/lake.mov",
+  "friends": "src-trim/friends.mov",
+  "valley": "src-trim/valley.mov",
+  "river": "src-trim/river.mov",
+  "snow": "src-trim/snow.mov",
+  "dance": "src-trim/dance.mov",
+  "boulder": "src-trim/boulder.mov",
+  "clouds": "src-trim/clouds.mov",
+  "shikara": "src-trim/shikara.mov",
+  "rivervalley": "src-trim/rivervalley.mov",
+  "horses": "src-trim/horses.mov"
+ },
+ "shots": [
+  {
+   "at": 0,
+   "beats": 5.87,
+   "clip": "drive",
+   "src": 0.4,
+   "ramp": 0.78,
+   "zoom": [
+    1.05,
+    1.14
+   ],
+   "focus": [
+    0.4,
+    0.5
+   ]
+  },
+  {
+   "at": 5.87,
+   "beats": 0.86,
+   "clip": "tree",
+   "src": 0.5,
+   "zoom": [
+    1,
+    1.08
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 6.73,
+   "beats": 0.9,
+   "clip": "lake",
+   "src": 0.1,
+   "zoom": 1.02,
+   "focus": [
+    0.5,
+    0.5
+   ],
+   "ramp": 0.4
+  },
+  {
+   "at": 7.63,
+   "beats": 0.87,
+   "clip": "friends",
+   "src": 0.5,
+   "zoom": [
+    1.1,
+    1
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 8.5,
+   "beats": 0.87,
+   "clip": "valley",
+   "src": 0.5,
+   "zoom": 1.02,
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 9.37,
+   "beats": 0.86,
+   "clip": "river",
+   "src": 0.5,
+   "zoom": [
+    1,
+    1.07
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 10.23,
+   "beats": 0.9,
+   "clip": "snow",
+   "src": 0.5,
+   "zoom": [
+    1,
+    1.08
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 11.13,
+   "beats": 0.87,
+   "clip": "dance",
+   "src": 0.5,
+   "zoom": 1.02,
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 12.0,
+   "beats": 0.87,
+   "clip": "boulder",
+   "src": 0.5,
+   "zoom": [
+    1.1,
+    1
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 12.87,
+   "beats": 0.86,
+   "clip": "clouds",
+   "src": 0.5,
+   "zoom": 1.02,
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 13.73,
+   "beats": 0.9,
+   "clip": "shikara",
+   "src": 0.5,
+   "zoom": [
+    1,
+    1.07
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 14.63,
+   "beats": 0.87,
+   "clip": "rivervalley",
+   "src": 0.5,
+   "zoom": [
+    1,
+    1.08
+   ],
+   "focus": [
+    0.5,
+    0.5
+   ]
+  },
+  {
+   "at": 15.5,
+   "beats": 0.9,
+   "clip": "horses",
+   "src": 0.5,
+   "zoom": 1.02,
+   "focus": [
+    0.5,
+    0.5
+   ]
+  }
+ ],
+ "hits": [],
+ "type": [],
+ "sound": {
+  "bed": {},
+  "lufs": -36,
+  "mutes": [],
+  "sfx": [
+   [
+    1.64,
+    "click",
+    0.9
+   ],
+   [
+    2.75,
+    "click",
+    0.9
+   ],
+   [
+    4.35,
+    "click",
+    0.9
+   ],
+   [
+    5.58,
+    "click",
+    0.9
+   ]
+  ]
+ }
+}

@@ -137,14 +137,16 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import median_filter, percentile_filter, uniform_filter1d
 
 # ---- 1. source ----
+# ponytail: uv-managed yt-dlp; Homebrew python@3.14 ships a pyexpat that fails to load on macOS 26, which breaks DASH (Instagram) manifests
+YTDLP = ("uvx", "--python", "3.12", "yt-dlp")
 title = None
 if re.match(r"https?://", a.src):
-    info = json.loads(run("yt-dlp", "-j", "--no-warnings", "--playlist-items", "1", a.src).stdout.splitlines()[0])
+    info = json.loads(run(*YTDLP, "-j", "--no-warnings", "--playlist-items", "1", a.src).stdout.splitlines()[0])
     m = re.search(r"/status/(\d+)", a.src)
     out = Path(a.out or f"~/Downloads/x-frames/{m.group(1) if m else info['id']}").expanduser()
     out.mkdir(parents=True, exist_ok=True)
     if not list(out.glob("video.*")):
-        run("yt-dlp", "-q", "--no-warnings", "--playlist-items", "1", "--merge-output-format", "mp4", "-o", out / "video.%(ext)s", a.src)
+        run(*YTDLP, "-q", "--no-warnings", "--playlist-items", "1", "--merge-output-format", "mp4", "-o", out / "video.%(ext)s", a.src)
     video, title, label = next(out.glob("video.*")), info.get("title"), a.src
 else:
     video = Path(a.src).expanduser().resolve()

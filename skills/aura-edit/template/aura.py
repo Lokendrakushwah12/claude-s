@@ -10,7 +10,7 @@
 
 aura.json. Every time is in BEATS from beat 0 of a `bpm` grid, so the cut, the hit, the type and the sound can't drift apart.
   bpm, fps (output, 30), size [w, h], scale (frames are pulled at scale x the output so punch-ins stay sharp; 1.5), brand {...},
-  look (a look.js preset name or {passes}), frame ({y, h, bow}: look.js lensBand, the picture in a bowed letterbox band)
+  look (a look.js preset name or {passes}), grade (a .cube LUT baked into every frame as it's pulled: the colour grade), frame ({y, h, bow}: look.js lensBand, the picture in a bowed letterbox band)
   clips    {name: path}. HDR (HLG, PQ, Dolby Vision) is tone-mapped first, keeping every frame (conform60). A still image
            becomes an 8 s clip of itself: the ramps freeze it, but the camera, punches, hits and type all still move.
   shots    [{at, beats, clip, src | hit, ramp, zoom, focus, behind} | {at, beats, insert: <kind>, ...anything the insert reads}]
@@ -18,7 +18,7 @@ aura.json. Every time is in BEATS from beat 0 of a `bpm` grid, so the cut, the h
     hit      [b, s]: source second s lands on beat b of the shot. That's where a "hit" ramp goes slow
     ramp     a speed (1 = real time, 0 = a freeze), a preset name (RAMPS), or [[beat, speed], ...] in the shot's own beats.
              Cosine-eased between keys. type.js retime() is the exact integral, so frame n needs no history and never jitters.
-    zoom     base zoom (1 = cover) about focus [x, y] (0..1 of the frame); behind: true pulls a person matte (matte.py)
+    zoom     base zoom (1 = cover) about focus [x, y] (0..1 of the frame); behind: true pulls a person matte (matte.py), "sky" a sky matte (skymatte.py: type behind the mountains)
   hits     [[beat | [b0, b1, step], kind, {opts}], ...] kinds: drop punch shake flash impact blur split sweep stop (video.js HIT)
   type     [{at, beats, text, kind: "slam" | "mask", y, size, fonts: [...], hold, from, track}]  (from 1 = cut on, no scale-in)
   sound    {bed: {sections: [[beat, kind], ...], chords, kick, kick_pattern}, mutes: [[b0, b1], ...], lufs,
@@ -118,11 +118,13 @@ def clip_of(path, out):
     return {"path": str(f), "w": pr["w"], "h": pr["h"], "dur": pr["dur"], "fps": rate(f)}
 
 
-def extract(path, f0, n, fps, d, w, h):  # n frames from frame f0, at the clip's own rate; cached by a key file
-    d = Path(d); d.mkdir(parents=True, exist_ok=True); key = d / ".key"; k = json.dumps([path, f0, n, w, h])
+def extract(path, f0, n, fps, d, w, h, grade=None):  # n frames from frame f0, at the clip's own rate; cached by a key file
+    # grade: a .cube LUT baked into the frames (the colour grade), so type, UI and captions drawn later stay clean
+    d = Path(d); d.mkdir(parents=True, exist_ok=True); key = d / ".key"
+    k = json.dumps([path, f0, n, w, h] + ([str(grade), Path(grade).stat().st_mtime] if grade else []))
     if key.exists() and key.read_text() == k: return len(list(d.glob("[0-9]*.jpg")))
     for f in d.glob("*.jpg"): f.unlink()
-    sh("ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, (f0 - 0.5) / fps):.5f}", "-i", path, "-frames:v", n, "-vf", f"scale={w}:{h}:flags=lanczos", "-q:v", 2, d / "%04d.jpg")
+    sh("ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, (f0 - 0.5) / fps):.5f}", "-i", path, "-frames:v", n, "-vf", (f"format=rgb48le,lut3d=file='{grade}':interp=tetrahedral," if grade else "") + f"scale={w}:{h}:flags=lanczos", "-q:v", 2, d / "%04d.jpg")
     key.write_text(k); return len(list(d.glob("[0-9]*.jpg")))
 
 
@@ -153,8 +155,9 @@ def build(spec_path="aura.json"):
         if src0 < 0 or src1 > c["dur"]: print(f"  shot {i}: source {src0:.2f}-{src1:.2f} s runs off {s['clip']} (0-{c['dur']:.2f}); the edge frame holds")
         f0 = max(0, math.floor(src0 * c["fps"])); f1 = math.ceil(min(src1, c["dur"]) * c["fps"]) + 1
         sc = min(1, max(W / c["w"], H / c["h"]) * scale); fw, fh = 2 * round(c["w"] * sc / 2), 2 * round(c["h"] * sc / 2)
-        d = f"frames/s{i:02d}/"; n = extract(c["path"], f0, f1 - f0 + 1, c["fps"], d, fw, fh)
-        if s.get("behind") and subprocess.run(["uv", "run", "matte.py", d]).returncode != 0: print(f"  shot {i}: no matte, its type goes in front")
+        d = f"frames/s{i:02d}/"; n = extract(c["path"], f0, f1 - f0 + 1, c["fps"], d, fw, fh, E.get("grade"))
+        tool = "skymatte.py" if s.get("behind") == "sky" else "matte.py"  # sky: the type sits behind the mountains, not a person
+        if s.get("behind") and subprocess.run(["uv", "run", tool, d]).returncode != 0: print(f"  shot {i}: no matte, its type goes in front")
         o.update(kind="clip", frames=d, n=n, f0=f0, fps=c["fps"], src0=round(src0, 5), keys=keys, fw=fw, fh=fh, matte=bool(s.get("behind")) and (Path(d) / "m0001.jpg").exists())
         print(f"  shot {i:2d} {o['out0']:6.2f}-{o['out1']:6.2f} s  {s['clip']} {src0:5.2f}-{src1:5.2f} s  {n} frames  ramp {s.get('ramp', 1)}")
         shots.append(o)

@@ -89,6 +89,17 @@ for i, s in enumerate(shots):
         (out / "stamp").write_text(stamp)
     s["frames"], s["n"] = f"{out}/", len(list(out.glob("*.jpg")))
 
+# pops: an image is a path (a PNG or JPEG in the project) or {file, in, crop?}: a still pulled from a clip
+for i, s in enumerate(shots):
+    for k, im in enumerate((s.get("pops") or {}).get("imgs", [])):
+        if isinstance(im, str): continue
+        out = Path(f"frames/pops/s{i:02d}_{k:02d}.jpg"); out.parent.mkdir(parents=True, exist_ok=True)
+        stamp = Path(str(out) + ".stamp"); key = f"{im} {Path(im['file']).stat().st_mtime}"
+        if not out.exists() or not stamp.exists() or stamp.read_text() != key:
+            run("ffmpeg", "-loglevel", "error", "-y", "-ss", im.get("in", 0), "-i", im["file"], "-frames:v", "1",
+                "-vf", (f"crop={im['crop']}," if im.get("crop") else "") + "scale='min(iw,960)':-2", "-q:v", "2", out); stamp.write_text(key)
+        s["pops"]["imgs"][k] = str(out)
+
 FILM = {"fps": FPS, "size": [W, H], "duration": round(D, 3), "palette": F.get("palette", {}), "font": F.get("font"), "ui": F.get("ui"),
         "fonts": F.get("fonts"), "look": F.get("look"), "captions": F.get("captions", "line" if NARRATED else "none"),
         "shots": [{k: v for k, v in s.items() if k not in ("amb", "spots", "sfx")} for s in shots], "words": words, "end": end}
@@ -102,6 +113,8 @@ amb = ambience.render({"duration": D, "seed": F.get("seed", 1), "xfade": F.get("
                        "scenes": [{"t": s["t0"], "layers": s.get("amb") or {}} for s in shots] + [{"t": end["t0"], "layers": E.get("amb", shots[-1].get("amb") or {})}],
                        "spots": [[s["t0"] + r[0], *r[1:]] for s in shots for r in s.get("spots", [])]}, "ambience.wav")
 rows = [[s["t0"] + r[0], *r[1:]] for s in shots for r in s.get("sfx", [])] + F.get("sfx", [])
+rows += [[s["t0"] + p.get("at", 0) + k * p.get("every", 0.12), p.get("sound", "click"), p.get("gain", 1)]  # a click on every pop
+         for s in shots if (p := s.get("pops")) for k in range(len(p["imgs"])) if s["t0"] + p.get("at", 0) + k * p.get("every", 0.12) < s["t1"]]
 N = amb.shape[1]; fit = lambda x: np.pad(x, ((0, 0), (0, max(0, N - x.shape[1]))))[:, :N]
 if NARRATED:
     vo = []

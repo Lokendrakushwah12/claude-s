@@ -13,12 +13,17 @@ from chatterbox.tts import ChatterboxTTS
 
 F = json.loads(Path("film.json").read_text())
 V = {"exaggeration": 0.55, "cfg_weight": 0.45, **{k: v for k, v in (F.get("tts") or {}).items() if k != "reference"}}
+# The default voice is the skill's synthetic female clone (macOS Samantha, nobody's real voice). tts.reference picks
+# another clip, and "reference": null uses Chatterbox's own voice.
+FEMALE = Path.home() / ".claude/skills/faceless-video/voices/female_samantha.wav"
+REF = (F.get("tts") or {}).get("reference", str(FEMALE) if FEMALE.exists() else None)
+REF = REF and str(Path(REF).expanduser())
 OUT = Path("voices"); OUT.mkdir(exist_ok=True)
 model = ChatterboxTTS.from_pretrained(device="mps" if torch.backends.mps.is_available() else "cpu")
 only = set(sys.argv[1:])
 for L in F["lines"]:
     if only and L["id"] not in only: continue
-    wav = model.generate(L.get("tts_text", L["say"]), audio_prompt_path=(F.get("tts") or {}).get("reference"),
+    wav = model.generate(L.get("tts_text", L["say"]), audio_prompt_path=REF,
                          **{**V, **{k: L[k] for k in ("exaggeration", "cfg_weight") if k in L}})
     raw = OUT / f"{L['id']}.raw.wav"
     with wave.open(str(raw), "wb") as w:

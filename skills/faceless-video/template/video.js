@@ -3,7 +3,7 @@
 // voice's word times. look.js grades the picture; the captions and the end card stay crisp on top of it.
 const F = window.FILM, FPS = F.fps, U = Math.min(W, H) / 1080, TALL = H > W;
 const P = { ground: '#0d0c0a', table: '#262522', ink: '#f1ece0', dim: '#9a958a', accent: '#e9b85c', ...F.palette };
-const SERIF = F.font || 'Instrument Serif', SANS = F.ui || 'Inter';
+const SERIF = F.font || 'Instrument Serif', SANS = F.ui || 'Inter', CARD = F.card_font || 'Anton';
 
 // ---- frames: decoded ahead and awaited by seek (render.mjs evaluates seek with awaitPromise) ----
 const IM = new Map(), GOT = {};
@@ -18,7 +18,7 @@ function load(src) {
 // stutter n: hold every source frame n output frames (#37's step-printed riders: frames dropped, the motion jerks)
 const frameOf = (s, t) => { let k = Math.floor((t - s.t0) * FPS + 1e-6); if (s.stutter) k -= k % s.stutter; return clamp(k, 0, s.n - 1); };
 const srcOf = (s, t) => s.frames + String(frameOf(s, t) + 1).padStart(4, '0') + '.jpg';
-const needs = t => F.shots.filter(s => s.frames && t >= s.t0 && t < s.t1).map(s => srcOf(s, t));
+const needs = t => F.shots.filter(s => t >= s.t0 && t < s.t1).flatMap(s => [...(s.frames ? [srcOf(s, t)] : []), ...(s.pops?.imgs || [])]);
 const drawAll = seek;
 window.seek = async t => { await Promise.all(needs(t).map(load)); for (let k = 1; k <= 3; k++) needs(t + k / FPS).forEach(load); drawAll(t); };
 
@@ -103,6 +103,12 @@ const SCENES = {
     for (let b = 0; b < 5; b++) { const x = ((t - s.t0) * (60 + b * 9) * U + b * 70 * U) - 100 * U, y = H * 0.3 + b * 23 * U + Math.sin(t + b) * 6 * U, w = 9 * U, f = Math.sin(t * 9 + b) * 5 * U;
       c.beginPath(); c.moveTo(x - w, y - f); c.quadraticCurveTo(x - w / 2, y - 2 * U, x, y); c.quadraticCurveTo(x + w / 2, y - 2 * U, x + w, y - f); c.stroke(); }
   },
+  card(c, s, t) { // the commentary reel's word card: one heavy condensed word on a solid red, white or black slab, a slow push
+    const bgc = { red: '#b3121b', white: '#f2f0eb', black: '#0b0b0b' }[s.bg || 'red'] || s.bg, sz = (s.size || (TALL ? 200 : 170)) * U;
+    bg(c, bgc); const z = 1 + 0.05 * prog(t, s.t0, s.t1); c.save(); c.translate(W / 2, H / 2); c.scale(z, z);
+    para(c, (s.title || '').toUpperCase(), 0, 0, W * 0.86, { size: sz, font: `${sz}px "${CARD}"`, color: s.ink || (s.bg === 'white' ? '#141414' : '#f2f0eb'), lead: 0.95 });
+    c.restore();
+  },
   intertitle(c, s, t) { // a silent-film title card: thin double border, one line of serif; the look ages it
     bg(c, '#0b0a09'); const m = Math.min(W, H) * 0.08;
     c.strokeStyle = 'rgba(232,226,210,.75)'; c.lineWidth = 2 * U; c.strokeRect(m, m * (TALL ? 3 : 1), W - 2 * m, H - 2 * m * (TALL ? 3 : 1));
@@ -112,9 +118,36 @@ const SCENES = {
 };
 
 function shot(c, s, t) {
-  if (s.scene) return SCENES[s.scene] ? SCENES[s.scene](c, s, t) : console.warn('no canvas scene', s.scene);
-  const im = GOT[srcOf(s, t)]; if (!im) return;
-  ({ full, box, print, crt })[s.frame || 'full'](c, im, s, t);
+  if (s.scene) SCENES[s.scene] ? SCENES[s.scene](c, s, t) : console.warn('no canvas scene', s.scene);
+  else { const im = GOT[srcOf(s, t)]; if (im) ({ full, box, print, crt })[s.frame || 'full'](c, im, s, t); }
+  if (s.pops) pops(c, s, t);
+}
+// pops: the commentary reel's image burst (Nvidia reel, 22.1-23.5 s and 43.4-44.9 s). A still lands every `every` s (0.12),
+// a white slab for one frame and then the image, with a click on each (build.py). collage: the shot behind blurs and
+// darkens and the stills scatter over the middle, overlapping. grid: black, then a 3x3 grid fills from the bottom-right
+// and keeps swapping tiles while images last.
+function pops(c, s, t) {
+  const p = s.pops, every = p.every || 0.12, grid = p.mode === 'grid', since = t - s.t0 - (p.at || 0), k = Math.floor(since / every + 1e-6);
+  if (k < 0) return;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  if (grid) { c.fillStyle = '#000'; c.fillRect(0, 0, c.canvas.width, c.canvas.height); }
+  else { c.filter = 'blur(14px) brightness(0.45)'; c.drawImage(c.canvas, 0, 0); }
+  c.restore();
+  const r = rng(((s.t0 * 997) | 0) + 7), at = [], n = Math.min(k + 1, p.imgs.length), sz = W * (p.size || 0.24);
+  for (let i = 0; i < p.imgs.length; i++) at.push([W * (0.5 + 0.5 * (r() - 0.5)), H * (0.48 + 0.42 * (r() - 0.5)), (r() - 0.5) * 0.06]);
+  for (let i = 0; i < n; i++) {
+    const im = GOT[p.imgs[i]], fresh = since - i * every < 1 / FPS;
+    if (grid) {
+      const slot = 8 - (i % 9), tw = W / 3, th = H / 3, x = (slot % 3) * tw, y = Math.floor(slot / 3) * th;
+      if (fresh || !im) { c.fillStyle = '#fff'; c.fillRect(x + 2 * U, y + 2 * U, tw - 4 * U, th - 4 * U); }
+      else cover(c, im, x + 2 * U, y + 2 * U, tw - 4 * U, th - 4 * U);
+    } else {
+      const [x, y, rot] = at[i], w = sz, h = im ? w * im.height / im.width : w * 0.66;
+      c.save(); c.translate(x, y); c.rotate(rot); c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 24 * U;
+      if (fresh || !im) { c.fillStyle = '#fff'; c.fillRect(-w / 2, -h / 2, w, h); } else c.drawImage(im, -w / 2, -h / 2, w, h);
+      c.restore();
+    }
+  }
 }
 
 // ---- text ----
@@ -139,12 +172,14 @@ function captions(c, t) {
   const caps = F.captions === 'caps', size = (caps ? 30 : TALL ? 58 : 46) * U, font = caps ? `600 ${size}px "${SANS}"` : `500 ${size}px "${SANS}"`;
   c.save(); c.letterSpacing = caps ? `${size * 0.16}px` : '0px';
   const rows = layout(c, ws.map(w => caps ? w.w.toUpperCase() : w.w), W * 0.84, font), lh = size * 1.25, y0 = H * (TALL ? 0.76 : 0.85) - (rows.length - 1) * lh / 2;
-  c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,.65)'; c.shadowBlur = 18 * U;
+  // over a white word card the captions go dark (white on white vanished), the said word in the card red
+  const light = F.shots.some(s => s.scene === 'card' && s.bg === 'white' && t >= s.t0 && t < s.t1), ink = light ? '#141414' : P.ink, hot = light ? '#b3121b' : P.accent;
+  c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = light ? 'transparent' : 'rgba(0,0,0,.65)'; c.shadowBlur = 18 * U;
   let k = 0;
   rows.forEach((r, ri) => r.forEach(p => {
     const w = ws[k++], a = prog(t, w.t0 - 0.04, w.t0 + 0.06); if (a <= 0) return;
     const now = t >= w.t0 - 0.04 && t < (ws[k]?.t0 ?? ws.end) - 0.04;
-    c.globalAlpha = a; c.fillStyle = now && !caps ? P.accent : P.ink; c.fillText(p.wd, W / 2 + p.x, y0 + ri * lh + (1 - a) * 6 * U);
+    c.globalAlpha = a; c.fillStyle = now && !caps ? hot : ink; c.fillText(p.wd, W / 2 + p.x, y0 + ri * lh + (1 - a) * 6 * U);
   }));
   c.restore();
 }
@@ -158,13 +193,13 @@ function endCard(c, t) {
   c.globalAlpha = p(0.35); if (E.sub) para(c, E.sub, W / 2, H * (TALL ? 0.5 : 0.52), W * 0.8, { size: 30 * U, font: `400 ${30 * U}px "${SANS}"`, color: P.dim, lead: 1.3 });
   c.globalAlpha = p(0.6); const cs = E.credits || [];
   if (cs.length) { c.font = `400 ${17 * U}px "${SANS}"`; c.fillStyle = P.dim; c.textAlign = 'center';
-    c.fillText('ARCHIVAL FOOTAGE', W / 2, H * 0.8 - (cs.length + 0.6) * 24 * U); cs.forEach((ln, i) => c.fillText(ln, W / 2, H * 0.8 - (cs.length - 1 - i) * 24 * U, W * 0.92)); }
+    c.fillText(E.credit_label || 'ARCHIVAL FOOTAGE', W / 2, H * 0.8 - (cs.length + 0.6) * 24 * U); cs.forEach((ln, i) => c.fillText(ln, W / 2, H * 0.8 - (cs.length - 1 - i) * 24 * U, W * 0.92)); }
   c.restore();
 }
 
 window.VIDEO = {
   duration: F.duration, audio: 'audio.wav',
-  fonts: F.fonts || [`${SERIF}:ital@0;1`, `${SANS}:wght@400;500;600`],
+  fonts: F.fonts || [`${SERIF}:ital@0;1`, `${SANS}:wght@400;500;600`, ...(F.shots.some(s => s.scene === 'card') ? [CARD] : [])],
   scenes: [...F.shots.map(s => ({ start: s.t0, end: s.t1, draw: (c, p, t) => shot(c, s, t) })), { start: F.end.t0, end: F.end.t1 + 1, draw: c => bg(c, P.ground) }],
   overlay(c, t) {
     if (F.look) applyLook(c, t, null, { ...LOOK[F.look.preset || 'archival'], ...F.look, k: F.look.k ?? 0.6 });

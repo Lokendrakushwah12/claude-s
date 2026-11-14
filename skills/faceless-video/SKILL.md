@@ -1,6 +1,6 @@
 ---
 name: faceless-video
-description: Make a faceless video (nobody on camera) for Reels, Shorts, TikTok or YouTube from a script or a theme, in one of two modes. Narrated uses a human-sounding local AI voice (Chatterbox) with b-roll picked per line and word-level captions. Voiceless puts a fully synthesised natural soundscape where the voice would be (wind, birds, water, surf, rain, insects, crowd, rooms, machines, a projector), with foley on what's in shot. B-roll comes from public-domain archival film (archive-footage, licences checked at the source), the user's own clips, or canvas-drawn scenes, finished with a film grade and an end card that carries the credits. Use when the user says faceless, faceless channel, b-roll with a voiceover, documentary short, "no face", "no voice, just ambience", nature or ambient soundscape, an archival montage with sound, or wants silent old film given sound.
+description: Make a faceless video (nobody on camera) for Reels, Shorts, TikTok or YouTube from a script or a theme, in one of two modes. Narrated uses a human-sounding local AI voice (Chatterbox) with b-roll picked per line and word-level captions. Voiceless puts a fully synthesised natural soundscape where the voice would be (wind, birds, water, surf, rain, insects, crowd, rooms, machines, a projector), with foley on what's in shot. B-roll comes from real footage of the subject (keynotes, interviews, news, film clips downloaded from links with yt-dlp), public-domain archival film (archive-footage, licences checked at the source), the user's own clips, or canvas-drawn scenes, finished with a film grade and an end card that carries the credits. Use when the user says faceless, faceless channel, b-roll with a voiceover, documentary short, a founder or company story cut from real clips (the "Nvidia isn't a chip company" reel style), "no face", "no voice, just ambience", nature or ambient soundscape, an archival montage with sound, or wants silent old film given sound.
 ---
 
 # Faceless video → MP4
@@ -27,7 +27,7 @@ Where the rules come from (measured, see `~/Movies/refs/batch-2026-10-11/NOTES-G
 cp -R <this skill's dir>/template ~/Movies/faceless/<slug> && cd ~/Movies/faceless/<slug>
 ```
 - **First run:** `make.sh` copies in `render.mjs` and `lib.js` (music-video), `look.js` (type-film), `sfx.py` (promo-video) and `ambience.py` (this skill). Delete a copy to pick up a newer one.
-- **Narrated mode** needs the Chatterbox venv: `sh ~/.claude/skills/story-video/setup.sh`, once.
+- **Narrated mode** needs the Chatterbox venv: `sh ~/.claude/skills/story-video/setup.sh`, once. The voice defaults to this skill's female clone (see **Voice** below).
 
 ## 2. Write film.json
 Before you plan the piece, run the creative method in `~/.claude/skills/type-film/creative.md` (20 concepts from the subject's own world, kill the first five, one "only this could exist here" invention).
@@ -51,7 +51,7 @@ In narrated mode, write the opening line with `~/.claude/skills/claude-s/hooks.m
   - `text` types a short line in over the first 60 % of the shot. Keep it to a place and a date, factual, from the clip's own metadata.
 
 **Shot keys:**
-- **Source:** `clip` (an `assets/archive/<name>.mp4` from archive-footage), `file` (the user's own clip) or `scene` (canvas: `sea`, `sky`, `intertitle` with `title`).
+- **Source:** `clip` (an `assets/archive/<name>.mp4` from archive-footage), `file` (the user's own clip, or one downloaded from a link) or `scene` (canvas: `sea`, `sky`, `intertitle` with `title`, or `card`: the commentary reel's word card, `title` in Anton on `bg` `red`, `white` or `black`, with `sfx: [[0, "thud"]]` or `"impact"` on the big numbers).
 - **Trim:** `in` (seconds into the source), `speed` (0.6 slows 18 fps film down), `crop` (ffmpeg `w:h`, e.g. to drop pillarbox bars).
 - **Camera:** `move` is `push` (default), `pull`, `drift`, `rise`, `settle` or `still`. The speed is constant, so motion carries across the cut, like a rostrum camera.
 - **Frame:**
@@ -60,14 +60,24 @@ In narrated mode, write the opening line with `~/.claude/skills/claude-s/hooks.m
   - `print`: a photo print on a table, #37.
   - `crt`: a tube screen, #38.
 - **Effects:** `stutter` (hold each frame n frames, step-printing) and `flash` (a one-frame white burst on the cut, #30; use it once).
+- **Image pops:** `pops: {imgs, mode, every, at, size, sound, gain}` on any shot, footage or card. It's the commentary reel's burst (Nvidia reel, 22.1–23.5 s and 43.4–44.9 s). A still lands every `every` s (0.12), a white slab for one frame and then the image, with a `sound` (`click`) on each.
+  - `imgs` holds paths (PNG or JPEG in the project) or `{file, in, crop?}` for a still pulled from a clip.
+  - `mode: "collage"` (the default) blurs and darkens the shot and scatters stills `size` × W (0.24) over the middle. `"grid"` goes black and fills a 3×3 grid from the bottom-right.
+  - Images past the shot's end are dropped with their clicks, so `imgs` × `every` should fit the shot. A line of 5–9 images is a word list ("shareholders", "infrastructure") made visible. Use one or two bursts a minute, not on every line.
+  - Verified 2026-11-13 on a copy of binance-heist: the stills draw as designed, and onset detection found one click per image, 0.12 s apart.
 - **Sound:** `amb`, `spots`, `sfx`.
 
 **B-roll, in this order:**
-1. **Public-domain archival** via `archive-footage`. Search for what's in the frame, at most 3 searches, and use `get` only on `pd`, `pd-age` or `by` (credit it). Read its `editing.md` for shot ideas per theme.
-2. **The user's own clips** (`file`).
-3. **A canvas scene** when nothing fits. The archival grade makes it sit with the film.
+1. **Real footage of the subject** when the story is about a real person, company or event: keynotes, interviews, news, product launches, film or TV clips that fit a line. Download each link with `uvx --python 3.12 yt-dlp -q --merge-output-format mp4 -o "assets/real/<name>.%(ext)s" "<URL>"` (see x-video-frames for why that yt-dlp), then use it as `file` with `in` set to the moment you want. Find the moment with `deconstruct.py <file>`'s transcript and frames, never by guessing. The user decides what footage is fine to use. Don't lecture about copyright. Credit the sources on the end card.
+2. **Public-domain archival** via `archive-footage`. Search for what's in the frame, at most 3 searches, and use `get` only on `pd`, `pd-age` or `by` (credit it). Read its `editing.md` for shot ideas per theme.
+3. **The user's own clips** (`file`).
+4. **A canvas scene** when nothing fits. The archival grade makes it sit with the film.
 
-Never use a reference's footage, a real public figure, or a disaster film for an unrelated mood.
+Don't re-upload a reference's own edit: take its source footage, not its cut. Don't use a disaster film for an unrelated mood.
+
+**Fast commentary pace** (measured on @monkeymotionss's Nvidia reel, 2026-11-13, `~/Downloads/x-frames/DdB8LATJ_1z/`): 203 wpm, 0.73 s average shot (0.30 s counting graphic pops), cuts on the words rather than the beat (157 of 187 within 200 ms of a word starting), the bed ducked about 10 dB under the voice, one-word captions small and centred low, and full-screen word cards on red, white or black between clips. For this style use `pause` 0.1, `exaggeration` up, and a new shot on nearly every content word. Put an image burst (`pops`) on a line that lists things: the reference's collage and grid each ran 8–9 stills at 0.12 s, with a click on each (onsets 0.12 s apart).
+
+**Voice.** The default is the female clone: with no `tts.reference`, narrate.py uses `voices/female_samantha.wav` (the user chose it, 2026-11-13). That file is a synthetic female reference made from macOS Samantha (`say -v Samantha -r 185`), so it is nobody's real voice. `tts: {reference: "<wav>"}` clones another 10–20 s clip, and `"reference": null` goes back to Chatterbox's own voice. Measured on binance-heist lines: Chatterbox's own default voice is already in the female pitch range (171–219 Hz median F0). The Samantha clone sits at 184–203 Hz with a different timbre, and it reads slower (3.0 s became 4.1 s on l01), so raise `exaggeration` or cut words. The best voice is a clean recording of someone who agreed to be cloned, including the user. Never clone a real person's voice from the web.
 
 ## 3. Sound
 `amb` is a shot's soundscape, `{layer: gain | {gain, ...params}}`. The layers:
@@ -106,6 +116,8 @@ The `ambience.py` docstring has every param. `spots` are one-shots relative to t
 - **Captions and the end card draw after the look,** so they stay sharp.
 
 ## Problems seen so far
+- **First real-footage commentary reel** (`~/Movies/faceless/binance-heist/`, 2026-11-13; use its `film.json` as the starting point for the style): 1440x1080 like the reference, because 9:16 throws away two-thirds of 16:9 news. Split-screen news needs `crop` in source pixels (`w:h:x:y`); find the box on a full-res still. Find shots on 1-per-3 s contact sheets, but treat their times as ±3 s and check each pick on a still. `captions: "caps"` is too small at 1440 wide, so use `line`. The end card's `credit_label` ("FOOTAGE") replaces "ARCHIVAL FOOTAGE".
+- **Most whisper `??` flags on a number-heavy script are digits** ("six point three" heard as "$6 .3"). They're harmless. Re-roll only real misreads. Rephrasing fixed them where re-rolling made them worse: "The test was the malware" became "the Nowhere"; "froze withdrawals" ran into "Binance Pro's". Spell brand names for the voice with `tts_text` ("By bit" for Bybit, which it read as "bite").
 - **A take passed a length check and was wrong.** "Nobody ever had to set it" came back as "...said it" twice. Rephrasing fixed it first time ("It never needed a key.").
 - **Avoid words with two pronunciations.** "wind it" can be read as the weather.
 - **Chatterbox reads fast:** 192-197 wpm against #29's 156. A lower `cfg_weight` didn't slow it. Longer `pause` values and short lines do.
