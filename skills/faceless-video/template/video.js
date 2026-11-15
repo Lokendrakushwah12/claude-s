@@ -30,8 +30,15 @@ function cam(s, t) {
   return { push: { z: 1.02 + 0.06 * p }, pull: { z: 1.09 - 0.06 * p }, drift: { z: 1.07, x: dir * 0.03 * (p - 0.5) },
     rise: { z: 1.07, y: 0.03 * (0.5 - p) }, settle: { z: 1 + 0.12 * Math.exp(-(t - s.t0) / 0.35) }, still: { z: 1 } }[s.move || 'push'] || { z: 1 };
 }
+// jumps: the commentary reel's jump cuts (110 of its 187 cuts are jumps: the same shot snapping tighter or wider on a word).
+// On a footage shot with jumps (or film-level "jumps": true), every other spoken word inside the shot toggles a 12 % punch-in.
+const jumpZ = (s, t) => {
+  if (!(s.jumps ?? F.jumps) || s.scene) return 1;
+  const on = F.words.filter(w => w.t0 > s.t0 + 0.15 && w.t0 < s.t1 - 0.1).filter((_, i) => i % 2 === 1).filter(w => t >= w.t0).length;
+  return on % 2 ? (s.jumps?.zoom ?? 1.12) : 1;
+};
 function full(c, im, s, t) {
-  const { z, x = 0, y = 0 } = cam(s, t); c.save(); c.translate(W / 2 + x * W, H / 2 + y * H); c.scale(z, z); cover(c, im, -W / 2, -H / 2, W, H); c.restore();
+  const { z: z0, x = 0, y = 0 } = cam(s, t), z = z0 * jumpZ(s, t); c.save(); c.translate(W / 2 + x * W, H / 2 + y * H); c.scale(z, z); cover(c, im, -W / 2, -H / 2, W, H); c.restore();
 }
 // box: the whole frame, fitted (4:3 film in a 9:16 reel sits in the upper middle, captions under it; no face cropped off)
 function box(c, im, s, t) {

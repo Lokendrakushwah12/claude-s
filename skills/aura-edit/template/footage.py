@@ -107,7 +107,11 @@ def shifts(frames):  # phase correlation between consecutive frames -> [(dx, dy)
     h, w = frames[0].shape; win = np.outer(np.hanning(h), np.hanning(w)); out = []
     for p, q in zip(frames[:-1], frames[1:]):
         F = np.fft.fft2(p * win) * np.conj(np.fft.fft2(q * win)); r = np.fft.ifft2(F / (abs(F) + 1e-9)).real
-        y, x = np.unravel_index(r.argmax(), r.shape); out.append((-(x - w if x > w / 2 else x), -(y - h if y > h / 2 else y)))
+        y, x = np.unravel_index(r.argmax(), r.shape)
+        def sub(a0, a1, a2):  # parabola through the peak and its neighbours: sub-pixel offset in [-0.5, 0.5]
+            d = a0 - 2 * a1 + a2; return 0.0 if d == 0 else float(np.clip(0.5 * (a0 - a2) / d, -0.5, 0.5))
+        fx = x + sub(r[y, (x - 1) % w], r[y, x], r[y, (x + 1) % w]); fy = y + sub(r[(y - 1) % h, x], r[y, x], r[(y + 1) % h, x])
+        out.append((-(fx - w if fx > w / 2 else fx), -(fy - h if fy > h / 2 else fy)))  # whole pixels left it blind under ~6 px at 1920
     return np.array(out, float)
 
 
@@ -142,7 +146,7 @@ def cmd_cuts(timeline="timeline.js", out="cuts.jpg"):
 def selftest():
     r = np.random.default_rng(1); base = np.kron(r.random((60, 107)), np.ones((6, 6)))[:180, :320]
     frames = [np.roll(base, (k * -2, k * 5), (0, 1)) for k in range(6)]  # content moves 5 px right, 2 px up per step
-    s = shifts(frames); assert np.allclose(s.mean(0), [5, -2]) and s.std(0).max() == 0, s
+    s = shifts(frames); assert np.allclose(s.mean(0), [5, -2], atol=0.05) and s.std(0).max() < 0.05, s
     print("selftest ok: phase correlation recovers a 5 px right, 2 px up shift exactly")
 
 

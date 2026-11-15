@@ -101,7 +101,7 @@ for i, s in enumerate(shots):
         s["pops"]["imgs"][k] = str(out)
 
 FILM = {"fps": FPS, "size": [W, H], "duration": round(D, 3), "palette": F.get("palette", {}), "font": F.get("font"), "ui": F.get("ui"),
-        "fonts": F.get("fonts"), "look": F.get("look"), "captions": F.get("captions", "line" if NARRATED else "none"),
+        "fonts": F.get("fonts"), "look": F.get("look"), "captions": F.get("captions", "line" if NARRATED else "none"), "jumps": F.get("jumps"),
         "shots": [{k: v for k, v in s.items() if k not in ("amb", "spots", "sfx")} for s in shots], "words": words, "end": end}
 Path("timeline.js").write_text("window.FILM = " + json.dumps(FILM, indent=1) + ";\n")
 print(f"timeline.js: {len(shots)} shots, {len(words)} words, {D:.2f} s")

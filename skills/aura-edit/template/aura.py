@@ -1,11 +1,12 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["numpy", "scipy"]
+# dependencies = ["numpy", "scipy", "pillow"]
 # ///
 """aura.json -> timeline.js: a beat-led hype edit. Shots, speed ramps, hits, type and sound all sit on one beat grid.
 
     uv run aura.py build            conform HDR clips, pull each shot's source frames, write timeline.js
     uv run aura.py conform A.mov    an HDR iPhone clip -> src/A.sdr60.mov, tone-mapped at its own frame rate (see conform60)
+    uv run aura.py export [aura.json] [cut.fcpxml]   the cut as FCPXML for Resolve / Premiere / Final Cut (shots, in-points, speed, song)
     uv run aura.py selftest         checks the speed-ramp integral against a numeric one
 
 aura.json. Every time is in BEATS from beat 0 of a `bpm` grid, so the cut, the hit, the type and the sound can't drift apart.
@@ -18,6 +19,7 @@ aura.json. Every time is in BEATS from beat 0 of a `bpm` grid, so the cut, the h
     hit      [b, s]: source second s lands on beat b of the shot. That's where a "hit" ramp goes slow
     ramp     a speed (1 = real time, 0 = a freeze), a preset name (RAMPS), or [[beat, speed], ...] in the shot's own beats.
              Cosine-eased between keys. type.js retime() is the exact integral, so frame n needs no history and never jitters.
+    stabilize  true (or a smoothing sigma in frames, default 12): take the handheld wobble out of this shot (translation)
     zoom     base zoom (1 = cover) about focus [x, y] (0..1 of the frame; that point stays put, so to centre a subject at u
              use zoom z >= 1/(2u) and focus (0.5 - u*z')/(1 - z') with z' = z*1.07 overscan); scale: this shot's pull scale; behind: true pulls a person matte (matte.py), "sky" a sky matte (skymatte.py: type behind the mountains)
   hits     [[beat | [b0, b1, step], kind, {opts}], ...] kinds: drop punch shake flash impact blur split sweep stop (video.js HIT)
@@ -135,6 +137,23 @@ def extract(path, f0, n, fps, d, w, h, grade=None):  # n frames from frame f0, a
     key.write_text(k); return len(list(d.glob("[0-9]*.jpg")))
 
 
+def stabilize(d, n, k=True):
+    """Per-frame [dx, dy] (fractions of the frame) that move each pulled frame back onto a smoothed camera path. The path is
+    footage.py's phase correlation summed over frames at 320x180; Gaussian smoothing (sigma 12 frames, or k) keeps the
+    intended pan and removes the wobble. Translation only (no roll); clamped to 8 %. video.js shifts the frame and zooms in
+    just enough to hide the edges."""
+    from PIL import Image
+    from scipy.ndimage import gaussian_filter1d
+    from footage import shifts
+    fs = sorted(Path(d).glob("[0-9]*.jpg"))[:n]
+    if len(fs) < 3: return None
+    ims = [np.asarray(Image.open(f).convert("L").resize((320, 180)), float) for f in fs]
+    path = np.vstack([[0.0, 0.0], np.cumsum(shifts(ims), 0)])
+    sig = 12.0 if k is True else float(k)
+    corr = np.clip((gaussian_filter1d(path, sig, axis=0, mode="nearest") - path) / [320, 180], -0.08, 0.08)
+    return [[round(float(x), 5), round(float(y), 5)] for x, y in corr]
+
+
 def ramp_keys(s, spb):  # the shot's ramp in its own output seconds
     r, n = s.get("ramp", 1), s["beats"]; h = s["hit"][0] if "hit" in s else 0
     keys = [[0, float(r)]] if isinstance(r, (int, float)) else RAMPS[r](h, n) if isinstance(r, str) else r
@@ -166,6 +185,9 @@ def build(spec_path="aura.json"):
         d = f"frames/s{i:02d}/"; n = extract(c["path"], f0, f1 - f0 + 1, c["fps"], d, fw, fh, E.get("grade"))
         tool = "skymatte.py" if s.get("behind") == "sky" else "matte.py"  # sky: the type sits behind the mountains, not a person
         if s.get("behind") and subprocess.run(["uv", "run", tool, d]).returncode != 0: print(f"  shot {i}: no matte, its type goes in front")
+        if s.get("stabilize"):  # a handheld shot smoothed onto its own camera path (see stabilize)
+            st = stabilize(d, n, s["stabilize"])
+            if st: o["stab"] = st; o["stabZ"] = round(1 + 2 * max(abs(v) for xy in st for v in xy), 4)
         o.update(kind="clip", frames=d, n=n, f0=f0, fps=c["fps"], src0=round(src0, 5), keys=keys, fw=fw, fh=fh, matte=bool(s.get("behind")) and (Path(d) / "m0001.jpg").exists())
         print(f"  shot {i:2d} {o['out0']:6.2f}-{o['out1']:6.2f} s  {s['clip']} {src0:5.2f}-{src1:5.2f} s  {n} frames  ramp {s.get('ramp', 1)}")
         shots.append(o)
@@ -198,9 +220,46 @@ def selftest():
     print("ok: retime integral matches", round(num, 6))
 
 
+def export(spec_path="aura.json", out="cut.fcpxml", audio="mix.wav"):
+    """aura.json -> FCPXML 1.9 for DaVinci Resolve, Premiere (via import) or Final Cut: one video track of the shots at their
+    cut points and source in-points, a constant `ramp` as a speed change, and the song on a connected audio lane. Canvas work
+    (type, UI, captions, hits, grade, varying ramps, stabilize) doesn't carry over: it's a starting edit to fine-tune by hand,
+    with the clips at full quality. Media are the clips as aura.json names them (trims keep their HDR)."""
+    from fractions import Fraction
+    from xml.sax.saxutils import quoteattr
+    E = json.loads(Path(spec_path).read_text()); fps = E.get("fps", 30); (W, H) = E.get("size", [1080, 1920]); spb = 60 / E["bpm"]
+    fr = lambda sec: Fraction(round(sec * fps), fps)  # every time on the output frame grid
+    rt = lambda q: f"{q.numerator}/{q.denominator}s" if q.denominator != 1 else f"{q.numerator}s"
+    assets, clips = [], []
+    names = list(E.get("clips", {}))
+    for k, n in enumerate(names):
+        p = Path(E["clips"][n]).resolve(); pr = probe(str(p))
+        assets.append(f'<asset id="a{k}" name={quoteattr(n)} start="0s" duration="{rt(fr(pr["dur"]))}" hasVideo="1" hasAudio="1" format="r1">'
+                      f'<media-rep kind="original-media" src={quoteattr(p.as_uri())}/></asset>')
+    for s in E["shots"]:
+        if "clip" not in s: continue
+        r = s.get("ramp", 1); r = r if isinstance(r, (int, float)) else 1
+        off, src = fr(s["at"] * spb), fr(s.get("src", 0)); dur = fr((s["at"] + s["beats"]) * spb) - off  # ends on the grid: no gaps
+        tm = "" if r == 1 else f'<timeMap><timept time="0s" value="0s" interp="linear"/><timept time="{rt(dur)}" value="{rt(fr(float(dur) * r))}" interp="linear"/></timeMap>'
+        clips.append(f'<asset-clip ref="a{names.index(s["clip"])}" name={quoteattr(s["clip"])} offset="{rt(off)}" start="{rt(src)}" duration="{rt(dur)}" tcFormat="NDF">{tm}</asset-clip>')
+    total = fr(E.get("beats", 0) * spb); aud = ""
+    if Path(audio).exists():
+        ap = Path(audio).resolve(); assets.append(f'<asset id="song" name="song" start="0s" duration="{rt(fr(float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(ap)], capture_output=True, text=True).stdout)))}" hasAudio="1">'
+                                                 f'<media-rep kind="original-media" src={quoteattr(ap.as_uri())}/></asset>')
+        aud = f'<asset-clip ref="song" lane="-1" offset="0s" start="0s" duration="{rt(total)}" name="song"/>'
+    if clips and aud: clips[0] = clips[0].replace("</asset-clip>", aud + "</asset-clip>")  # connected to the first clip, from 0
+    xml = (f'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n<fcpxml version="1.9"><resources>'
+           f'<format id="r1" name="FFVideoFormat{H}p{fps}" frameDuration="{rt(Fraction(1, fps))}" width="{W}" height="{H}"/>' + "".join(assets) +
+           f'</resources><library><event name="aura-edit"><project name={quoteattr(Path(spec_path).resolve().parent.name)}>'
+           f'<sequence format="r1" duration="{rt(total)}" tcStart="0s" tcFormat="NDF"><spine>' + "".join(clips) +
+           '</spine></sequence></project></event></library></fcpxml>\n')
+    Path(out).write_text(xml); print(f"{out}: {len(clips)} clips, {float(total):.2f} s, {W}x{H} {fps} fps{', song on a connected lane' if aud else ''}")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "build"
     if cmd == "build": build(*sys.argv[2:])
     elif cmd == "conform": print(clip_of(sys.argv[2], Path("src")))
+    elif cmd == "export": export(*sys.argv[2:])  # [aura.json] [cut.fcpxml] [mix.wav]
     elif cmd == "selftest": selftest()
     else: sys.exit(__doc__)

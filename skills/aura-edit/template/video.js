@@ -59,14 +59,15 @@ function frameBox(s) { const sc = Math.max(W / s.fw, H / s.fh); return [(W - s.f
 function camera(c, t, s) {
   shake(c, t, H_.shake.map(h => h.t), { amp: 26 * S, tau: 0.16 });
   const zs = s.strobe?.zooms, zz = s.zoom || 1, zr = Array.isArray(zz) ? lerp(zz[0], zz[1], ease.inOut(prog(t, s.out0, s.out1))) : zz; // zoom: n, or [from, to] over the shot
-  const z0 = (zs ? zs[cardOf(s, t)[0] % zs.length] : zr) * OVERSCAN; // a strobe steps its crop per card
+  const z0 = (zs ? zs[cardOf(s, t)[0] % zs.length] : zr) * OVERSCAN * (s.stabZ || 1); // a strobe steps its crop per card
   const [fx, fy] = s.focus || [0.5, 0.45], z = H_.punch.reduce((z, h) => z * punch(t, [h.t], h.k, h.kind === 'drop' ? 0.22 : 0.12), z0);
   cam(c, z, fx * W, fy * H);
 }
 function footage(c, t, s) { // the shot's picture at time t (picture time: stops already applied)
   const f = srcFrame(s, t), i = Math.floor(f), a = f - i, box = frameBox(s), im0 = GOT[s.frames + pad4(i) + '.jpg'], im1 = a > 0.01 && GOT[s.frames + pad4(i + 1) + '.jpg'];
   if (!im0) return bg(c, B.ground);
-  c.drawImage(im0, ...box); if (im1) { c.save(); c.globalAlpha *= a; c.drawImage(im1, ...box); c.restore(); }
+  const st = s.stab && s.stab[Math.min(i, s.stab.length - 1)], bx = st ? [box[0] + st[0] * box[2], box[1] + st[1] * box[3], box[2], box[3]] : box; // stabilize
+  c.drawImage(im0, ...bx); if (im1) { c.save(); c.globalAlpha *= a; c.drawImage(im1, ...bx); c.restore(); }
 }
 function alphaOf(img) { // grey matte (white = subject) -> alpha, for type.js behind()
   const [cv, x] = scratch('matteA', img.width, img.height); x.drawImage(img, 0, 0);
