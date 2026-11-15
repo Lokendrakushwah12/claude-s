@@ -6,7 +6,7 @@
   1080
  ],
  "scale": 1.25,
- "beats": 27.918,
+ "beats": 31.7,
  "brand": {
   "ink": "#FFFFFF",
   "ground": "#050505",
@@ -40,7 +40,8 @@
   "forest": "src-v2/forest.mov",
   "path": "src-v2/path.mov",
   "walk2": "src-v2/walk2.mov",
-  "crossing": "src-v2/crossing.mov"
+  "crossing": "src-v2/crossing.mov",
+  "valleyend": "src-v2/valleyend.mov"
  },
  "shots": [
   {
@@ -178,9 +179,16 @@
   },
   {
    "at": 26.192,
-   "beats": 1.726,
+   "beats": 1.758,
    "clip": "glacier",
-   "src": 0.2
+   "src": 0.2,
+   "ramp": 0.75
+  },
+  {
+   "clip": "valleyend",
+   "src": 1.0,
+   "at": 27.95,
+   "beats": 3.75
   }
  ],
  "hits": [],

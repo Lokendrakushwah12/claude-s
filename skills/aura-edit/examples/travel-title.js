@@ -86,4 +86,8 @@ function kLyricsBleed(c, t) {
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.shadowColor = 'rgba(0,0,0,0.12)'; c.shadowBlur = H * 0.004 * k;
   c.drawImage(cv, Math.round(W * k / 2 - tw / 2), Math.round(H * k * 0.511 - pad - size * 1.15)); c.restore();
 }
-{ const o0 = VIDEO.overlay; VIDEO.overlay = (c, t) => { o0(c, t); kPlaces(c, t); (K_LYR === 'bleed' ? kLyricsBleed : kLyrics)(c, t); }; }
+// the ending: the picture (captions too) fades to black over the last 1.2 s while the song fades out (mix.wav: 26.0 s to the
+// end) and the glacier plays at 0.75 speed, so the edit settles instead of stopping (the user: "the ending looks abrupt")
+const K_FADE = 1.2;
+function kFade(c, t) { const a = ease.inOut(prog(t, A.duration - K_FADE, A.duration)); if (a > 0) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = a; c.fillStyle = '#000'; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.restore(); } }
+{ const o0 = VIDEO.overlay; VIDEO.overlay = (c, t) => { o0(c, t); kPlaces(c, t); (K_LYR === 'bleed' ? kLyricsBleed : kLyrics)(c, t); kFade(c, t); }; }
