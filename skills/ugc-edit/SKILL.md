@@ -19,6 +19,8 @@ D=~/Movies/ugc-edits/<slug>; mkdir -p "$D" && cp ~/.claude/skills/ugc-edit/templ
 ```
 Read the headers of `ingest.py`, `edit.py` and `video.js` once (and `reel.js` for the reel caption style). The type.js devices used here are `hotWord leadIn behind shotCam flash glowIn glitchBox screenInsert clickDisc dof montageFrames cutIndex pointer track`, and in reel mode `handleChip clipSheet serifStack scriptLine cutout loopArrow`; lib.js gives `phone3d` and `codeBlock`. look.js (film and screen looks) is off; add it to index.html only if the user asks for a look. For a cinematic grade on the footage itself run type-film's `sh grade.sh in.mp4 out.mp4 cream` (`umber alpine cream golden`; cream suits talking heads and interviews) before ingest.
 
+**Bad phone audio (wind, traffic, a crowd, a room):** clean it before ingest with `uv run denoise.py in.mp4 [out] [--mix 0.9] [--atten 30]` (DeepFilterNet 3, open model, local; Python 3.11 with torch < 2.6, handled by its script header). It keeps the picture, swaps in the cleaned voice, and prints the noise floor and speech level before and after. Measured on a 30 s Kashmir clip: floor -43.2 -> -58.9 dB, speech -18.3 -> -18.7 dB. `--mix` leaves a little of the original under it so the voice doesn't sound processed; lower `--atten` if it does.
+
 ## 1. Ingest → `src.json`
 ```bash
 uv run ingest.py A.mp4 B.mp4                       # real footage; the first clip's audio is the master, others are synced by cross-correlation

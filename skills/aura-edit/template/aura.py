@@ -137,6 +137,13 @@ def extract(path, f0, n, fps, d, w, h, grade=None):  # n frames from frame f0, a
     key.write_text(k); return len(list(d.glob("[0-9]*.jpg")))
 
 
+def cutout():  # compile cutout.swift (macOS subject lifting) once, next to it; rebuilt when the source is newer
+    src = Path(__file__).with_name("cutout.swift"); exe = src.with_name(".cutout")
+    if not exe.exists() or exe.stat().st_mtime < src.stat().st_mtime:
+        subprocess.run(["swiftc", "-O", str(src), "-o", str(exe)], check=True)
+    return str(exe)
+
+
 def stabilize(d, n, k=True):
     """Per-frame [dx, dy] (fractions of the frame) that move each pulled frame back onto a smoothed camera path. The path is
     footage.py's phase correlation summed over frames at 320x180; Gaussian smoothing (sigma 12 frames, or k) keeps the
@@ -183,8 +190,9 @@ def build(spec_path="aura.json"):
         sc = min(1, max(W / c["w"], H / c["h"]) * s.get("scale", scale)); fw, fh = 2 * round(c["w"] * sc / 2), 2 * round(c["h"] * sc / 2)
         # s.get("scale"): a shot's own pull scale, so a reframed (zoomed) shot stays sharp
         d = f"frames/s{i:02d}/"; n = extract(c["path"], f0, f1 - f0 + 1, c["fps"], d, fw, fh, E.get("grade"))
-        tool = "skymatte.py" if s.get("behind") == "sky" else "matte.py"  # sky: the type sits behind the mountains, not a person
-        if s.get("behind") and subprocess.run(["uv", "run", tool, d]).returncode != 0: print(f"  shot {i}: no matte, its type goes in front")
+        b = s.get("behind")  # "sky": behind the mountains (skymatte.py); "subject": behind whatever Vision lifts (cutout.swift); else a person
+        cmd = [cutout()] + [d] if b == "subject" else ["uv", "run", "skymatte.py" if b == "sky" else "matte.py", d]
+        if b and subprocess.run(cmd).returncode != 0: print(f"  shot {i}: no matte, its type goes in front")
         if s.get("stabilize"):  # a handheld shot smoothed onto its own camera path (see stabilize)
             st = stabilize(d, n, s["stabilize"])
             if st: o["stab"] = st; o["stabZ"] = round(1 + 2 * max(abs(v) for xy in st for v in xy), 4)

@@ -13,6 +13,9 @@ Built from open models (OpenCLIP image-text embeddings, faster-whisper), not fro
     uv run library.py people [--db library.db]              list the groups (id, name, how many clips, sheet)
     uv run library.py name <person id> <name> [--db]        name a group (merge: give two groups the same name)
     uv run library.py person <name or id> [--db]            every clip and moment that person appears in
+    uv run library.py review [--db]                          one sheet of every group, labelled, to check them at a glance
+    uv run library.py suggest [--db]                         group pairs that are probably one person (most similar first)
+    uv run library.py merge <keep id> <other id> [--db]      fold one group into another
 
 index samples one frame every `--every` seconds from each usable clip (footage.py's rules: no Live Photo videos, edited
 copies, clips under 3.5 s or repeated names), embeds it with OpenCLIP ViT-B-32 (laion2b, ~600 MB, downloaded once), and
@@ -222,6 +225,44 @@ def cmd_person(who, db_path="library.db"):
     for p, a, b, n in c.execute(q, ids): print(f"  {n:3d} sightings  {a:6.1f}-{b:6.1f}s  {p}")
 
 
+def cmd_suggest(db_path="library.db", th="0.5"):
+    # pair score = the mean of the 10 best face-to-face matches between two groups: one person split by a turban or sunglasses
+    # still has some near-identical faces, while two different people only meet in their averages (a mean-of-means test ranked
+    # two different friends first, 0.61, on the Kashmir folder)
+    c = db(db_path); G = {}
+    for pid, in c.execute("select id from people"):
+        E = [np.frombuffer(r[0], np.float32) for r in c.execute("select emb from faces where person=?", (pid,)) if r[0]]
+        if E: G[pid] = np.stack(E)
+    ids = sorted(G); pairs = []
+    for a in range(len(ids)):
+        for b in range(a + 1, len(ids)):
+            S = (G[ids[a]] @ G[ids[b]].T).ravel(); pairs.append((float(np.sort(S)[-10:].mean()), ids[a], ids[b]))
+    names = dict(c.execute("select id, name from people").fetchall())
+    for sim, a, b in sorted(pairs, reverse=True):
+        if sim < float(th): break
+        print(f"  {sim:.2f}  {a} ({names.get(a) or '-'}) + {b} ({names.get(b) or '-'})   -> library.py merge {a} {b}")
+    print("(check both groups on the review sheet before merging)")
+
+
+def cmd_merge(keep, other, db_path="library.db"):
+    c = db(db_path); keep, other = int(keep), int(other)
+    c.execute("update faces set person=? where person=?", (keep, other))
+    n = c.execute("select count(distinct clip) from faces where person=?", (keep,)).fetchone()[0]
+    c.execute("update people set n=? where id=?", (n, keep)); c.execute("delete from people where id=?", (other,)); c.commit()
+    print(f"person {other} merged into {keep}: {n} clips")
+
+
+def cmd_review(db_path="library.db"):
+    c = db(db_path); rows = c.execute("select id, name, n, sheet from people order by n desc").fetchall()
+    if not rows: sys.exit("no people: run library.py faces first")
+    S = Image.new("RGB", (1300, 130 * len(rows)), "black"); D = ImageDraw.Draw(S)
+    for k, (pid, name, n, sheet) in enumerate(rows):
+        D.text((6, 130 * k + 50), f"#{pid}\n{name or '-'}\n{n} clips", fill="yellow")
+        try: S.paste(Image.open(sheet), (100, 130 * k + 5))
+        except Exception: pass
+    out = Path(db_path).with_suffix(".people") / "review.jpg"; S.save(out, quality=85); print(out)
+
+
 def cmd_stats(db_path="library.db"):
     c = db(db_path)
     print({t: c.execute(f"select count(*) from {t}").fetchone()[0] for t in ("clips", "frames", "words")})
@@ -234,4 +275,4 @@ if __name__ == "__main__":
         if flag in a: i = a.index(flag); kw[flag[2:].replace("db", "db_path")] = a[i + 1]; del a[i:i + 2]
     if "--speech" in a: a.remove("--speech"); kw["speech"] = True
     {"index": cmd_index, "search": cmd_search, "said": cmd_said, "stats": cmd_stats, "faces": cmd_faces, "people": cmd_people,
-     "name": cmd_name, "person": cmd_person}[cmd](*a, **kw)
+     "name": cmd_name, "person": cmd_person, "review": cmd_review, "suggest": cmd_suggest, "merge": cmd_merge}[cmd](*a, **kw)
