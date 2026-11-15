@@ -6,7 +6,7 @@
   1080
  ],
  "scale": 1.25,
- "beats": 16.4,
+ "beats": 27.918,
  "brand": {
   "ink": "#FFFFFF",
   "ground": "#050505",
@@ -32,49 +32,81 @@
   "summit": "src-v2/summit.mov",
   "fence": "src-v2/fence.mov",
   "river": "src-v2/river.mov",
-  "glacier": "src-v2/glacier.mov"
+  "glacier": "src-v2/glacier.mov",
+  "shikaras": "src-v2/shikaras.mov",
+  "friendsboat": "src-v2/friendsboat.mov",
+  "horses": "src-v2/horses.mov",
+  "group": "src-v2/group.mov",
+  "forest": "src-v2/forest.mov",
+  "path": "src-v2/path.mov",
+  "walk2": "src-v2/walk2.mov",
+  "crossing": "src-v2/crossing.mov"
  },
  "shots": [
   {
-   "at": 0,
-   "beats": 2.94,
+   "at": 0.0,
+   "beats": 2.786,
    "clip": "title",
    "src": 1.0,
    "behind": "sky"
   },
   {
-   "at": 2.94,
-   "beats": 2.93,
+   "at": 2.786,
+   "beats": 3.089,
    "clip": "walk",
    "src": 1.5
   },
   {
-   "at": 5.87,
-   "beats": 0.86,
+   "at": 5.875,
+   "beats": 1.764,
    "clip": "dal",
    "src": 1.0
   },
   {
-   "at": 6.73,
-   "beats": 0.9,
-   "clip": "ducks",
-   "src": 1.0
-  },
-  {
-   "at": 7.63,
-   "beats": 0.87,
+   "at": 7.639,
+   "beats": 1.765,
    "clip": "boats",
    "src": 1.0
   },
   {
-   "at": 8.5,
-   "beats": 0.87,
+   "at": 9.404,
+   "beats": 0.882,
+   "clip": "ducks",
+   "src": 1.0
+  },
+  {
+   "clip": "shikaras",
+   "src": 1.0,
+   "at": 10.286,
+   "beats": 0.906
+  },
+  {
+   "clip": "friendsboat",
+   "src": 1.0,
+   "at": 11.192,
+   "beats": 0.882
+  },
+  {
+   "at": 12.074,
+   "beats": 0.883,
    "clip": "garden",
    "src": 0.4
   },
   {
-   "at": 9.37,
-   "beats": 0.86,
+   "clip": "horses",
+   "src": 1.0,
+   "at": 12.957,
+   "beats": 1.788
+  },
+  {
+   "clip": "group",
+   "src": 1.0,
+   "at": 14.745,
+   "beats": 1.788
+  },
+  {
+   "at": 16.533,
+   "beats": 0.882,
    "clip": "meadow",
    "src": 1.0,
    "zoom": 1.31,
@@ -85,44 +117,68 @@
    "scale": 1.8
   },
   {
-   "at": 10.23,
-   "beats": 0.9,
-   "clip": "treeview",
-   "src": 1.0
-  },
-  {
-   "at": 11.13,
-   "beats": 0.87,
-   "clip": "arms",
-   "src": 1.0
-  },
-  {
-   "at": 12.0,
-   "beats": 0.87,
-   "clip": "pines",
-   "src": 1.0
-  },
-  {
-   "at": 12.87,
-   "beats": 0.86,
-   "clip": "summit",
-   "src": 1.0
-  },
-  {
-   "at": 13.73,
-   "beats": 0.9,
+   "at": 17.415,
+   "beats": 0.882,
    "clip": "fence",
    "src": 1.0
   },
   {
-   "at": 14.63,
-   "beats": 0.87,
+   "clip": "forest",
+   "src": 1.0,
+   "at": 18.297,
+   "beats": 0.883
+  },
+  {
+   "at": 19.18,
+   "beats": 0.882,
+   "clip": "pines",
+   "src": 1.0
+  },
+  {
+   "at": 20.062,
+   "beats": 0.882,
+   "clip": "treeview",
+   "src": 1.0
+  },
+  {
+   "at": 20.944,
+   "beats": 0.883,
+   "clip": "arms",
+   "src": 1.0
+  },
+  {
+   "clip": "path",
+   "src": 1.0,
+   "at": 21.827,
+   "beats": 0.882
+  },
+  {
+   "clip": "walk2",
+   "src": 1.0,
+   "at": 22.709,
+   "beats": 0.859
+  },
+  {
+   "at": 23.568,
+   "beats": 0.859,
+   "clip": "summit",
+   "src": 1.0
+  },
+  {
+   "clip": "crossing",
+   "src": 0.5,
+   "at": 24.427,
+   "beats": 0.883
+  },
+  {
+   "at": 25.31,
+   "beats": 0.882,
    "clip": "river",
    "src": 1.0
   },
   {
-   "at": 15.5,
-   "beats": 0.9,
+   "at": 26.192,
+   "beats": 1.726,
    "clip": "glacier",
    "src": 0.2
   }

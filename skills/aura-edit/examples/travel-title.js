@@ -2,10 +2,10 @@
 // 0-2.94 Sonamarg valley, "kashmir" rising behind the ridge (shot 0 has behind: "sky", skymatte.py); 2.94-5.87 two friends
 // walking into the valley, the four places landing one per beat; then lyrics only. aura.json runs at bpm 60 (beats = seconds).
 // Appended to video.js after the template's own code. Every frame is graded already (aura.json grade: grade.cube).
-const K_CUT = beatT(5.87), K_WALK = beatT(2.94), K_BEAT = 60 / 136.4;
+const K_CUT = beatT(5.87), K_WALK = beatT(2.786), K_BEAT = 60 / 136.4;
 const K_FONT = '-apple-system, system-ui, "SF Pro Display", "Helvetica Neue", sans-serif';
 const K_PLACES = ['srinagar', 'gulmarg', 'pahalgam', 'sonamarg']; // from the clips' GPS, in the order the trip went
-const K_DATES = '30.09 — 03.10.2026';                         // the clips' creation dates
+const K_DATES = '30.09 - 03.10.2026';                         // the clips' creation dates
 
 function kType(c, s, x, y, size, o = {}) { // one line of system-font type; track in em
   c.save(); c.font = `${o.weight || 400} ${size}px ${K_FONT}`; c.letterSpacing = `${(o.track || 0) * size}px`;
@@ -20,7 +20,7 @@ function kType(c, s, x, y, size, o = {}) { // one line of system-font type; trac
 // Behind the mountains: the skyline runs 0.35 H (left) to 0.27 H (the peak, right) across the word (measured on the sky matte,
 // in screen space). 0.24 H type on a 0.36 baseline puts the ridge through the lower half of the x-height mid-word: the left
 // letters stand almost whole and the peak swallows most of "ir".
-const K_TITLE = 'kashmir';
+const K_TITLE = 'Kashmir';
 function kTitle(c, t) {
   if (t >= K_WALK) return;
   const size = H * 0.24, track = -0.02 * size, y = H * 0.36;
@@ -72,7 +72,7 @@ const K_INTER_FONT = new FontFace('KInter', 'url(InterVariable.woff2)', { weight
 { const s0 = window.seek; window.seek = async t => { await K_INTER_FONT.load(); return s0(t); }; }
 const K_BLEED = { blur: 0.028, cut: 0.2, ramp: 0.2 }; // blur in em; the alpha cutoff and its ramp, 0..1. The user picked the lightest of three, then lighter still
 function kLyricsBleed(c, t) {
-  if (t < K_CUT) return;
+  if (t < K_WALK) return; // the new song's first line is sung from 2.74 s, so captions start at the walk cut
   const cap = (window.KLYR || []).find(l => t >= l.t && t < l.end); if (!cap) return;
   const str = cap.words.filter(([, at]) => t >= at).map(([w]) => w).join(' ').toLowerCase().replace(/'/g, '\u2019'); if (!str) return;
   const k = c.canvas.width / W, size = Math.round(H * 0.0475 * k), pad = Math.ceil(size * 0.6), font = `350 ${size}px ${K_INTER}`;

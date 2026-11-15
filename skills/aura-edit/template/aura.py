@@ -115,7 +115,13 @@ def clip_of(path, out):
         if not v.exists(): sh("ffmpeg", "-loglevel", "error", "-y", "-loop", 1, "-i", path, "-t", 8, "-r", 30, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p", "-c:v", "libx264", "-crf", 14, v)
         path = str(v); f = v
     pr = probe(path)
-    if pr["hdr"]: f = conform60(path, out / f"{f.stem}.sdr60.mov"); pr = probe(f)
+    if pr["hdr"]:
+        # the conform is cached by name: a stamp of the source's path, size and mtime makes a different clip under a reused name
+        # re-conform (a new "horses" trim once rendered the old project's horses clip)
+        dst = out / f"{f.stem}.sdr60.mov"; stamp = dst.with_suffix(".src"); st = Path(path).stat(); key = f"{Path(path).resolve()} {st.st_size} {st.st_mtime}"
+        if dst.exists() and (not stamp.exists() or stamp.read_text() != key):
+            for old in out.glob(f"{f.stem}.sdr60*"): old.unlink()
+        f = conform60(path, dst); stamp.write_text(key); pr = probe(f)
     return {"path": str(f), "w": pr["w"], "h": pr["h"], "dur": pr["dur"], "fps": rate(f)}
 
 

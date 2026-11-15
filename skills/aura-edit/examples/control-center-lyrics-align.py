@@ -17,6 +17,7 @@ for ln in open("lyrics.txt", encoding="utf-8"):
     m = re.match(r"^(\d+(?:\.\d+)?)\s*\|\s*(.*)$", ln)
     text = (m[2] if m else ln).strip()
     if text != "-": lines.append([w for w in text.split() if not re.fullmatch(r"@\d+(?:\.\d+)?", w)])
+if not lines: json.dump({"words": []}, open("lyrics_times.json", "w")); sys.exit(print("lyrics_align: lyrics.txt is empty, no captions"))
 norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower())
 mine = [norm(w) for ws in lines for w in ws]
 # decode with ffmpeg ourselves: faster-whisper's own decoder breaks on newer PyAV (open() lost metadata_errors)
@@ -38,6 +39,15 @@ for i in range(len(at)):  # misses: linear between matched neighbours (before th
     if lo is None: at[i] = at[hi] - 0.25 * (hi - i)
     elif hi is None: at[i] = at[lo] + 0.25 * (i - lo)
     else: at[i] = at[lo] + (at[hi] - at[lo]) * (i - lo) / (hi - lo)
+# a word that lands on silence in the vocal stem (whisper sometimes places a line's first word in the gap before it) moves
+# forward to where singing starts again
+x = np.frombuffer(pcm, "<i2").astype(np.float32) / 32768; hop = 160; env = np.sqrt(np.convolve(x ** 2, np.ones(800) / 800, "same")[::hop] + 1e-12)
+db = 20 * np.log10(env); sung = db > db.max() - 30
+for i, t in enumerate(at):
+    k = int(t * 100)
+    if k < len(sung) and not sung[k]:
+        nxt = np.nonzero(sung[k:])[0]
+        if len(nxt): at[i] = (k + nxt[0]) / 100
 for i in range(1, len(at)): at[i] = max(at[i], at[i - 1])  # never out of order
 out, k = [], 0
 for ws in lines: out.append([round(max(0.0, x), 3) for x in at[k:k + len(ws)]]); k += len(ws)
