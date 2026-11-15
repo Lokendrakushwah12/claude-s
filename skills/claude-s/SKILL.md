@@ -12,7 +12,6 @@ The skills are one studio, not eleven apps. **One skill leads** (its project fol
 |---|---|---|
 | the user's own talking head, podcast or screen recording | a creator cut, tutorial, before/after, aesthetic reel | `ugc-edit` |
 | the user's clips or stills | a beat-locked hype edit, montage | `aura-edit` |
-| anime episode clips + a song (+ reference AMVs) | an AMV (anime music video) with a story arc | `amv-edit` |
 | a script or theme, nobody on camera | narrated or voiceless b-roll video | `faceless-video` |
 | a real person, company or event + links to clips of them | a fast narrated story cut from those clips (the Nvidia reel style) | `faceless-video`, real footage first; word cards from `story-video` |
 | a reference film + a brand | an original motion film, kinetic type, a narrated motion reel | `type-film` |
@@ -58,6 +57,13 @@ The user may paste picks from the gallery (`#T029 dollyZoom (type.js)`) or a ref
 7. **Finish:** a look or grade.
 8. **Gates:** `filmgate.py`, then a fresh critic that didn't make it; the lower score wins.
 9. **Deliver:** the MP4 in the user's folder, project kept under `~/Movies/` for changes, credits for anything licensed.
+
+## The studio app (`studio.py`): the skills as one local app
+```bash
+uv run ~/.claude/skills/claude-s/studio.py      # dashboard http://127.0.0.1:45690, MCP at /mcp
+claude mcp add claude-s --transport http http://127.0.0.1:45690/mcp --scope user
+```
+Claude is the brain and the studio is the body, the way Kino's app exposes its MCP server. 19 tools: `guide` (this file and every project's state: call it first), `next_step` (reads a project's files: spec newer than the build -> `build`; build newer than the video -> `stills_then_render`; not gated -> `gate`; gate red -> `fix`; else `deliver`, with the gate's yellows), `new_project` (a lead's template, by this file's Setup lines), `build`, `stills`, `render` (the project's `finish.sh` wins; faceless runs make.sh), `gate`, `export_fcpxml`, `open_editor`, `job`/`jobs`, `search_footage`, `said`, `index_footage`, `people`, `denoise`, `deconstruct`, `download`. Builds, renders, indexing, denoise and gates run as background jobs with logs, one at a time per folder. The dashboard shows every project (poster, latest video, next step, the same buttons), the jobs with live logs and footage search. Projects are found under `~/Movies/{aura-edits,faceless,ugc-edits}` by their spec file; files are served only from there, localhost only. Tested 2026-11-15: gate as a job moved nvidia-ceo from `gate` to `deliver (yellow: motion, pushins)`; a dashboard search returned the ranked moments with the sheet; `new_project` then `next_step` gave `build`.
 
 ## Copying shared files
 Toolkits are copied into a project from their home template (the lead's SKILL.md "Setup" shows the `cp` line). Copy a borrowed file the same way, from its home, never from another project, so fixes travel. Don't fork a helper inside a project; improve it at home and say so.
