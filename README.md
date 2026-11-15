@@ -48,6 +48,8 @@ Install them together. The skills share three toolkits, which they copy from eac
   - MediaPipe, which `ugc-edit` pulls in itself for type behind the speaker and captions that keep off the face.
   - A female narration voice for `faceless-video`: it clones `skills/faceless-video/voices/female_samantha.wav` when that file exists (it isn't shipped). Make one with `say -v Samantha -r 185 -o /tmp/s.aiff "<a few sentences>"` and `ffmpeg -i /tmp/s.aiff -ar 24000 -ac 1 ~/.claude/skills/faceless-video/voices/female_samantha.wav`; without it, Chatterbox's own voice reads.
 
+- Footage tools: subject cutouts need macOS 14+ (Xcode command line tools for `swiftc`). Face grouping downloads InsightFace's `buffalo_l` (~335 MB, first use; its pretrained models are for non-commercial research only). Speech cleanup runs DeepFilterNet under Python 3.11, which `uv` handles.
+
 ## Use it
 
 Describe the video; the matching skill triggers on its own.
@@ -77,6 +79,32 @@ Describe the video; the matching skill triggers on its own.
 > "make a travel edit from my trip folder, same song and caption style as this reel, graded like this one" (`~/Documents/kashmir/`)
 
 Each video skill keeps its projects in their own folder under `~/Movies/`, with the source next to the rendered MP4, so you can ask for changes later.
+
+## Studio app
+
+The skills as one local app: an MCP server Claude drives and a dashboard for you (the same idea as Kino's app, all local).
+
+```bash
+uv run ~/.claude/skills/claude-s/studio.py      # dashboard at http://127.0.0.1:45690, MCP at /mcp
+claude mcp add claude-s --transport http http://127.0.0.1:45690/mcp --scope user
+```
+
+- **It knows what to use when.** `guide` returns the routing map (which skill leads, what the others lend, the pipeline) and every project's state; `next_step` reads a project's files and says what's due: `build`, `stills_then_render`, `gate`, `fix` or `deliver`.
+- **19 tools:** `new_project`, `build`, `stills`, `render`, `gate`, `export_fcpxml`, `open_editor`, `index_footage`, `search_footage`, `said`, `people`, `denoise`, `deconstruct`, `download`, `job`/`jobs`, `list_projects`, `guide`, `next_step`. Long work runs as background jobs with logs, one at a time per folder.
+- **Dashboard:** every project under `~/Movies/{aura-edits,faceless,ugc-edits}` with its poster, latest video, next step and buttons; jobs with live logs; footage search.
+- To keep it running, add a login item (a LaunchAgent with `RunAtLoad` and `KeepAlive`) that runs the first line.
+
+What the footage tools add (details in each skill's `SKILL.md`):
+
+| Capability | How |
+|---|---|
+| Search footage by content or by a spoken word | `aura-edit/template/library.py`: OpenCLIP frame embeddings and faster-whisper transcripts in SQLite, local |
+| People across clips | `library.py faces`, `review`, `suggest`, `merge`, `name` (InsightFace; suggestions are hints, confirm on the review sheet) |
+| Type behind any subject | `"behind": "subject"` on an aura-edit shot (`cutout.swift`, macOS subject lifting); also `"sky"` and person mattes |
+| Shot editor in the browser | `python3 editor.py` in an aura-edit project: reorder, trim, swap clips; save rebuilds |
+| Speech cleanup | `uv run ugc-edit/template/denoise.py clip.mp4` (DeepFilterNet 3) |
+| Stabilization | `"stabilize": true` on an aura-edit shot (translation only) |
+| Hand-off to an editor | `uv run aura.py export` → FCPXML 1.9 for Resolve, Final Cut or Premiere |
 
 ## How these were made
 
