@@ -1,4 +1,4 @@
-// Reference data shared by index.html and gallery/index.html (classic script: defines REFS3, REFS, REFS2, EARLY).
+// Reference data shared by index.html and gallery/index.html (classic script: defines REFS4, REFS3, REFS, REFS2, EARLY).
 // We took techniques from these, never their shots, copy, palettes or brands.
 
 // feeds: which skills took something from it (in our words, never theirs)
@@ -159,4 +159,9 @@ const REFS3 = [
   {"n": "62", "who": "showheyohtaki/motion-prompt (Shohei Ohtaki, MIT) via @Voxyz_ai", "url": "https://github.com/showheyohtaki/motion-prompt", "meta": "GitHub · glossary of 120 named motions", "title": "A glossary of named canvas motions with numeric specs", "took": "Names and specs to reach for when a user asks for a move we lack; play-once moves hold at u = min(t, uHold) and a fixed slot stretches the hold, not the motion. Its 3D camera moves and photo looks are now ours.", "feeds": ["type-film"], "lives": "cam3d dollyZoom orbitCam crane focusPull lensFlare doubleExposure tealOrange fisheye"},
   {"n": "63", "who": "alchaincyf/huashu-art-motion (MIT) via @Voxyz_ai", "url": "https://github.com/alchaincyf/huashu-art-motion", "meta": "GitHub · 35 art-style recipes, 9 explainer grammars", "title": "Art-style recipes for canvas animation", "took": "A delivery gate before handing over a video, its motion rules, and “the lower score wins” when critics disagree.", "feeds": ["type-film", "x-video-frames"], "lives": "filmgate.py"},
   {"n": "64", "who": "jordan (sells a Hand Drawn Animator plugin)", "url": "https://in.pinterest.com/pin/256494141275166022/", "meta": "Pinterest · 3 clips · 1.8–3.4 s · 3:4", "title": "Three cut lessons: match cut, fast cut, ink dissolve", "took": "A round subject locked on one circle and swapped every 2 frames before opening to full frame, 2–4-frame inserts joined by motion-blur whips, and handwriting that stays multiplied over the next shot while its paper drops out. The plugin's look (lines on twos, boiling, scribble fills) rebuilt with our sketch strokes.", "feeds": ["type-film", "ugc-edit", "music-video"], "lives": "matchChain inkDissolve whip scribbleWipe doodleTrace doodleBurst"}
+];
+
+// 2026-11-19: a stippled two-beat collage loop (type-film/references.md).
+const REFS4 = [
+  {"n": "65", "who": "@shirotatakajo", "url": "https://x.com/shirotatakajo/status/2116817017428996241", "meta": "X GIF · 2.9 s · 25 fps on twos · no audio", "title": "A two-beat loop: a card on a speed-line burst, then a stippled collage", "took": "A whole frame animated on twos (every drawing held two frames, measured), two beats in under three seconds joined by hard cuts, one ticket-stub frame that holds through both, shading drawn as dot coverage under grain, and poster type cropped by the frame. Ours adds one card whose position and turn stay continuous through both cuts, so a match cut closes the loop.", "feeds": ["type-film"], "lives": "stipple STIP cardFlip grain"}
 ];

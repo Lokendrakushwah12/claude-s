@@ -244,3 +244,15 @@ add('Paper & line', 'type.js', 'doodleBurst', 'Doodle burst', 'drawn rays, littl
 add('Transitions & hits', 'type.js', 'matchChain', 'Multi-shot match cut', 'round subjects flip every 2 frames inside one locked circle, the last opens to full frame (matchChain; click per shot, whoosh)', 2.2, (c, t) => {
   matchChain(c, t, 0.2, [disc('#2a0d05', 3), disc('#3b1a0a', 6), disc('#120a1e', 9), disc('#1e2a10', 12), disc('#0b1b26', 0), disc('#2a0d05', 5)], { hold: 4 }); });
 add('Transitions & hits', 'type.js', 'inkDissolve', 'Ink dissolve', 'handwriting from A stays multiplied over B and fades, the paper drops out at once (inkDissolve; paper)', 2.4, (c, t) => { inkDissolve(c, t, 0.8, inkPage, shotB, { dur: 1 }); });
+// T158–T159: stippled collage loop (2026-11-19, @shirotatakajo's two-beat loop; references.md). Shade as dot coverage; one card carried through the cut.
+add('Looks', 'type.js', 'stipple', 'Stipple shade', 'shading drawn as dot coverage instead of a soft gradient, made at the size it is seen (stipple + STIP.ball / fall / vignette)', 3, (c, t) => {
+  bg(c, '#ff5a3c'); stipple(c, 'g-vig', STIP.vignette, { alpha: 0.6 });
+  const r = 150, k = 1 + 0.06 * Math.sin((t / 3) * 6.283), y = cy - 120 + 14 * Math.sin((t / 3) * 6.283);
+  c.save(); c.translate(cx, y); c.scale(k, k); c.beginPath(); c.arc(0, 0, r, 0, 7); c.fillStyle = '#f6e7cf'; c.fill(); c.clip();
+  stipple(c, 'g-ball', STIP.ball, { x: -r, y: -r, w: 2 * r, h: 2 * r, alpha: 0.55 }); c.restore();
+  word(c, 'GRAIN', cx, H * 0.8, { size: 140, weight: 900, color: '#1b1740', align: 'center' }); });
+add('Transitions & hits', 'type.js', 'cardFlip', 'Card flip match cut', 'one card turns over while the ground smash-cuts behind it, and its state is the same at the loop point (cardFlip)', 2, (c, t) => {
+  (t < 1 ? shotA : shotB)(c);
+  const p = t < 1 ? ease.inOut(prog(t, 0.15, 0.85)) : 1 + ease.inOut(prog(t, 1.15, 1.85));
+  const face = col => (g, w, h) => { g.fillStyle = col; g.fillRect(-w / 2 + 14, -h / 2 + 14, w - 28, h - 28); g.fillStyle = '#f6e7cf'; g.beginPath(); g.arc(0, 0, w * 0.22, 0, 7); g.fill(); };
+  cardFlip(c, cx, cy, Math.PI * p, face('#1b1740'), face('#ff5a3c'), { w: 230, h: 320, r: 18, rz: -0.2 + 0.2 * Math.sin(Math.PI * p), s: 1 + 0.12 * Math.sin(Math.PI * p) }); });

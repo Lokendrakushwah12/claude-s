@@ -91,7 +91,7 @@
   function filter() { const s = q.value.toLowerCase(); stkCards.forEach(k => k.el.style.display = !s || [k.s.id, k.s.file, ...k.s.tags].join(' ').toLowerCase().includes(s) ? '' : 'none'); refCards.forEach(k => k.el.style.display = !s || Object.values(k.r).join(' ').toLowerCase().includes(s) ? '' : 'none'); cards.forEach(k => k.el.style.display = (!group || k.d.group === group) && (!s || [k.d.id, k.d.name, k.d.helper, k.d.file, k.d.ask].join(' ').toLowerCase().includes(s)) ? '' : 'none'); }
   q.oninput = filter; q.value = params.get('q') || ''; filter(); // ?q= pre-filters (headless screenshots)
   // References (shared with the landing page via ../refs.js): picked separately from the effects, ?refs=12,5 to share.
-  const REFS_ALL = [...REFS3, ...REFS2, ...REFS, ...EARLY], refPicks = new Set((params.get('refs') || '').split(',').filter(Boolean));
+  const REFS_ALL = [...REFS4, ...REFS3, ...REFS2, ...REFS, ...EARLY], refPicks = new Set((params.get('refs') || '').split(',').filter(Boolean));
   const refsEl = document.getElementById('refs'), esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   refCards = REFS_ALL.map(r => { const el = document.createElement('article'); el.className = 'ref';
     el.innerHTML = `<div class="top"><span class="num">#R${esc(r.n)}</span><span class="who">${esc(r.who)}</span></div><div class="m">${esc(r.meta)}</div>

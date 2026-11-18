@@ -1301,3 +1301,27 @@ function inkDissolve(c, t, tCut, drawA, drawB, o = {}) {
   const [cv, a] = scratch('inkA', c.canvas.width, c.canvas.height); a.setTransform(c.getTransform()); drawA(a);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'multiply'; c.globalAlpha *= 1 - ease.out(p); c.drawImage(cv, 0, 0); c.restore();
 }
+// ---- stippled collage (references.md 2026-11-19) ----
+// Stipple shade: a gradient drawn as dot COVERAGE (seeded dots thresholded against a density field), not as alpha, so form reads as print grain.
+// density(u, v) -> 0..1 over the w x h box; STIP has the usual three. Made once per key at w x h and drawn at (x, y) under your transform, so a pop-in
+// scale carries its dots. Give it the size it will be SEEN at: a 256 px sprite stretched 4.7x across a frame turned into blocks. Clip first for a shaped shade.
+// o: x y w h color dot seed alpha.
+const STIP = { ball: (u, v) => clamp((Math.hypot(u - 0.3, v - 0.28) - 0.25) * 1.5), fall: u => u * u, vignette: (u, v) => clamp(Math.hypot(u - 0.5, v - 0.5) * 1.6 - 0.25) * 0.7 };
+function stipple(c, key, density, o = {}) {
+  const { x = 0, y = 0, w = W, h = H, color = '#0E0B24', dot = 2 * S, seed = 5, alpha = 1 } = o, d = Math.max(1, Math.round(dot)), pw = Math.ceil(w), ph = Math.ceil(h), k = `stip:${key}:${pw}x${ph}:${color}:${d}:${seed}`;
+  if (!CACHE[k]) { const cv = document.createElement('canvas'); cv.width = pw; cv.height = ph; const g = cv.getContext('2d'), r = rng(seed); g.fillStyle = color;
+    for (let Y = 0; Y < ph; Y += d) for (let X = 0; X < pw; X += d) if (r() < density(X / pw, Y / ph)) g.fillRect(X, Y, d, d); CACHE[k] = cv; }
+  c.save(); c.globalAlpha *= alpha; c.imageSmoothingEnabled = false; c.drawImage(CACHE[k], x, y); c.restore();
+}
+// Card flip in canvas 2D: a w x h card turned ry radians about its vertical axis. scaleX = |cos ry| plus a small shear for perspective, the face swaps
+// where cos changes sign, and the card darkens edge-on. front(c, w, h) and back(c, w, h) paint centred on 0,0, clipped to the card.
+// Keep ONE card's x, y, s, rz and ry continuous through every cut and across the loop point, and the grounds can smash-cut behind it (a match cut that
+// closes the loop with no fade). o: w h r s (scale) rz (roll) paper shear shade shadow. Sound: whoosh on the turn, click as it lands.
+function cardFlip(c, x, y, ry, front, back, o = {}) {
+  const { w = 340 * S, h = 480 * S, r = 28 * S, s = 1, rz = 0, paper = '#F6E7CF', shear = 0.14, shade = 0.45, shadow = 'rgba(0,0,0,0.35)' } = o, co = Math.cos(ry);
+  const body = () => rrect(c, -w / 2, -h / 2, w, h, r);
+  c.save(); c.translate(x, y); c.rotate(rz); c.scale(s, s); c.transform(Math.max(Math.abs(co), 0.02), Math.sin(ry) * shear, 0, 1, 0, 0);
+  if (shadow) { c.save(); c.translate(w * 0.04, h * 0.04); body(); c.fillStyle = shadow; c.fill(); c.restore(); }
+  body(); c.fillStyle = paper; c.fill(); c.save(); c.clip(); (co > 0 ? front : back)(c, w, h); c.restore();
+  body(); c.globalAlpha *= (1 - Math.abs(co)) * shade; c.fillStyle = '#000'; c.fill(); c.restore();
+}

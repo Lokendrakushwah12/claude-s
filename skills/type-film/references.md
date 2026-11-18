@@ -16,7 +16,7 @@ Then the 2026-10-11 batch's aura edits and motion craft (24, 31 + systms.ai, 47,
 Then the 2026-10-11b batch: every kinetic-type, shape and particle film on prompt-motion.com (41), with the nine that fed this skill.
 
 **Glossaries and other skills (2026-10-18), via @Voxyz_ai.** Not films; read them for names, specs and checks.
-- [showheyohtaki/motion-prompt](https://github.com/showheyohtaki/motion-prompt) (MIT, Shohei Ohtaki): 120 named motions in five packs (motion graphics, camera and transitions, UI, landing page, photo looks), each a deterministic canvas loop with a numeric spec. Use it as a glossary when a user names a move we don't have. Its timing rule is ours too: a play-once move holds with `u = min(t, uHold)`, and a fixed slot stretches the hold, not the motion. Now in: its 3D camera (type.js `cam3d proj dollyZoom orbitCam crane dutch cards floor3d focusPull`) and photo looks (look.js `lensFlare doubleExposure tealOrange fisheye`). Missing here so far: liquid (metaball) transitions, a card flip, and high/low key.
+- [showheyohtaki/motion-prompt](https://github.com/showheyohtaki/motion-prompt) (MIT, Shohei Ohtaki): 120 named motions in five packs (motion graphics, camera and transitions, UI, landing page, photo looks), each a deterministic canvas loop with a numeric spec. Use it as a glossary when a user names a move we don't have. Its timing rule is ours too: a play-once move holds with `u = min(t, uHold)`, and a fixed slot stretches the hold, not the motion. Now in: its 3D camera (type.js `cam3d proj dollyZoom orbitCam crane dutch cards floor3d focusPull`) and photo looks (look.js `lensFlare doubleExposure tealOrange fisheye`). Missing here so far: liquid (metaball) transitions and high/low key (the card flip arrived 2026-11-19 as `cardFlip`).
 - [alchaincyf/huashu-art-motion](https://github.com/alchaincyf/huashu-art-motion) (MIT): 35 art-style recipes for canvas animation (Van Gogh's three stroke passes over regional palettes is its benchmark) and 9 explainer grammars. TAKEN: the delivery gate (`x-video-frames/filmgate.py`), the motion rules in creative.md 6b, and "the lower score wins" in the critic step. LEAVE: its gallery room (window, cat, girl with a cup).
 
 ---
@@ -649,3 +649,37 @@ https://in.pinterest.com/pin/256494141275166022/ · three 720x960 clips (1.8 s, 
 - **no.3 dissolve:** handwriting on paper cuts to a dark room, and the ink stays multiplied over the new shot, fading word by word over about 0.5 s while the paper is already gone.
 **TAKE** the shape locked across many shots on a 2-frame hold (`matchChain`), the ink-only dissolve (`inkDissolve`), whips between inserts (existing `whip`). The plugin's own look (lines on twos, boiling, scribble fills) is built from our `sketch` + `boil` + `stepT`: `scribbleWipe` (marker scribble covers A, un-draws to B; scratch in, squeak out), `doodleTrace` + `ovalPts` (boiling outline round a subject; scratch), `doodleBurst` (rays, stars, sparkle crosses; sparkle). Gallery #T153–T157.
 **LEAVE** the footage, the "no.N" caption cards, the plugin itself.
+
+## 2026-11-19 stippled collage loop, @shirotatakajo
+`x.com/shirotatakajo/status/2116817017428996241` · X GIF · 2.92 s · 1190×668 · 25 fps · no audio. Run through `deconstruct.py --fps 8 --drift`, then frame differences at 160×90.
+
+**Measured**
+- **On twos.** 73 frames, and 36 of the 72 frame pairs are identical, strictly alternating: every drawing is held two frames, 12.5 drawings a second, 36 drawings in all. Everything steps together, motion and texture. deconstruct.py reported this as 13 hard and 23 jump cuts exactly 0.08 s apart: on a film on twos its cut list is the drawing rate, not the edit.
+- **One real cut, at 0.96 s** (the largest step, 74 against 25–57 around it): beat one is a third of the loop, beat two two thirds.
+- **The collage settles, then leaves.** Change per drawing falls from about 45 just after the cut to 8–9 at 2.2–2.5 s, then climbs to 30 on the last drawing: the speed ramps back up into the loop point.
+- `--drift` found no camera shots to track (`camera.json` is empty): there is no camera, only objects.
+
+**TAKE**
+- Animate the whole frame on twos (12.5 drawings a second at 25 fps), not just the texture.
+- Two beats in under 3 s, split about 1 : 2: one hero prop tumbling over a radial speed-line burst, then a smash cut to a dense collage. The loop restarts on another hard cut; nothing fades.
+- A settle in the second beat, then a ramp back up to speed for the last third of a second so the loop cut lands at full speed.
+- One container for both beats: a ticket-stub frame (rounded, a notch in each side, dotted perforation lines) that never changes while everything inside it does.
+- The hero prop comes back small inside the collage, so the second beat reads as the same story.
+- Shade as stipple: form is drawn as dot coverage, not soft gradients, with grain over the whole frame and a flat palette of four or five colours with roles.
+- Poster type bigger than the frame, stacked in two rows and cropped by it, with the same word repeated small and tracked wide as texture.
+**LEAVE** the jack-of-pumpkins card and its eye-in-a-hexagram back, the HALLOWEEN word, the eyeballs, witch hat, pumpkin and ribbons, the orange, lilac and black colourway.
+
+**Ours (new, in no reference):** the prop is ONE object for the whole loop. Its x, y, scale, roll and turn are continuous through the mid cut and across the loop point (it zooms back up to its frame-0 state), so both grounds smash-cut behind a card that never jumps: a match cut closes the loop.
+
+**Made from it:** "Midnight" (`examples/midnight-loop.js`, project `~/Movies/type-films/midnight-loop`, demo `demos/type-film.html`, fourth video): an ace-of-moons card, MIDNIGHT type, a moon, a ringed planet and ribbons; a 2.0 s loop with its cut at 0.8 s, played three times, 25 fps on twos (`TWOS = 12.5`; 0 gives the first build's continuous motion). The first build was one standalone canvas page at a smooth 60 fps, made before the reference was measured.
+
+**Sound (ours; the reference is silent).** No music; every cue comes from the picture's constants, once per loop: `sub_boom` + `flash_hit` on the loop cut, `whoosh` peaking mid-turn, `impact` + `flash_hit` as the type lands on the mid cut, `bloop`/`pop` per solid, `sparkle`, and `sub_swell` + `suck_in` ending on the next loop cut. Loudest 50 ms after the mix: sub_boom −4 dB, sub_swell −8, impact −14.5, pops −20 to −21, suck_in −21, whoosh −22, sparkle −24, flash_hit −24 to −28; −14 LUFS. At gain 0.7 the whoosh sat at −33, 29 dB under the sub, on the film's main move; gain 2.5 put it 18 dB under.
+
+**Problems it had**
+- The first burst was shaded with a 256 px dither sprite stretched to 1200 px (4.7×) and came out as blocks. Making the shade at frame size fixed it (`learnings/stipple.jpg`).
+- The first palette (navy `#1B1740`, lilac `#8F86E8`) failed filmgate: 75 % of frames blue-purple. Navy at hue 210 (`#10263D`) and a sky blue for the lilac read 0 %.
+- `render.mjs --loopcheck` says JUMPS on this loop (worst tile 94 against a normal step of 9.7): the ground hard-cuts at the seam by design, so the check can't pass a match-cut loop. Check the carried object's state at the last frame against frame 0 instead.
+- filmgate's push-in light is yellow (30 a minute): one push per 2 s loop, the one that feeds the cut.
+- Not done: the fresh-critic rounds (SKILL.md step 5).
+
+**Lives in:** `stipple` + `STIP` (ball, fall, vignette) and `cardFlip` (type.js), with the existing `grain`, `stepT` and `boil`; gallery T158–T159.
